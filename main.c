@@ -110,10 +110,12 @@ if(sockfd!=-1){
                               sizeof(struct sockaddr)) != -1 ) {
   return sockfd;
 }
-else
+else{
 //    BIO_
 printf("Error: Cannot connect to host %s on port %d.\n",
              hostname, port);
+close(sockfd);
+}
 }else puts("socket failed");
 }else
 //    BIO_
