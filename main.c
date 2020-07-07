@@ -17,25 +17,14 @@
   gpointer dummy14;
 };*/
 
-#include <sys/socket.h>//sock..,con..
-#include <netdb.h>//gethost..
-//#include <arpa/inet.h>//inet_n..
-//#include <string.h>//memset,str
-#include <unistd.h>//close
-//#include <stdlib.h>//atoi
-//#include <stdio.h>//printf
+#include "inc/string.h"
+#include "inc/unistd.h"
+#include "inc/stdlib.h"
+#include "inc/stdio.h"
+#include "inc/in.h"//netinet/in.h
 
-//#include <<netinet/in.h>//htons macro
-struct in_addr {
-    unsigned long s_addr;  // load with inet_aton()
-};
-struct sockaddr_in {
-    short            sin_family;   // e.g. AF_INET
-    unsigned short   sin_port;     // e.g. htons(3490)
-    struct in_addr   sin_addr;     // see struct in_addr, below
-    char             sin_zero[8];  // zero this if you want to
-};
-#define htons(a) (((a)>>8) | ((a)<<8))
+#include "inc/netdb.h"
+#include "inc/socket.h"//sys/socket.h
 
 #include <openssl/ssl.h>
 
@@ -94,7 +83,7 @@ if(sockfd!=-1){
   dest_addr.sin_family=AF_INET;
   port = atoi(portnum);//stdlib
   dest_addr.sin_port=htons(port);
-  dest_addr.sin_addr.s_addr = *(long*)(host->h_addr);
+  dest_addr.sin_addr.s_addr = *(long*)(host->h_addr_list[0]);
 
   /* ---------------------------------------------------------- *
    * Zeroing the rest of the struct                             *
