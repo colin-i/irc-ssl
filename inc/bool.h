@@ -12,6 +12,6 @@
 //enum{false=0!=0,true=1==1};
 //#endif
 
-enum{FALSE=0!=0,TRUE=1==1};
+enum{FALSE=0!=0/*,TRUE=1==1*/};
 
 #endif
