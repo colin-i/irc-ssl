@@ -3,4 +3,7 @@ autom4te.cache/
 build-aux/
 configure
 Makefile.in
+config.log
+config.status
+Makefile
 sirc*

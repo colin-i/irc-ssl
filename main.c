@@ -18,10 +18,10 @@
 /* ---------------------------------------------------------- *
  * create_socket() creates the socket & TCP-connect to server *
  * ---------------------------------------------------------- */
-int create_socket(char url_str[]/*, BIO *out*/) {
+static int create_socket(char url_str[]/*, BIO *out*/) {
   int sockfd;
   char hostname[256];
-  int           port;
+  int port;
   struct hostent *host;
   struct sockaddr_in dest_addr;
 
@@ -70,7 +70,7 @@ if(sockfd!=-1){
   dest_addr.sin_family=AF_INET;
   port = atoi(portnum);//stdlib
   dest_addr.sin_port=htons(port);
-  dest_addr.sin_addr.s_addr = *(long*)(host->h_addr_list[0]);
+  dest_addr.sin_addr.s_addr = *(unsigned long*)((void*)(host->h_addr_list[0]));
 
   /* ---------------------------------------------------------- *
    * Zeroing the rest of the struct                             *
@@ -111,7 +111,7 @@ static void proced(GtkTextBuffer *buffer,char*dest_url){
   SSL_CTX *ctx;
   SSL *ssl;
   int server;
-  int ret, i;
+//  int ret, i;
 
   /* ---------------------------------------------------------- *
    * These function calls initialize openssl for correct work.  *
@@ -204,7 +204,7 @@ printf(/*outbio ,*/ "Successfully enabled SSL/TLS session to: %s.\n", dest_url);
 
 const char*i1="PASS abc\nNICK don\nUSER guest tolmoon tolsun :Ronnie Reagan\n\n";
 //int sz;//ssize_t sz;
-SSL_write(ssl,i1,strlen(i1));
+SSL_write(ssl,i1,(int)strlen(i1));
 
 #define z 512
 char buf[z];
@@ -223,7 +223,7 @@ for(;;){
 	n[1]=aux;
 	if(strncmp(b,"PING",4)==0){
 		b[1]='O';
-		sz=SSL_write(ssl,b,strlen(b));
+		sz=SSL_write(ssl,b,(int)strlen(b));
 	}
 	b=n+1;sz-=s;continue;
 	}
@@ -261,7 +261,7 @@ static gpointer worker (gpointer data)
 static void
 activate (GtkApplication* app,
           gpointer        user_data)
-{
+{(void)user_data;
   /* Declare variables */
   GtkWidget *window;
   GtkWidget *text_view;
