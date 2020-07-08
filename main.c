@@ -1,32 +1,19 @@
 
-#include <gtk/gtk.h>
-/*struct _GtkTextIter {
-  gpointer dummy1;
-  gpointer dummy2;
-  gint dummy3;
-  gint dummy4;
-  gint dummy5;
-  gint dummy6;
-  gint dummy7;
-  gint dummy8;
-  gpointer dummy9;
-  gpointer dummy10;
-  gint dummy11;
-  gint dummy12;
-  gint dummy13;
-  gpointer dummy14;
-};*/
+#include "inc/null.h"
+#include "inc/bool.h"
 
-#include "inc/string.h"
-#include "inc/unistd.h"
-#include "inc/stdlib.h"
-#include "inc/stdio.h"
+#include "inc/string.h"//#include <string.h>
+#include "inc/unistd.h"//#include <unistd.h>
+#include "inc/stdlib.h"//#include <stdlib.h>
+#include "inc/stdio.h"//#include <stdio.h>
 #include "inc/in.h"//netinet/in.h
 
-#include "inc/netdb.h"
+#include "inc/netdb.h"//#include <netdb.h>
 #include "inc/socket.h"//sys/socket.h
 
-#include <openssl/ssl.h>
+#include "inc/openssl.h"//#include <openssl/ssl.h>
+
+#include "inc/gtk.h"//#include <gtk/gtk.h>
 
 /* ---------------------------------------------------------- *
  * create_socket() creates the socket & TCP-connect to server *
@@ -222,7 +209,7 @@ SSL_write(ssl,i1,strlen(i1));
 #define z 512
 char buf[z];
 for(;;){
-ssize_t sz=SSL_read(ssl, buf, z-1);
+int sz=SSL_read(ssl, buf, z-1);
 if(sz<=0)break;
 buf[sz]='\0';char*b=buf;
 for(;;){
@@ -285,7 +272,7 @@ activate (GtkApplication* app,
 
   /* Create a window with a title, and a default size */
   window = gtk_application_window_new (app);
-  gtk_window_set_title ((GtkWindow*) window, "TextView Example");
+  gtk_window_set_title ((GtkWindow*) window, "IRC");
 //  gtk_window_set_default_size ((GTK_WINDOW) window, 220, 200);
 gtk_window_maximize((GtkWindow*)window);
 

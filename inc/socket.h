@@ -7,7 +7,7 @@ struct sockaddr {
   sa_family_t sa_family;
   char sa_data[14];
 };
-typedef int __socklen_t;//int32_t
+typedef int socklen_t;//int32_t
 
 #ifdef __cplusplus
 extern "C" {
