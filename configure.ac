@@ -27,7 +27,7 @@ AC_COMPILE_IFELSE(
    [AC_MSG_RESULT([no])]
 )
 
-])
+], [AC_MSG_ERROR("gtk module not found")])
 AS_IF([test x"$cpp" = x"false"],[
   AC_CHECK_HEADERS(stdbool.h stddef.h)])
 #
