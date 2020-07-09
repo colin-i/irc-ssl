@@ -15,6 +15,21 @@ AM_CONDITIONAL(CPP, test x"$cpp" = x"true")
 
 #
 AC_PROG_CC
+AC_CHECK_HEADERS(netdb.h netinet/in.h openssl/ssl.h stdio.h stdlib.h string.h sys/socket.h unistd.h)
+PKG_CHECK_MODULES([GTK], [gtk+-3.0],[
+
+CFLAGS="$GTK_CFLAGS"
+X_PROGRAM="#include<gtk/gtk.h>"
+AC_MSG_CHECKING([gtk/gtk.h])
+AC_COMPILE_IFELSE(
+   [AC_LANG_SOURCE([$X_PROGRAM])],
+   [AC_MSG_RESULT([yes]) AC_DEFINE(HAVE_GTK_GTK_H, 1, [3])],
+   [AC_MSG_RESULT([no])]
+)
+
+])
+AS_IF([test x"$cpp" = x"false"],[
+  AC_CHECK_HEADERS(stdbool.h stddef.h)])
 #
 
 AM_INIT_AUTOMAKE

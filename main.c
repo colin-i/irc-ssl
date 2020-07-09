@@ -2,23 +2,60 @@
 #include "inc/null.h"
 #include "inc/bool.h"
 
-#include "inc/string.h"//#include <string.h>
-#include "inc/unistd.h"//#include <unistd.h>
-#include "inc/stdlib.h"//#include <stdlib.h>
-#include "inc/stdio.h"//#include <stdio.h>
-#include "inc/in.h"//netinet/in.h
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
+#else
+#include "inc/netdb.h"
+#endif
+#ifdef HAVE_NETINET_IN_H
+#include<netinet/in.h>
+#else
+#include "inc/in.h"
+#endif
+#ifdef HAVE_OPENSSL_SSL_H
+#include <openssl/ssl.h>
+#else
+#include "inc/openssl.h"
+#endif
+#ifdef HAVE_STDIO_H
+#include <stdio.h>
+#else
+#include "inc/stdio.h"
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#else
+#include "inc/stdlib.h"
+#endif
+#ifdef HAVE_STRING_H
+#include<string.h>
+#else
+#include "inc/string.h"
+#endif
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#else
+#include "inc/socket.h"
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#else
+#include "inc/unistd.h"
+#endif
 
-#include "inc/netdb.h"//#include <netdb.h>
-#include "inc/socket.h"//sys/socket.h
-
-#include "inc/openssl.h"//#include <openssl/ssl.h>
-
-#include "inc/gtk.h"//#include <gtk/gtk.h>
+#ifdef HAVE_GTK_GTK_H
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Weverything"
+#include <gtk/gtk.h>
+#pragma GCC diagnostic pop
+#else
+#include "inc/gtk.h"
+#endif
 
 /* ---------------------------------------------------------- *
  * create_socket() creates the socket & TCP-connect to server *
  * ---------------------------------------------------------- */
-static int create_socket(char url_str[]/*, BIO *out*/) {
+static int create_socket(const char*url_str/*, BIO *out*/) {
   int sockfd;
   char hostname[256];
   int port;
@@ -39,7 +76,7 @@ static int create_socket(char url_str[]/*, BIO *out*/) {
   /* ---------------------------------------------------------- *
    * the hostname starts after the "://" part                   *
    * ---------------------------------------------------------- */
-char*hst=strstr(url_str, "://")+3;
+const char*hst=strstr(url_str, "://")+3;
 size_t hstsz=strlen(hst);
 if(hstsz<sizeof(hostname)){
   memcpy(hostname, hst, hstsz);
@@ -60,7 +97,7 @@ if(sz>sizeof(portnum)-1)return -1;
     tmp_ptr[-1] = '\0';
   }
 
-  if ( (host = gethostbyname(hostname)) != NULL ) {
+  if ( (host = gethostbyname(hostname)) != nullptr ) {
 
   /* ---------------------------------------------------------- *
    * create the basic TCP socket                                *
@@ -100,13 +137,13 @@ printf("Error: Cannot resolve hostname %s.\n",  hostname);
 return -1;
 }
 
-static void proced(GtkTextBuffer *buffer,char*dest_url){
+static void proced(GtkTextBuffer *buffer,const char*dest_url){
 	GtkTextIter it;
 
-  //BIO              *certbio = NULL;
-  //BIO               *outbio = NULL;
-  //X509                *cert = NULL;
-  //X509_NAME       *certname = NULL;
+  //BIO              *certbio = nullptr;
+  //BIO               *outbio = nullptr;
+  //X509                *cert = nullptr;
+  //X509_NAME       *certname = nullptr;
   const SSL_METHOD *method;
   SSL_CTX *ctx;
   SSL *ssl;
@@ -137,7 +174,7 @@ static void proced(GtkTextBuffer *buffer,char*dest_url){
    * Try to create a new SSL context                            *
    * ---------------------------------------------------------- */
 ctx = SSL_CTX_new(method);
-  if ( ctx != NULL){
+  if ( ctx != nullptr){
 //    BIO_
 //puts(/*outbio ,*/ "Unable to create a new SSL context structure.");
 
@@ -150,7 +187,7 @@ ctx = SSL_CTX_new(method);
    * Create new SSL connection state object                     *
    * ---------------------------------------------------------- */
   ssl = SSL_new(ctx);
-if(ssl!=NULL){
+if(ssl!=nullptr){
 //puts("Unable to create a new SSL structure."):return;
 
   /* ---------------------------------------------------------- *
@@ -180,7 +217,7 @@ printf(/*outbio ,*/ "Successfully enabled SSL/TLS session to: %s.\n", dest_url);
    * Get the remote certificate into the X509 structure         *
    * ---------------------------------------------------------- */
   //cert = SSL_get_peer_certificate(ssl);
-  //if (cert == NULL)
+  //if (cert == nullptr)
 //    BIO_
 //printf(/*outbio ,*/ "Error: Could not get a certificate from: %s.\n", dest_url);
   //else
@@ -214,7 +251,7 @@ if(sz<=0)break;
 buf[sz]='\0';char*b=buf;
 for(;;){
 	char*n=strstr(b,"\n");
-	if(n!=NULL){
+	if(n!=nullptr){
 	char aux=n[1];n[1]='\0';
 	gtk_text_buffer_get_end_iter(buffer,&it);
 	int s=n+1-b;
@@ -255,7 +292,7 @@ for(;;){
 static gpointer worker (gpointer data)
 {
  proced((GtkTextBuffer *)data,"https://127.0.0.1:6697");   
-  return NULL;
+  return nullptr;
 }
 
 static void
@@ -277,7 +314,7 @@ activate (GtkApplication* app,
 gtk_window_maximize((GtkWindow*)window);
 
   /* The text buffer represents the text being edited */
-  buffer = gtk_text_buffer_new (NULL);
+  buffer = gtk_text_buffer_new (nullptr);
   
 
   /* Text view is a widget in which can display the text buffer. 
@@ -288,12 +325,12 @@ gtk_text_view_set_editable((GtkTextView*) text_view, FALSE);
   gtk_text_view_set_wrap_mode ((GtkTextView*) text_view, GTK_WRAP_WORD); 
 
 
-  /* Create the scrolled window. Usually NULL is passed for both parameters so 
+  /* Create the scrolled window. Usually nullptr is passed for both parameters so 
    * that it creates the horizontal/vertical adjustments automatically. Setting 
    * the scrollbar policy to automatic allows the scrollbars to only show up 
    * when needed. 
    */
-  scrolled_window = gtk_scrolled_window_new (NULL, NULL);
+  scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
   gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window, 
                                   GTK_POLICY_AUTOMATIC, 
                                   GTK_POLICY_AUTOMATIC); 
@@ -334,7 +371,7 @@ main (int    argc,
    * ---------------------------------------------------------- */
 //  if(
 //SSL_library_init() always returns "1"
-if(OPENSSL_init_ssl(OPENSSL_INIT_NO_LOAD_SSL_STRINGS,NULL)==1){
+if(OPENSSL_init_ssl(OPENSSL_INIT_NO_LOAD_SSL_STRINGS,nullptr)==1){
 // < 0){
 //    BIO_
 //puts(/*outbio ,*/ "Could not initialize the OpenSSL library !");
@@ -344,8 +381,8 @@ if(OPENSSL_init_ssl(OPENSSL_INIT_NO_LOAD_SSL_STRINGS,NULL)==1){
   GtkApplication *app;
   //int status;
 
-  app = gtk_application_new (NULL, G_APPLICATION_FLAGS_NONE);
-//if(app!=NULL){
+  app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
+//if(app!=nullptr){
 //typedef void (*GCallback) (void);
 
 /*gulong      g_signal_connect_data           (gpointer instance,
@@ -355,7 +392,7 @@ if(OPENSSL_init_ssl(OPENSSL_INIT_NO_LOAD_SSL_STRINGS,NULL)==1){
                                              GClosureNotify destroy_data,
                                              GConnectFlags connect_flags);*/
 //  gulong han=
-g_signal_connect_data (app, "activate", G_CALLBACK (activate), NULL, NULL,/*(GConnectFlags)*/ 0);//obj>gsignal gobject-2.0
+g_signal_connect_data (app, "activate", G_CALLBACK (activate), nullptr, nullptr,(GConnectFlags) 0);//obj>gsignal gobject-2.0
 //  if(han>0)
 /*status*/g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
   g_object_unref (app);//#include gobject.h gobject-2.0

@@ -6,12 +6,12 @@ typedef unsigned int guint;
 typedef int gint;
 typedef gint gboolean;
 typedef void GApplication;
-typedef void (*GCallback) (void);
-#define G_CALLBACK(f) ((GCallback) (f))
+typedef void (*GCallback)(void);
+#define G_CALLBACK(f) ((GCallback)(f))
 typedef void* GClosureNotify;
 typedef enum{G_CONNECT_NONE}GConnectFlags;
 typedef void GThread;
-typedef gpointer (*GThreadFunc) (gpointer data);
+typedef gpointer (*GThreadFunc)(gpointer data);
 typedef enum{G_APPLICATION_FLAGS_NONE} GApplicationFlags;
 typedef void GtkApplication;
 typedef void GtkWidget;
