@@ -18,14 +18,17 @@ AC_PROG_CC
 AC_CHECK_HEADERS(netdb.h netinet/in.h openssl/ssl.h stdio.h stdlib.h string.h sys/socket.h unistd.h)
 PKG_CHECK_MODULES([GTK], [gtk+-3.0],[
 
+user_was_set_cflg="$CFLAGS"
 CFLAGS="$GTK_CFLAGS"
 X_PROGRAM="#include<gtk/gtk.h>"
 AC_MSG_CHECKING([gtk/gtk.h])
 AC_COMPILE_IFELSE(
    [AC_LANG_SOURCE([$X_PROGRAM])],
    [AC_MSG_RESULT([yes]) AC_DEFINE(HAVE_GTK_GTK_H, 1, [3])],
-   [AC_MSG_RESULT([no])]
+   [AC_MSG_RESULT([no])
+    AC_SUBST([GTK_CFLAGS], '')]
 )
+CFLAGS="$user_was_set_cflg"
 
 ], [AC_MSG_ERROR("gtk module not found")])
 AS_IF([test x"$cpp" = x"false"],[

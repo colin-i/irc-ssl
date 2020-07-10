@@ -52,10 +52,12 @@
 #include "inc/gtk.h"
 #endif
 
+static GtkTextBuffer *buffer;
+
 /* ---------------------------------------------------------- *
  * create_socket() creates the socket & TCP-connect to server *
  * ---------------------------------------------------------- */
-static int create_socket(const char*url_str/*, BIO *out*/) {
+static int create_socket(const char*indata/*, BIO *out*/) {
   int sockfd;
   char hostname[256];
   int port;
@@ -76,10 +78,10 @@ static int create_socket(const char*url_str/*, BIO *out*/) {
   /* ---------------------------------------------------------- *
    * the hostname starts after the "://" part                   *
    * ---------------------------------------------------------- */
-const char*hst=strstr(url_str, "://")+3;
-size_t hstsz=strlen(hst);
+//const char*hst=strstr(url_str, "://")+3;
+size_t hstsz=strlen(indata);
 if(hstsz<sizeof(hostname)){
-  memcpy(hostname, hst, hstsz);
+  memcpy(hostname, indata, hstsz);
 hostname[hstsz]='\0';
 
   /* ---------------------------------------------------------- *
@@ -88,7 +90,7 @@ hostname[hstsz]='\0';
   char    portnum[6] = "443";
   //char      proto[6] = "";
 
-  if(strchr(hostname, ':')) {
+  if(strchr(hostname, ':')!=nullptr) {
     char*tmp_ptr = strchr(hostname, ':')+1;
     /* the last : starts the port number, if avail, i.e. 8443 */
 size_t sz=strlen(tmp_ptr);
@@ -130,14 +132,15 @@ printf("Error: Cannot connect to host %s on port %d.\n",
 close(sockfd);
 }
 }else puts("socket failed");
-}else
+}
+else
 //    BIO_
 printf("Error: Cannot resolve hostname %s.\n",  hostname);
 }
 return -1;
 }
 
-static void proced(GtkTextBuffer *buffer,const char*dest_url){
+static void proced(const char*dest_url){
 	GtkTextIter it;
 
   //BIO              *certbio = nullptr;
@@ -238,8 +241,8 @@ printf(/*outbio ,*/ "Successfully enabled SSL/TLS session to: %s.\n", dest_url);
   //X509_NAME_print_ex(stdout,/*outbio ,*/ certname, 0, 0);
 //  BIO_
 //printf(/*outbio ,*/ "\n");
-
-const char*i1="PASS abc\nNICK don\nUSER guest tolmoon tolsun :Ronnie Reagan\n\n";
+//PASS abc\n
+const char*i1="NICK don\nUSER guest tolmoon tolsun :Ronnie Reagan\n\n";
 //int sz;//ssize_t sz;
 SSL_write(ssl,i1,(int)strlen(i1));
 
@@ -288,30 +291,31 @@ for(;;){
 //printf(/*outbio ,*/ "Finished SSL/TLS connection with server: %s.\n", dest_url);
 
 }
-
 static gpointer worker (gpointer data)
 {
- proced((GtkTextBuffer *)data,"https://127.0.0.1:6697");   
+//127.0.0.1:6697
+ proced(gtk_entry_get_text( (GtkEntry *)data)); 
   return nullptr;
 }
-
+static void enter_callback( GtkWidget *widget){//,gpointer data
+	GThread*th=g_thread_new("a",worker,widget);
+	g_thread_unref(th);
+}
 static void
 activate (GtkApplication* app,
-          gpointer        user_data)
-{(void)user_data;
+          int*        user_data)
+{
   /* Declare variables */
   GtkWidget *window;
   GtkWidget *text_view;
   GtkWidget *scrolled_window;
 
-  GtkTextBuffer *buffer;
-
-
   /* Create a window with a title, and a default size */
   window = gtk_application_window_new (app);
   gtk_window_set_title ((GtkWindow*) window, "IRC");
-//  gtk_window_set_default_size ((GTK_WINDOW) window, 220, 200);
-gtk_window_maximize((GtkWindow*)window);
+if(user_data[0]!=0)
+  gtk_window_set_default_size ((GtkWindow*) window, user_data[0], user_data[1]);
+//gtk_window_maximize((GtkWindow*)window);
 
   /* The text buffer represents the text being edited */
   buffer = gtk_text_buffer_new (nullptr);
@@ -342,24 +346,23 @@ gtk_text_view_set_editable((GtkTextView*) text_view, FALSE);
                                          text_view);
   gtk_container_set_border_width ((GtkContainer*)scrolled_window, 5);
  
-  
-  gtk_container_add ((GtkContainer*)window, scrolled_window);
+GtkWidget*en=gtk_entry_new();
+g_signal_connect_data (en, "activate",G_CALLBACK (enter_callback),nullptr,nullptr,(GConnectFlags) 0);
 
-/*     Create a red Button    */
-//  GtkWidget*  b = gtk_button_new_with_label("Red");
-    //gtk_widget_set_name(button1, "myButton_red");
-//    gtk_widget_set_size_request(b, 160, 130);
-//g_signal_connect (b, "clicked", G_CALLBACK (callback), (gpointer) buffer);
+GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
+gtk_box_pack_start((GtkBox*)box,en,FALSE,FALSE,0);
+gtk_box_pack_start((GtkBox*)box,scrolled_window,TRUE,TRUE,0);
 
-//GtkWidget*grid=gtk_grid_new();
-//gtk_grid_attach(GTK_GRID(grid),scrolled_window,0,0,2,2);
-//gtk_grid_attach(GTK_GRID(grid),b,0,2,2,1);
-//gtk_container_add (GTK_CONTAINER (window), grid);
+  gtk_container_add ((GtkContainer*)window, box);
 
   gtk_widget_show_all (window);
+}
 
-GThread*th=g_thread_new("a",worker,(gpointer)buffer);
-g_thread_unref(th);
+static void decr(int*argc,char**argv,int i){
+	for(int j=i+1;j<*argc;j++){
+		argv[j-1]=argv[j];
+	}
+	*argc=*argc-1;
 }
 
 int
@@ -383,18 +386,43 @@ if(OPENSSL_init_ssl(OPENSSL_INIT_NO_LOAD_SSL_STRINGS,nullptr)==1){
 
   app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
 //if(app!=nullptr){
-//typedef void (*GCallback) (void);
-
-/*gulong      g_signal_connect_data           (gpointer instance,
-                                             const gchar *detailed_signal,
-                                             GCallback c_handler,
-                                             gpointer data,
-                                             GClosureNotify destroy_data,
-                                             GConnectFlags connect_flags);*/
-//  gulong han=
-g_signal_connect_data (app, "activate", G_CALLBACK (activate), nullptr, nullptr,(GConnectFlags) 0);//obj>gsignal gobject-2.0
+g_application_add_main_option((GApplication*)app,"dimensions",'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTHxHEIGHT");
+int dim[2]={0,0};
+for(int i=0;i<argc;i++){
+	char*a=argv[i];
+	BOOL is_long=strncmp(a,"--dimensions",12)==0;
+	if(is_long||(strncmp(a,"-d",2)==0)){
+		char*b=nullptr;
+		if(is_long){
+			a=argv[i]+12;
+			if(*a=='='){a++;b=strchr(a,'x');}
+			else{
+				i++;if(i<argc){
+					a=argv[i];
+					b=strchr(a,'x');
+					if(b!=nullptr)decr(&argc,argv,i);
+				}
+			}
+		}else{
+			a=argv[i]+2;
+			i++;if(i<argc){
+				a=argv[i];
+				b=strchr(a,'x');
+				if(b!=nullptr)decr(&argc,argv,i);
+			}
+		}
+		if(b!=nullptr){
+			*b='\0';b++;
+			dim[0]=atoi(a);
+			dim[1]=atoi(b);
+			decr(&argc,argv,i);
+			break;
+		}
+	}
+}
+g_signal_connect_data (app, "activate", G_CALLBACK (activate), dim, nullptr,(GConnectFlags) 0);//obj>gsignal gobject-2.0
 //  if(han>0)
-/*status*/g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
+g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
   g_object_unref (app);//#include gobject.h gobject-2.0
 //}
   //return status;
