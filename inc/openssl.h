@@ -21,6 +21,7 @@ void SSL_free(SSL *ssl);
 SSL *SSL_new(SSL_CTX *ctx);
 int SSL_read(SSL *ssl, void *buf, int num);
 int SSL_set_fd(SSL *s, int fd);
+int SSL_shutdown(SSL *ssl);
 int SSL_write(SSL *ssl, const void *buf, int num);
 const SSL_METHOD *TLS_client_method(void);
 

@@ -14,6 +14,7 @@ AC_ARG_ENABLE(cpp,
 AM_CONDITIONAL(CPP, test x"$cpp" = x"true")
 
 #
+AC_DEFINE_UNQUOTED(HOMEDIR,[$(echo "\"$(cd ~; pwd)/\"")],[~ cannot be "q q"])
 AC_PROG_CC
 AC_CHECK_HEADERS(netdb.h netinet/in.h openssl/ssl.h stdio.h stdlib.h string.h sys/socket.h unistd.h)
 PKG_CHECK_MODULES([GTK], [gtk+-3.0],[
@@ -31,6 +32,7 @@ AC_COMPILE_IFELSE(
 CFLAGS="$user_was_set_cflg"
 
 ], [AC_MSG_ERROR("gtk module not found")])
+
 AS_IF([test x"$cpp" = x"false"],[
   AC_CHECK_HEADERS(stdbool.h stddef.h)])
 #

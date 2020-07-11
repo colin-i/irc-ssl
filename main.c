@@ -53,6 +53,7 @@
 #endif
 
 static GtkTextBuffer *buffer;
+static SSL *ssl=nullptr;static int plain_socket=-1;static GThread*con_th=nullptr;
 
 /* ---------------------------------------------------------- *
  * create_socket() creates the socket & TCP-connect to server *
@@ -87,18 +88,19 @@ hostname[hstsz]='\0';
   /* ---------------------------------------------------------- *
    * if the hostname contains a colon :, we got a port number   *
    * ---------------------------------------------------------- */
-  char    portnum[6] = "443";
+  char    portnum[6] = "6667";
   //char      proto[6] = "";
-
-  if(strchr(hostname, ':')!=nullptr) {
-    char*tmp_ptr = strchr(hostname, ':')+1;
+char*tmp_ptr;size_t sz=0;
+  if(
+((tmp_ptr=strchr(hostname, ':'))==nullptr)
+||
+((sz=strlen(tmp_ptr+1))<sizeof(portnum))
+) {
     /* the last : starts the port number, if avail, i.e. 8443 */
-size_t sz=strlen(tmp_ptr);
-if(sz>sizeof(portnum)-1)return -1;
-    memcpy(portnum, tmp_ptr, sz );portnum[sz]='\0';
-    tmp_ptr[-1] = '\0';
-  }
-
+if(sz>0){
+    memcpy(portnum, tmp_ptr+1, sz );portnum[sz]='\0';
+    *tmp_ptr = '\0';
+}
   if ( (host = gethostbyname(hostname)) != nullptr ) {
 
   /* ---------------------------------------------------------- *
@@ -136,21 +138,68 @@ close(sockfd);
 else
 //    BIO_
 printf("Error: Cannot resolve hostname %s.\n",  hostname);
-}
+}}
 return -1;
 }
 
-static void proced(const char*dest_url){
+static void irc_start(){
+//PASS abc\n
+const char*i1="NICK don\nUSER guest tolmoon tolsun :Ronnie Reagan\n\n";
+//int sz;//ssize_t sz;
+if(ssl!=nullptr)SSL_write(ssl,i1,(int)strlen(i1));
+else send(plain_socket,i1,strlen(i1),0);
+
+#define z 512
 	GtkTextIter it;
 
+char buf[z];
+for(;;){
+int sz;
+if(ssl!=nullptr)sz=SSL_read(ssl, buf, z-1);
+else sz=recv(plain_socket,buf,z-1,0);
+if(sz<=0)break;
+buf[sz]='\0';char*b=buf;
+for(;;){
+	char*n=strstr(b,"\n");
+	if(n!=nullptr){
+	char aux=n[1];n[1]='\0';
+	gtk_text_buffer_get_end_iter(buffer,&it);
+	int s=n+1-b;
+	gtk_text_buffer_insert(buffer,&it,b,s);
+	//printf("%s",b);
+	n[1]=aux;
+	if(strncmp(b,"PING",4)==0){
+		b[1]='O';
+		if(ssl!=nullptr)sz=SSL_write(ssl,b,(int)strlen(b));
+		else sz=send(plain_socket,b,strlen(b),0);
+	}
+	b=n+1;sz-=s;continue;
+	}
+	gtk_text_buffer_get_end_iter(buffer,&it);
+	gtk_text_buffer_insert(buffer,&it,b,sz);
+	//printf("%s",b);
+	break;
+}
+}
+}
+
+static void proced_plain(const char*dest_url){
+  plain_socket=create_socket(dest_url);
+if(plain_socket!=-1){
+irc_start();
+close(plain_socket);plain_socket=-1;
+}
+}
+
+static BOOL proced(const char*dest_url){
   //BIO              *certbio = nullptr;
   //BIO               *outbio = nullptr;
   //X509                *cert = nullptr;
   //X509_NAME       *certname = nullptr;
   const SSL_METHOD *method;
   SSL_CTX *ctx;
-  SSL *ssl;
   int server;
+BOOL result=FALSE;
 //  int ret, i;
 
   /* ---------------------------------------------------------- *
@@ -211,7 +260,8 @@ printf(/*outbio ,*/ "Successfully made the TCP connection to: %s.\n", dest_url);
   /* ---------------------------------------------------------- *
    * Try to SSL-connect here, returns 1 for success             *
    * ---------------------------------------------------------- */
-  if ( SSL_connect(ssl) == 1 ){
+//is waiting until timeout if not SSL// || printf("No SSL")||1
+  if ( SSL_connect(ssl) == 1){
 //    BIO_
 //    BIO_
 printf(/*outbio ,*/ "Successfully enabled SSL/TLS session to: %s.\n", dest_url);
@@ -241,65 +291,44 @@ printf(/*outbio ,*/ "Successfully enabled SSL/TLS session to: %s.\n", dest_url);
   //X509_NAME_print_ex(stdout,/*outbio ,*/ certname, 0, 0);
 //  BIO_
 //printf(/*outbio ,*/ "\n");
-//PASS abc\n
-const char*i1="NICK don\nUSER guest tolmoon tolsun :Ronnie Reagan\n\n";
-//int sz;//ssize_t sz;
-SSL_write(ssl,i1,(int)strlen(i1));
 
-#define z 512
-char buf[z];
-for(;;){
-int sz=SSL_read(ssl, buf, z-1);
-if(sz<=0)break;
-buf[sz]='\0';char*b=buf;
-for(;;){
-	char*n=strstr(b,"\n");
-	if(n!=nullptr){
-	char aux=n[1];n[1]='\0';
-	gtk_text_buffer_get_end_iter(buffer,&it);
-	int s=n+1-b;
-	gtk_text_buffer_insert(buffer,&it,b,s);
-	//printf("%s",b);
-	n[1]=aux;
-	if(strncmp(b,"PING",4)==0){
-		b[1]='O';
-		sz=SSL_write(ssl,b,(int)strlen(b));
-	}
-	b=n+1;sz-=s;continue;
-	}
-	gtk_text_buffer_get_end_iter(buffer,&it);
-	gtk_text_buffer_insert(buffer,&it,b,sz);
-	//printf("%s",b);
-	break;
-}
-}
+irc_start();
 
   /* ---------------------------------------------------------- *
    * Free the structures we don't need anymore                  *
    * -----------------------------------------------------------*/
-}else printf(/*outbio ,*/ "Error: Could not build a SSL session to: %s.\n", dest_url);
+}else{
+	printf(/*outbio ,*/ "Error: Could not build a SSL session to: %s.\n", dest_url);
+	result=TRUE;
+}
 }else puts("SSL_set_fd failed");
   close(server);
 }
   //X509_free(cert);
-  SSL_free(ssl);
+  SSL_free(ssl);ssl=nullptr;
 }
   SSL_CTX_free(ctx);
 }
 
 //  BIO_
 //printf(/*outbio ,*/ "Finished SSL/TLS connection with server: %s.\n", dest_url);
-
+return result;
 }
 static gpointer worker (gpointer data)
 {
-//127.0.0.1:6697
- proced(gtk_entry_get_text( (GtkEntry *)data)); 
+const char*t=gtk_entry_get_text ((GtkEntry*)data);
+ if(proced(t))proced_plain(t);
+con_th=nullptr;
   return nullptr;
 }
 static void enter_callback( GtkWidget *widget){//,gpointer data
-	GThread*th=g_thread_new("a",worker,widget);
-	g_thread_unref(th);
+	while(con_th!=nullptr){
+		if(ssl!=nullptr)SSL_shutdown(ssl);
+		else if(plain_socket!=-1)shutdown(plain_socket,2);
+		sleep(1);
+	}
+	con_th=g_thread_new("a",worker,widget);
+	g_thread_unref(con_th);
 }
 static void
 activate (GtkApplication* app,
@@ -326,7 +355,7 @@ if(user_data[0]!=0)
    */
   text_view = gtk_text_view_new_with_buffer (buffer);
 gtk_text_view_set_editable((GtkTextView*) text_view, FALSE);
-  gtk_text_view_set_wrap_mode ((GtkTextView*) text_view, GTK_WRAP_WORD); 
+  gtk_text_view_set_wrap_mode ((GtkTextView*)text_view, GTK_WRAP_WORD); 
 
 
   /* Create the scrolled window. Usually nullptr is passed for both parameters so 
@@ -346,8 +375,10 @@ gtk_text_view_set_editable((GtkTextView*) text_view, FALSE);
                                          text_view);
   gtk_container_set_border_width ((GtkContainer*)scrolled_window, 5);
  
-GtkWidget*en=gtk_entry_new();
-g_signal_connect_data (en, "activate",G_CALLBACK (enter_callback),nullptr,nullptr,(GConnectFlags) 0);
+GtkWidget*en=gtk_combo_box_text_new_with_entry();
+GtkWidget*entext=gtk_bin_get_child((GtkBin*)en);
+gtk_entry_set_text ((GtkEntry*)entext,":");
+g_signal_connect_data (entext, "activate",G_CALLBACK (enter_callback),nullptr,nullptr,(GConnectFlags) 0);
 
 GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 gtk_box_pack_start((GtkBox*)box,en,FALSE,FALSE,0);
