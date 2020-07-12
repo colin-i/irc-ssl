@@ -59,6 +59,8 @@
 
 static GtkTextBuffer *buffer;
 static SSL *ssl=nullptr;static int plain_socket=-1;static GThread*con_th=nullptr;
+#define ssl_con_try "Trying with SSL.\n"
+#define ssl_con_er "No SSL. Trying unencrypted.\n"
 
 /* ---------------------------------------------------------- *
  * create_socket() creates the socket & TCP-connect to server *
@@ -146,7 +148,11 @@ printf("Error: Cannot resolve hostname %s.\n",  hostname);
 }}
 return -1;
 }
-
+static void main_text(const char*b,int s){
+	GtkTextIter it;
+	gtk_text_buffer_get_end_iter(buffer,&it);
+	gtk_text_buffer_insert(buffer,&it,b,s);
+}
 static void irc_start(){
 //PASS abc\n
 const char*i1="NICK don\nUSER guest tolmoon tolsun :Ronnie Reagan\n\n";
@@ -155,8 +161,6 @@ if(ssl!=nullptr)SSL_write(ssl,i1,(int)strlen(i1));
 else send(plain_socket,i1,strlen(i1),0);
 
 #define z 512
-	GtkTextIter it;
-
 char buf[z];
 for(;;){
 int sz;
@@ -168,9 +172,8 @@ for(;;){
 	char*n=strstr(b,"\n");
 	if(n!=nullptr){
 	char aux=n[1];n[1]='\0';
-	gtk_text_buffer_get_end_iter(buffer,&it);
 	int s=n+1-b;
-	gtk_text_buffer_insert(buffer,&it,b,s);
+	main_text(b,s);
 	//printf("%s",b);
 	n[1]=aux;
 	if(strncmp(b,"PING",4)==0){
@@ -180,8 +183,7 @@ for(;;){
 	}
 	b=n+1;sz-=s;continue;
 	}
-	gtk_text_buffer_get_end_iter(buffer,&it);
-	gtk_text_buffer_insert(buffer,&it,b,sz);
+	main_text(b,sz);
 	//printf("%s",b);
 	break;
 }
@@ -265,6 +267,7 @@ printf(/*outbio ,*/ "Successfully made the TCP connection to: %s.\n", dest_url);
   /* ---------------------------------------------------------- *
    * Try to SSL-connect here, returns 1 for success             *
    * ---------------------------------------------------------- */
+	main_text(ssl_con_try,sizeof(ssl_con_try)-1);
 //is waiting until timeout if not SSL// || printf("No SSL")||1
   if ( SSL_connect(ssl) == 1){
 //    BIO_
@@ -321,7 +324,10 @@ return result;
 }
 static gpointer worker (gpointer data)
 {
- if(proced((const char*)data))proced_plain((const char*)data);
+ if(proced((const char*)data)){
+	main_text(ssl_con_er,sizeof(ssl_con_er)-1);
+proced_plain((const char*)data);
+}
 con_th=nullptr;
   return nullptr;
 }
