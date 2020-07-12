@@ -5,18 +5,23 @@ typedef char gchar;
 typedef unsigned int guint;
 typedef int gint;
 typedef gint gboolean;
+typedef unsigned int gsize;
+typedef gsize GType;
 typedef void GApplication;
 typedef void GThread;
 typedef void GtkAdjustment;
 typedef void GtkApplication;
 typedef void GtkBin;
 typedef void GtkBox;
+typedef void GtkComboBox;
+typedef void GtkComboBoxText;
 typedef void GtkContainer;
 typedef void GtkEntry;
 typedef void GtkScrolledWindow;
 typedef void GtkTextBuffer;
 typedef void GtkTextTagTable;
 typedef void GtkTextView;
+typedef void GtkTreeModel;
 typedef void GtkWidget;
 typedef void GtkWindow;
 #define G_CALLBACK(f) ((GCallback)(f))
@@ -50,6 +55,13 @@ typedef struct _GtkTextIter {
   gint dummy13;
   gpointer dummy14;
 }GtkTextIter;
+typedef struct _GtkTreeIter
+{
+  gint stamp;
+  gpointer user_data;
+  gpointer user_data2;
+  gpointer user_data3;
+}GtkTreeIter;
 
 #ifdef __cplusplus
 extern "C" {
@@ -66,17 +78,26 @@ GtkWidget * gtk_application_window_new (GtkApplication *application);
 GtkWidget *gtk_bin_get_child (GtkBin *bin);
 GtkWidget* gtk_box_new (GtkOrientation orientation,gint spacing);
 void gtk_box_pack_start (GtkBox *box,GtkWidget *child,gboolean expand,gboolean fill,guint padding);
+GtkTreeModel*gtk_combo_box_get_model (GtkComboBox *combo_box);
+void gtk_combo_box_set_active (GtkComboBox *combo_box, gint index_);
+void gtk_combo_box_text_append_text (GtkComboBoxText *combo_box, const gchar *text);
+GType gtk_combo_box_text_get_type (void) __attribute__((__const__));
 GtkWidget* gtk_combo_box_text_new_with_entry (void);
 void gtk_container_add (GtkContainer *container,GtkWidget *widget);
 void gtk_container_set_border_width (GtkContainer *container,guint border_width);
 const gchar *gtk_entry_get_text (GtkEntry *entry);
 void gtk_entry_set_text (GtkEntry *entry, const gchar *text);
+void g_free (gpointer mem);
 void gtk_text_buffer_get_end_iter (GtkTextBuffer *buffer, GtkTextIter *iter);
 void gtk_text_buffer_insert (GtkTextBuffer *buffer,GtkTextIter *iter,const gchar *text,gint len);
 GtkTextBuffer *gtk_text_buffer_new (GtkTextTagTable *table);
 GtkWidget * gtk_text_view_new_with_buffer (GtkTextBuffer *buffer);
 void gtk_text_view_set_wrap_mode (GtkTextView *text_view, GtkWrapMode wrap_mode);
 void gtk_text_view_set_editable (GtkTextView *text_view,gboolean setting);
+void gtk_tree_model_get (GtkTreeModel *tree_model, GtkTreeIter *iter, ...);
+gboolean gtk_tree_model_get_iter_first(GtkTreeModel *tree_model, GtkTreeIter *iter);
+gboolean gtk_tree_model_iter_next (GtkTreeModel *tree_model, GtkTreeIter *iter);
+GtkWidget* gtk_widget_get_ancestor (GtkWidget *widget, GType widget_type);
 void gtk_widget_show_all (GtkWidget *widget);
 void gtk_window_set_default_size (GtkWindow *window, gint width, gint height);
 void gtk_window_set_title (GtkWindow *window,const gchar *title);

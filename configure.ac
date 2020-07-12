@@ -2,7 +2,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.69])
-AC_INIT([edor], [0.1])
+AC_INIT([sirc], [0.1])
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_AUX_DIR([build-aux])
 
@@ -16,7 +16,7 @@ AM_CONDITIONAL(CPP, test x"$cpp" = x"true")
 #
 AC_DEFINE_UNQUOTED(HOMEDIR,[$(echo "\"$(cd ~; pwd)/\"")],[~ cannot be "q q"])
 AC_PROG_CC
-AC_CHECK_HEADERS(netdb.h netinet/in.h openssl/ssl.h stdio.h stdlib.h string.h sys/socket.h unistd.h)
+AC_CHECK_HEADERS(fcntl.h netdb.h netinet/in.h openssl/ssl.h stdio.h stdlib.h string.h sys/socket.h unistd.h)
 PKG_CHECK_MODULES([GTK], [gtk+-3.0],[
 
 user_was_set_cflg="$CFLAGS"

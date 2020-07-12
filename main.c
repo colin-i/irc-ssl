@@ -2,6 +2,11 @@
 #include "inc/null.h"
 #include "inc/bool.h"
 
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#else
+#include "inc/fcntl.h"
+#endif
 #ifdef HAVE_NETDB_H
 #include <netdb.h>
 #else
@@ -316,20 +321,81 @@ return result;
 }
 static gpointer worker (gpointer data)
 {
-const char*t=gtk_entry_get_text ((GtkEntry*)data);
- if(proced(t))proced_plain(t);
+ if(proced((const char*)data))proced_plain((const char*)data);
 con_th=nullptr;
   return nullptr;
 }
+
+static void save_combo_box(GtkTreeModel*list,GtkTreeIter*it){
+char out[sizeof(HOMEDIR)+sizeof(PACKAGE_NAME)+4];
+memcpy(out,HOMEDIR,sizeof(HOMEDIR)-1);
+out[sizeof(HOMEDIR)-1]='.';
+memcpy(out+sizeof(HOMEDIR),PACKAGE_NAME,sizeof(PACKAGE_NAME)-1);
+memcpy(out+sizeof(HOMEDIR)+sizeof(PACKAGE_NAME)-1,"info",4);
+out[sizeof(HOMEDIR)+sizeof(PACKAGE_NAME)+3]='\0';
+int f=open(out,O_WRONLY|O_TRUNC);
+if(f!=-1){
+//
+gboolean valid;gchar*text;
+int i=0;
+gtk_tree_model_get_iter_first (list, it);
+do{
+      gtk_tree_model_get (list, it, 0, &text, -1);
+if(i!=0)if(write(f,",",1)!=1){g_free(text);break;}
+size_t sz=strlen(text);
+if((size_t)write(f,text,sz)!=sz){g_free(text);break;}
+g_free(text);
+i++;
+      valid = gtk_tree_model_iter_next( list, it);
+}while(valid);
+close(f);}}
+
+static void set_combo_box_text(GtkComboBox * box,const char*txt) 
+{
+   GtkTreeIter iter;
+   gboolean valid;
+   int i;
+   GtkTreeModel * list_store = gtk_combo_box_get_model(box);
+
+   // Go through model's list and find the text that matches, then set it active
+//column 0 with type G_TYPE_STRING, you would write: gtk_tree_model_get (model, iter, 0,
+   i = 0; 
+   valid = gtk_tree_model_get_iter_first (list_store, &iter);
+   while (valid) {
+      gchar *item_text;
+      gtk_tree_model_get (list_store, &iter, 0, &item_text, -1);
+ //     printf("item_text: %s\n", item_text);
+      if (strcmp(item_text, txt) == 0) { 
+         gtk_combo_box_set_active(box, i);
+         //return true;
+g_free(item_text);
+         return;
+      }    
+g_free(item_text);
+      i++; 
+      valid = gtk_tree_model_iter_next( list_store, &iter);
+   }
+gtk_combo_box_text_append_text((GtkComboBoxText*)box,txt);
+save_combo_box(list_store,&iter);
+         gtk_combo_box_set_active(box, i);
+//   printf("failed to find the text in the entry list for the combo box\n");
+}
+
 static void enter_callback( GtkWidget *widget){//,gpointer data
+const char* t=gtk_entry_get_text ((GtkEntry*)widget);
+if(strlen(t)>0){
 	while(con_th!=nullptr){
 		if(ssl!=nullptr)SSL_shutdown(ssl);
 		else if(plain_socket!=-1)shutdown(plain_socket,2);
 		sleep(1);
 	}
-	con_th=g_thread_new("a",worker,widget);
+set_combo_box_text((GtkComboBox*)gtk_widget_get_ancestor(widget,gtk_combo_box_text_get_type()),t);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+	con_th=g_thread_new("a",worker,(gpointer)t);
+#pragma GCC diagnostic pop
 	g_thread_unref(con_th);
-}
+}}
 static void
 activate (GtkApplication* app,
           int*        user_data)
@@ -454,6 +520,7 @@ for(int i=0;i<argc;i++){
 g_signal_connect_data (app, "activate", G_CALLBACK (activate), dim, nullptr,(GConnectFlags) 0);//obj>gsignal gobject-2.0
 //  if(han>0)
 g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
+g_object_unref(buffer);
   g_object_unref (app);//#include gobject.h gobject-2.0
 //}
   //return status;
