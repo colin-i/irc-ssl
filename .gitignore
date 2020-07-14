@@ -6,4 +6,4 @@ Makefile.in
 config.log
 config.status
 Makefile
-sirc*
+*sirc*

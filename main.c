@@ -2,6 +2,16 @@
 #include "inc/null.h"
 #include "inc/bool.h"
 
+#ifdef HAVE_LIBGEN_H
+#include <libgen.h>
+#else
+#include "inc/libgen.h"
+#endif
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#else
+#include "inc/limits.h"
+#endif
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>
 #else
@@ -62,6 +72,7 @@ static SSL *ssl=nullptr;static int plain_socket=-1;static GThread*con_th=nullptr
 #define ssl_con_try "Trying with SSL.\n"
 #define ssl_con_er "No SSL. Trying unencrypted.\n"
 #define irc_bsz 512
+char*info_path_name=nullptr;
 
 /* ---------------------------------------------------------- *
  * create_socket() creates the socket & TCP-connect to server *
@@ -246,27 +257,23 @@ static gpointer worker (gpointer data)
 }
 
 static void save_combo_box(GtkTreeModel*list,GtkTreeIter*it){
-	char out[sizeof(HOMEDIR)+sizeof(PACKAGE_NAME)+4];
-	memcpy(out,HOMEDIR,sizeof(HOMEDIR)-1);
-	out[sizeof(HOMEDIR)-1]='.';
-	memcpy(out+sizeof(HOMEDIR),PACKAGE_NAME,sizeof(PACKAGE_NAME)-1);
-	memcpy(out+sizeof(HOMEDIR)+sizeof(PACKAGE_NAME)-1,"info",4);
-	out[sizeof(HOMEDIR)+sizeof(PACKAGE_NAME)+3]='\0';
-	int f=open(out,O_WRONLY|O_TRUNC);
-	if(f!=-1){
-		gboolean valid;gchar*text;
-		int i=0;
-		gtk_tree_model_get_iter_first (list, it);
-		do{
-			gtk_tree_model_get (list, it, 0, &text, -1);
-			if(i!=0)if(write(f,",",1)!=1){g_free(text);break;}
-			size_t sz=strlen(text);
-			if((size_t)write(f,text,sz)!=sz){g_free(text);break;}
-			g_free(text);
-			i++;
-			valid = gtk_tree_model_iter_next( list, it);
-		}while(valid);
-		close(f);
+	if(info_path_name!=nullptr){
+		int f=open(info_path_name,O_WRONLY|O_TRUNC);
+		if(f!=-1){
+			gboolean valid;gchar*text;
+			int i=0;
+			gtk_tree_model_get_iter_first (list, it);
+			do{
+				gtk_tree_model_get (list, it, 0, &text, -1);
+				if(i!=0)if(write(f,",",1)!=1){g_free(text);break;}
+				size_t sz=strlen(text);
+				if((size_t)write(f,text,sz)!=sz){g_free(text);break;}
+				g_free(text);
+				i++;
+				valid = gtk_tree_model_iter_next( list, it);
+			}while(valid);
+			close(f);
+		}
 	}
 }
 
@@ -369,11 +376,35 @@ static void decr(int*argc,char**argv,int i){
 	}
 	*argc=*argc-1;
 }
-
+static void info_path_name_set_val(char*a,char*b,size_t i,size_t j){
+	info_path_name=malloc(i+j+1);
+	if(info_path_name!=nullptr){
+		memcpy(info_path_name,a,i);
+		info_path_name[i]='.';
+		char*c=info_path_name+i+1;
+		memcpy(c,b,j);c+=j;
+		memcpy(c,"info",5);
+	}
+}
+static void info_path_name_set(){
+	char*a=argv[0];
+	char*c=realpath(a,nullptr);
+	if(c!=nullptr){
+			char*b=basename(a);
+			size_t i=sizeof(BDIR)-1;
+			size_t j=strlen(c);
+			size_t k=strlen(b);
+			if(i+k==j&&memcmp(c,BDIR,i)==0&&memcmp(c+i,b,k)==0)info_path_name_set_val(HOMEDIR,b,sizeof(HOMEDIR)-1,k);
+			else info_path_name_set_val(c,b,j-k,k);
+		}
+		free(c);
+	}
+}
 int
 main (int    argc,
       char **argv)
 {
+	info_path_name_set();
 	  /* ---------------------------------------------------------- *
 	   * initialize SSL library and register algorithms             *
 	   * ---------------------------------------------------------- */
@@ -421,4 +452,5 @@ main (int    argc,
 		g_object_unref(buffer);
 		g_object_unref (app);//#include gobject.h gobject-2.0
 	}
+	if(info_path_name!=nullptr)free(info_path_name);
 }

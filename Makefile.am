@@ -7,3 +7,18 @@ sirc_CFLAGS = -DBDIR="$(DESTDIR)$(bindir)/" @GTK_CFLAGS@ -Weverything
 if CPP
 sirc_CPPFLAGS = -x c++ -Wno-old-style-cast -Wno-c++98-compat -Wno-c++98-compat-pedantic
 endif
+
+allinfofilecommand:
+	if [ ! -e ./.@PROJ@info ]; then touch ./.@PROJ@info; fi
+
+all: makeinfofilecommand all-am
+
+setinfofilecommand:
+	if [ ! -e ~/.@PROJ@info ]; then touch ~/.@PROJ@info; fi
+
+install: install-am setinfofilecommand
+
+reminfofilecommand:
+	if [ -e ~/.@PROJ@info ]; then rm ~/.@PROJ@info; fi
+
+uninstall: uninstall-am reminfofilecommand
