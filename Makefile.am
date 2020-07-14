@@ -3,7 +3,7 @@ AUTOMAKE_OPTIONS = subdir-objects
 bin_PROGRAMS = sirc
 sirc_SOURCES = main.c
 sirc_LDFLAGS = -lssl @GTK_LIBS@
-sirc_CFLAGS = -DBDIR="$(DESTDIR)$(bindir)/" @GTK_CFLAGS@ -Weverything
+sirc_CFLAGS = -DBDIR=\"$(DESTDIR)$(bindir)/\" @GTK_CFLAGS@ -Weverything
 if CPP
 sirc_CPPFLAGS = -x c++ -Wno-old-style-cast -Wno-c++98-compat -Wno-c++98-compat-pedantic
 endif
@@ -11,7 +11,7 @@ endif
 allinfofilecommand:
 	if [ ! -e ./.@PROJ@info ]; then touch ./.@PROJ@info; fi
 
-all: makeinfofilecommand all-am
+all: all-am allinfofilecommand
 
 setinfofilecommand:
 	if [ ! -e ~/.@PROJ@info ]; then touch ~/.@PROJ@info; fi

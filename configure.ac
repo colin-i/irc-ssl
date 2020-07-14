@@ -34,7 +34,7 @@ AC_COMPILE_IFELSE(
 )
 CFLAGS="$user_was_set_cflg"
 
-], [AC_MSG_ERROR("PKG_CHECK_MODULES failed for gtk")])
+], [AC_MSG_ERROR("pkg check modules failed for gtk")])
 
 AS_IF([test x"$cpp" = x"false"],[
   AC_CHECK_HEADERS(stdbool.h stddef.h)])

@@ -72,7 +72,14 @@ static SSL *ssl=nullptr;static int plain_socket=-1;static GThread*con_th=nullptr
 #define ssl_con_try "Trying with SSL.\n"
 #define ssl_con_er "No SSL. Trying unencrypted.\n"
 #define irc_bsz 512
-char*info_path_name=nullptr;
+static char*info_path_name=nullptr;
+
+static void main_text(const char*b,int s){
+	GtkTextIter it;
+	gtk_text_buffer_get_end_iter(buffer,&it);
+	gtk_text_buffer_insert(buffer,&it,b,s);
+}
+#define main_text_s(b) main_text(b,sizeof(b)-1)
 
 /* ---------------------------------------------------------- *
  * create_socket() creates the socket & TCP-connect to server *
@@ -124,21 +131,16 @@ static int create_socket(const char*indata) {
 						return sockfd;
 					}
 					else{
-						printf("Error: Cannot connect to host %s on port %d.\n",hostname, port);
+						main_text_s("Error: Cannot connect to host.\n");
 						close(sockfd);
 					}
-				}else puts("socket failed");
+				}else main_text_s("Error: Cannot open the socket.\n");
 			}
 			else
-			printf("Error: Cannot resolve hostname %s.\n",  hostname);
+				main_text_s("Error: Cannot resolve hostname.\n");
 		}
 	}
 	return -1;
-}
-static void main_text(const char*b,int s){
-	GtkTextIter it;
-	gtk_text_buffer_get_end_iter(buffer,&it);
-	gtk_text_buffer_insert(buffer,&it,b,s);
 }
 static void irc_start(){
 	//PASS abc\n
@@ -208,7 +210,6 @@ static BOOL proced(const char*dest_url){
 			   * ---------------------------------------------------------- */
 			server = create_socket(dest_url);
 			if(server != -1){
-				printf( "Successfully made the TCP connection to: %s.\n", dest_url);
 				  /* ---------------------------------------------------------- *
 				   * Attach the SSL session to the socket descriptor            *
 				   * ---------------------------------------------------------- */
@@ -216,10 +217,10 @@ static BOOL proced(const char*dest_url){
 					  /* ---------------------------------------------------------- *
 					   * Try to SSL-connect here, returns 1 for success             *
 					   * ---------------------------------------------------------- */
-					main_text(ssl_con_try,sizeof(ssl_con_try)-1);
+					main_text_s(ssl_con_try);
 					//is waiting until timeout if not SSL// || printf("No SSL")||1
 					if ( SSL_connect(ssl) == 1){
-						printf(/*outbio ,*/ "Successfully enabled SSL/TLS session to: %s.\n", dest_url);
+						main_text_s("Successfully enabled SSL/TLS session.\n");
 						//cert = SSL_get_peer_certificate(ssl);
 						//certname = X509_NAME_new();
 						//certname = X509_get_subject_name(cert);
@@ -232,10 +233,10 @@ static BOOL proced(const char*dest_url){
 		* Free the structures we don't need anymore, and close       *
 		* -----------------------------------------------------------*/
 					}else{
-						printf("Error: Could not build a SSL session to: %s.\n", dest_url);
+						main_text_s("Error: Could not build a SSL session.\n");
 						result=TRUE;
 					}
-				}else puts("SSL_set_fd failed");
+				}else main_text_s("Error: SSL_set_fd failed.\n");
 				close(server);
 			}
 			//X509_free(cert);
@@ -376,27 +377,25 @@ static void decr(int*argc,char**argv,int i){
 	}
 	*argc=*argc-1;
 }
-static void info_path_name_set_val(char*a,char*b,size_t i,size_t j){
-	info_path_name=malloc(i+j+1);
+static void info_path_name_set_val(const char*a,char*b,size_t i,size_t j){
+	info_path_name=(char*)malloc(i+j+6);
 	if(info_path_name!=nullptr){
 		memcpy(info_path_name,a,i);
 		info_path_name[i]='.';
 		char*c=info_path_name+i+1;
-		memcpy(c,b,j);c+=j;
-		memcpy(c,"info",5);
+		memcpy(c,b,j);
+		memcpy(c+j,"info",5);
 	}
 }
-static void info_path_name_set(){
-	char*a=argv[0];
+static void info_path_name_set(char*a){
 	char*c=realpath(a,nullptr);
 	if(c!=nullptr){
-			char*b=basename(a);
-			size_t i=sizeof(BDIR)-1;
-			size_t j=strlen(c);
-			size_t k=strlen(b);
-			if(i+k==j&&memcmp(c,BDIR,i)==0&&memcmp(c+i,b,k)==0)info_path_name_set_val(HOMEDIR,b,sizeof(HOMEDIR)-1,k);
-			else info_path_name_set_val(c,b,j-k,k);
-		}
+		char*b=basename(a);
+		size_t i=sizeof(BDIR)-1;
+		size_t j=strlen(c);
+		size_t k=strlen(b);
+		if(i+k==j&&memcmp(c,BDIR,i)==0&&memcmp(c+i,b,k)==0)info_path_name_set_val(HOMEDIR,b,sizeof(HOMEDIR)-1,k);
+		else info_path_name_set_val(c,b,j-k,k);
 		free(c);
 	}
 }
@@ -404,7 +403,7 @@ int
 main (int    argc,
       char **argv)
 {
-	info_path_name_set();
+	info_path_name_set(argv[0]);
 	  /* ---------------------------------------------------------- *
 	   * initialize SSL library and register algorithms             *
 	   * ---------------------------------------------------------- */
@@ -451,6 +450,6 @@ main (int    argc,
 		g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
 		g_object_unref(buffer);
 		g_object_unref (app);//#include gobject.h gobject-2.0
-	}
+	}else puts("openssl error");
 	if(info_path_name!=nullptr)free(info_path_name);
 }
