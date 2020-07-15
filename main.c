@@ -67,79 +67,88 @@
 #include "inc/gtk.h"
 #endif
 
-static GtkTextBuffer *buffer;
+static GtkTextView *text_view;static GtkTextMark *text_mark_end;
 static SSL *ssl=nullptr;static int plain_socket=-1;static GThread*con_th=nullptr;
 #define ssl_con_try "Trying with SSL.\n"
-#define ssl_con_er "No SSL. Trying unencrypted.\n"
+#define ssl_con_no "Trying unencrypted.\n"
 #define irc_bsz 512
+#define hostname_sz 256
 static char*info_path_name=nullptr;
 
 static void main_text(const char*b,int s){
-	GtkTextIter it;
-	gtk_text_buffer_get_end_iter(buffer,&it);
-	gtk_text_buffer_insert(buffer,&it,b,s);
+	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer ((GtkTextView*)text_view);
+	GtkTextIter it;gtk_text_buffer_get_end_iter(text_buffer,&it);
+	gtk_text_buffer_insert(text_buffer,&it,b,s);
+	/* now scroll to the end using marker */
+	gtk_text_view_scroll_to_mark ((GtkTextView*)text_view,
+	                              text_mark_end,
+	                              0., FALSE, 0., 0.);
 }
 #define main_text_s(b) main_text(b,sizeof(b)-1)
 
+struct init_pass_struct{int dim[2];char*path;};
+
+static BOOL parse_host_ports(const char*indata,char*hostname,int*p1,int*pn) {
+	size_t sz=strlen(indata);
+	char*ptr=strchr(indata,':');
+	if(ptr!=nullptr)sz=(size_t)(ptr-indata);
+	if(sz<hostname_sz){
+		memcpy(hostname, indata, sz);
+		hostname[sz]='\0';
+		if(ptr==nullptr){
+			*p1=6667;return TRUE;
+		}
+		ptr++;
+		char*mid=strchr(ptr,'-');
+		if(mid==nullptr){
+			*p1=atoi(ptr);
+			return *p1<0x10000;
+		}
+		char portnum[6];
+		size_t p1sz=(size_t)(mid-ptr);
+		if(p1sz>=6)return FALSE;
+		memcpy(portnum,ptr,p1sz);portnum[p1sz]='\0';
+		*p1=atoi(portnum);
+		*pn=atoi(mid+1);
+		if(*pn>0xffFF)return FALSE;
+		if(*pn<*p1){int aux=*p1;*p1=*pn;*pn=aux;}
+		return TRUE;
+	}
+	return FALSE;
+}
 /* ---------------------------------------------------------- *
  * create_socket() creates the socket & TCP-connect to server *
  * ---------------------------------------------------------- */
-static int create_socket(const char*indata) {
+static int create_socket(char*hostname,int port) {
 	int sockfd;
-	char hostname[256];
-	int port;
 	struct hostent *host;
 	struct sockaddr_in dest_addr;
-	  /* ---------------------------------------------------------- *
-	   * the hostname from the text                                 *
-	   * ---------------------------------------------------------- */
-	size_t hstsz=strlen(indata);
-	if(hstsz<sizeof(hostname)){
-		memcpy(hostname, indata, hstsz);
-		hostname[hstsz]='\0';
+	if ( (host = gethostbyname(hostname)) != nullptr ) {
 		  /* ---------------------------------------------------------- *
-		   * if the hostname contains a colon :, we got a port number   *
+		   * create the basic TCP socket                                *
 		   * ---------------------------------------------------------- */
-		char    portnum[6] = "6667";
-		char*tmp_ptr;size_t sz=0;
-		if(
-		((tmp_ptr=strchr(hostname, ':'))==nullptr)
-		||
-		((sz=strlen(tmp_ptr+1))<sizeof(portnum))
-		) {
-			if(sz>0){
-				memcpy(portnum, tmp_ptr+1, sz );portnum[sz]='\0';
-				*tmp_ptr = '\0';
+		sockfd = socket(AF_INET, SOCK_STREAM, 0);
+		if(sockfd!=-1){
+			dest_addr.sin_family=AF_INET;
+			dest_addr.sin_port=htons(port);
+			dest_addr.sin_addr.s_addr = *(unsigned long*)((void*)(host->h_addr_list[0]));
+			//  memset(&(dest_addr.sin_zero), '\0', 8);//string
+			//"setting it to zero doesn't seem to be actually necessary"
+			  /* ---------------------------------------------------------- *
+			   * Try to make the host connect here                          *
+			   * ---------------------------------------------------------- */
+			if ( connect(sockfd, (struct sockaddr *) &dest_addr,
+				sizeof(struct sockaddr)) != -1 ) {
+				return sockfd;
 			}
-			if ( (host = gethostbyname(hostname)) != nullptr ) {
-				  /* ---------------------------------------------------------- *
-				   * create the basic TCP socket                                *
-				   * ---------------------------------------------------------- */
-				sockfd = socket(AF_INET, SOCK_STREAM, 0);
-				if(sockfd!=-1){
-					dest_addr.sin_family=AF_INET;
-					port = atoi(portnum);//stdlib
-					dest_addr.sin_port=htons(port);
-					dest_addr.sin_addr.s_addr = *(unsigned long*)((void*)(host->h_addr_list[0]));
-					//  memset(&(dest_addr.sin_zero), '\0', 8);//string
-					//"setting it to zero doesn't seem to be actually necessary"
-					  /* ---------------------------------------------------------- *
-					   * Try to make the host connect here                          *
-					   * ---------------------------------------------------------- */
-					if ( connect(sockfd, (struct sockaddr *) &dest_addr,
-						sizeof(struct sockaddr)) != -1 ) {
-						return sockfd;
-					}
-					else{
-						main_text_s("Error: Cannot connect to host.\n");
-						close(sockfd);
-					}
-				}else main_text_s("Error: Cannot open the socket.\n");
+			else{
+				main_text_s("Error: Cannot connect to host.\n");
+				close(sockfd);
 			}
-			else
-				main_text_s("Error: Cannot resolve hostname.\n");
-		}
+		}else main_text_s("Error: Cannot open the socket.\n");
 	}
+	else
+		main_text_s("Error: Cannot resolve hostname.\n");
 	return -1;
 }
 static void irc_start(){
@@ -173,20 +182,10 @@ static void irc_start(){
 		}
 	}
 }
-	
-static void proced_plain(const char*dest_url){
-	plain_socket=create_socket(dest_url);
-	if(plain_socket!=-1){
-		irc_start();
-		close(plain_socket);plain_socket=-1;
-	}
-}
-
-static BOOL proced(const char*dest_url){
+static void proced(const char*dest_url){
 	const SSL_METHOD *method;
 	SSL_CTX *ctx;
 	int server;
-	BOOL result=FALSE;
 	  /* ---------------------------------------------------------- *
 	   * Set SSLv2 client hello, also announce SSLv3 and TLSv1      *
 	   * ---------------------------------------------------------- */
@@ -203,56 +202,66 @@ static BOOL proced(const char*dest_url){
 		  /* ---------------------------------------------------------- *
 		   * Create new SSL connection state object                     *
 		   * ---------------------------------------------------------- */
-		ssl = SSL_new(ctx);
-		if(ssl!=nullptr){
-			  /* ---------------------------------------------------------- *
-			   * Make the underlying TCP socket connection                  *
-			   * ---------------------------------------------------------- */
-			server = create_socket(dest_url);
-			if(server != -1){
-				  /* ---------------------------------------------------------- *
-				   * Attach the SSL session to the socket descriptor            *
-				   * ---------------------------------------------------------- */
-				if(SSL_set_fd(ssl, server)==1){
+		SSL*withssl = SSL_new(ctx);
+		if(withssl!=nullptr){
+			char hostname[hostname_sz];
+			int p;int pn;
+			if(parse_host_ports(dest_url,hostname,&p,&pn)) {
+				do{
+					ssl=withssl;				
 					  /* ---------------------------------------------------------- *
-					   * Try to SSL-connect here, returns 1 for success             *
+					   * Make the underlying TCP socket connection                  *
 					   * ---------------------------------------------------------- */
-					main_text_s(ssl_con_try);
-					//is waiting until timeout if not SSL// || printf("No SSL")||1
-					if ( SSL_connect(ssl) == 1){
-						main_text_s("Successfully enabled SSL/TLS session.\n");
-						//cert = SSL_get_peer_certificate(ssl);
-						//certname = X509_NAME_new();
-						//certname = X509_get_subject_name(cert);
-						//X509_NAME_print_ex(stdout,/*outbio ,*/ certname, 0, 0);
+					server = create_socket(hostname,p);
+					if(server != -1){
 						  /* ---------------------------------------------------------- *
-						   * Start                                                      *
+						   * Attach the SSL session to the socket descriptor            *
 						   * ---------------------------------------------------------- */
-						irc_start();
-		/* ---------------------------------------------------------- *
-		* Free the structures we don't need anymore, and close       *
-		* -----------------------------------------------------------*/
-					}else{
-						main_text_s("Error: Could not build a SSL session.\n");
-						result=TRUE;
+						if(SSL_set_fd(withssl, server)==1){
+							  /* ---------------------------------------------------------- *
+							   * Try to SSL-connect here, returns 1 for success             *
+							   * ---------------------------------------------------------- */
+							main_text_s(ssl_con_try);
+							//is waiting until timeout if not SSL// || printf("No SSL")||1
+							if ( SSL_connect(withssl) == 1){
+								main_text_s("Successfully enabled SSL/TLS session.\n");
+								//cert = SSL_get_peer_certificate(ssl);
+								//certname = X509_NAME_new();
+								//certname = X509_get_subject_name(cert);
+								//X509_NAME_print_ex(stdout,/*outbio ,*/ certname, 0, 0);
+								  /* ---------------------------------------------------------- *
+								   * Start                                                      *
+								   * ---------------------------------------------------------- */
+								irc_start();
+							}else{
+								ssl=nullptr;
+								//main_text_s("Error: Could not build a SSL session.\n");
+								main_text_s(ssl_con_no);
+								plain_socket=create_socket(hostname,p);
+								if(plain_socket!=-1){
+									irc_start();
+									close(plain_socket);plain_socket=-1;
+								}
+							}
+						}else main_text_s("Error: SSL_set_fd failed.\n");
+						close(server);
 					}
-				}else main_text_s("Error: SSL_set_fd failed.\n");
-				close(server);
-			}
+					p++;
+				}while(p<=pn);
+			}else main_text_s("Error: Input must be host[:port1[-portn]] ,e.g. localhost:6660-6669 or 127.0.0.1 .\n");
+  			/* ---------------------------------------------------------- *
+  			* Free the structures we don't need anymore, and close       *
+  			* -----------------------------------------------------------*/
 			//X509_free(cert);
-			SSL_free(ssl);ssl=nullptr;
+			SSL_free(withssl);ssl=nullptr;
 		}
 		SSL_CTX_free(ctx);
 	}
-	return result;
 }
 	
 static gpointer worker (gpointer data)
 {
-	if(proced((const char*)data)){
-		main_text(ssl_con_er,sizeof(ssl_con_er)-1);
-		proced_plain((const char*)data);
-	}
+	proced((const char*)data);
 	con_th=nullptr;
 	return nullptr;
 }
@@ -266,7 +275,7 @@ static void save_combo_box(GtkTreeModel*list,GtkTreeIter*it){
 			gtk_tree_model_get_iter_first (list, it);
 			do{
 				gtk_tree_model_get (list, it, 0, &text, -1);
-				if(i!=0)if(write(f,",",1)!=1){g_free(text);break;}
+				if(i!=0)if(write(f,"\n",1)!=1){g_free(text);break;}
 				size_t sz=strlen(text);
 				if((size_t)write(f,text,sz)!=sz){g_free(text);break;}
 				g_free(text);
@@ -321,26 +330,86 @@ static void enter_callback( GtkWidget *widget){//,gpointer data
 		g_thread_unref(con_th);
 	}
 }
+static BOOL info_path_name_set_val(const char*a,char*b,size_t i,size_t j){
+	info_path_name=(char*)malloc(i+j+6);
+	if(info_path_name!=nullptr){
+		memcpy(info_path_name,a,i);
+		info_path_name[i]='.';
+		char*c=info_path_name+i+1;
+		memcpy(c,b,j);
+		memcpy(c+j,"info",5);
+		return TRUE;
+	}
+	return FALSE;
+}
+static BOOL info_path_name_set(char*a){
+	char*c=realpath(a,nullptr);
+	if(c!=nullptr){
+		char*b=basename(a);
+		size_t i=sizeof(BDIR)-1;
+		size_t j=strlen(c);
+		size_t k=strlen(b);
+		BOOL answer;
+		if(i+k==j&&memcmp(c,BDIR,i)==0&&memcmp(c+i,b,k)==0)answer=info_path_name_set_val(HOMEDIR,b,sizeof(HOMEDIR)-1,k);
+		else answer=info_path_name_set_val(c,b,j-k,k);
+		free(c);
+		return answer;
+	}
+	return FALSE;
+}
+static BOOL info_path_name_restore(GtkComboBoxText*cbt,char*nm){
+	if(info_path_name_set(nm)){
+		int f=open(info_path_name,O_RDONLY);
+		if(f!=-1){
+			size_t sz=(size_t)lseek(f,0,SEEK_END);
+			if(sz>0){
+				char*r=(char*)malloc(sz+1);
+				if(r!=nullptr){
+					lseek(f,0,SEEK_SET);
+					read(f,r,sz);
+					char*a=r;
+					for(size_t i=0;i<sz;i++){
+						if(r[i]=='\n'){
+							r[i]='\0';
+							gtk_combo_box_text_append_text(cbt,a);
+							a=&r[i]+1;
+						}
+					}
+					r[sz]='\0';
+					gtk_combo_box_text_append_text(cbt,a);
+					free(r);
+					gtk_combo_box_set_active((GtkComboBox*)cbt,0);
+					return FALSE;
+				}
+			}
+		}
+	}
+	return TRUE;
+}
 static void
 activate (GtkApplication* app,
-          int*        user_data)
+          struct init_pass_struct*ps)
 {
 	/* Declare variables */
 	GtkWidget *window;
-	GtkWidget *text_view;
 	GtkWidget *scrolled_window;
 	  /* Create a window with a title, and a default size */
 	window = gtk_application_window_new (app);
 	gtk_window_set_title ((GtkWindow*) window, "IRC");
-	if(user_data[0]!=0)
-	 gtk_window_set_default_size ((GtkWindow*) window, user_data[0], user_data[1]);
-	//gtk_window_maximize((GtkWindow*)window);
-	  /* The text buffer represents the text being edited */
-	buffer = gtk_text_buffer_new (nullptr);
+	if(ps->dim[0]!=0)
+	 gtk_window_set_default_size ((GtkWindow*) window, ps->dim[0], ps->dim[1]);
 	  /* Text view is a widget in which can display the text buffer. 
 	   * The line wrapping is set to break lines in between words.
 	   */
-	text_view = gtk_text_view_new_with_buffer (buffer);
+	text_view = gtk_text_view_new ();
+	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer ((GtkTextView*)text_view);
+	  /* The text buffer represents the text being edited */
+	GtkTextIter text_iter_end;
+	gtk_text_buffer_get_end_iter (text_buffer, &text_iter_end);
+	text_mark_end = gtk_text_buffer_create_mark (text_buffer,
+	                                             nullptr,
+	                                             &text_iter_end,
+	                                             FALSE);
 	gtk_text_view_set_editable((GtkTextView*) text_view, FALSE);
 	gtk_text_view_set_wrap_mode ((GtkTextView*)text_view, GTK_WRAP_WORD);
 	  /* Create the scrolled window. Usually nullptr is passed for both parameters so 
@@ -359,9 +428,10 @@ activate (GtkApplication* app,
 	gtk_container_add ((GtkContainer*) scrolled_window, 
 	                                         text_view);
 	gtk_container_set_border_width ((GtkContainer*)scrolled_window, 5);
+	//
 	GtkWidget*en=gtk_combo_box_text_new_with_entry();
 	GtkWidget*entext=gtk_bin_get_child((GtkBin*)en);
-	gtk_entry_set_text ((GtkEntry*)entext,":");
+	if(info_path_name_restore((GtkComboBoxText*)en,ps->path))gtk_entry_set_text ((GtkEntry*)entext,":");
 	g_signal_connect_data (entext, "activate",G_CALLBACK (enter_callback),nullptr,nullptr,(GConnectFlags) 0);
 	//
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
@@ -377,33 +447,10 @@ static void decr(int*argc,char**argv,int i){
 	}
 	*argc=*argc-1;
 }
-static void info_path_name_set_val(const char*a,char*b,size_t i,size_t j){
-	info_path_name=(char*)malloc(i+j+6);
-	if(info_path_name!=nullptr){
-		memcpy(info_path_name,a,i);
-		info_path_name[i]='.';
-		char*c=info_path_name+i+1;
-		memcpy(c,b,j);
-		memcpy(c+j,"info",5);
-	}
-}
-static void info_path_name_set(char*a){
-	char*c=realpath(a,nullptr);
-	if(c!=nullptr){
-		char*b=basename(a);
-		size_t i=sizeof(BDIR)-1;
-		size_t j=strlen(c);
-		size_t k=strlen(b);
-		if(i+k==j&&memcmp(c,BDIR,i)==0&&memcmp(c+i,b,k)==0)info_path_name_set_val(HOMEDIR,b,sizeof(HOMEDIR)-1,k);
-		else info_path_name_set_val(c,b,j-k,k);
-		free(c);
-	}
-}
 int
 main (int    argc,
       char **argv)
 {
-	info_path_name_set(argv[0]);
 	  /* ---------------------------------------------------------- *
 	   * initialize SSL library and register algorithms             *
 	   * ---------------------------------------------------------- */
@@ -412,7 +459,8 @@ main (int    argc,
 		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
 		//if(app!=nullptr){
 		g_application_add_main_option((GApplication*)app,"dimensions",'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTHxHEIGHT");
-		int dim[2]={0,0};
+		struct init_pass_struct ps;
+		ps.dim[0]=0;ps.dim[1]=0;
 		for(int i=0;i<argc;i++){
 			char*a=argv[i];
 			BOOL is_long=strncmp(a,"--dimensions",12)==0;
@@ -438,17 +486,17 @@ main (int    argc,
 				}
 				if(b!=nullptr){
 					*b='\0';b++;
-					dim[0]=atoi(a);
-					dim[1]=atoi(b);
+					ps.dim[0]=atoi(a);
+					ps.dim[1]=atoi(b);
 					decr(&argc,argv,i);
 					break;
 				}
 			}
 		}
-		g_signal_connect_data (app, "activate", G_CALLBACK (activate), dim, nullptr,(GConnectFlags) 0);//obj>gsignal gobject-2.0
+		ps.path=argv[0];
+		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);//obj>gsignal gobject-2.0
 		//  if(han>0)
 		g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
-		g_object_unref(buffer);
 		g_object_unref (app);//#include gobject.h gobject-2.0
 	}else puts("openssl error");
 	if(info_path_name!=nullptr)free(info_path_name);

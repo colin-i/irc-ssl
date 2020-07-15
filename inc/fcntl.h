@@ -1,5 +1,6 @@
 
 //asm-generic/fcntl.h
+#define O_RDONLY 00000000
 #define O_WRONLY 00000001
 #define O_TRUNC 00001000
 
