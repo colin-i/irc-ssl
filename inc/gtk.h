@@ -28,7 +28,8 @@ typedef void GtkWidget;
 typedef void GtkWindow;
 #define G_CALLBACK(f) ((GCallback)(f))
 typedef void (*GCallback)(void);
-typedef void *GClosureNotify;// (gpointer data);
+typedef void *GClosureNotify;
+typedef gboolean(*GSourceFunc)(gpointer user_data);
 typedef gpointer (*GThreadFunc)(gpointer data);
 typedef enum{G_CONNECT_NONE}GConnectFlags;
 typedef enum{G_APPLICATION_FLAGS_NONE} GApplicationFlags;
@@ -71,6 +72,8 @@ extern "C" {
 
 void g_application_add_main_option (GApplication *application, const char *long_name, char short_name, GOptionFlags flags, GOptionArg arg, const char *description, const char *arg_description);
 int g_application_run (GApplication *application,int argc,char **argv);
+void g_free (gpointer mem);
+guint g_idle_add (GSourceFunc function,gpointer data);
 void g_object_unref (gpointer object);
 gulong g_signal_connect_data (gpointer instance,const gchar *detailed_signal,GCallback c_handler,gpointer data,GClosureNotify destroy_data,GConnectFlags connect_flags);
 GThread * g_thread_new (const gchar *name, GThreadFunc func, gpointer data);
@@ -89,7 +92,6 @@ void gtk_container_add (GtkContainer *container,GtkWidget *widget);
 void gtk_container_set_border_width (GtkContainer *container,guint border_width);
 const gchar *gtk_entry_get_text (GtkEntry *entry);
 void gtk_entry_set_text (GtkEntry *entry, const gchar *text);
-void g_free (gpointer mem);
 GtkTextMark *gtk_text_buffer_create_mark (GtkTextBuffer *buffer,const gchar *mark_name,const GtkTextIter *where,gboolean left_gravity);
 void gtk_text_buffer_get_end_iter (GtkTextBuffer *buffer, GtkTextIter *iter);
 void gtk_text_buffer_insert (GtkTextBuffer *buffer,GtkTextIter *iter,const gchar *text,gint len);

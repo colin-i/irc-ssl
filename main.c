@@ -75,14 +75,23 @@ static SSL *ssl=nullptr;static int plain_socket=-1;static GThread*con_th=nullptr
 #define hostname_sz 256
 static char*info_path_name=nullptr;
 
-static void main_text(const char*b,int s){
-	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer ((GtkTextView*)text_view);
+static gboolean textviewthreadsfunc(gpointer b){
+	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
 	GtkTextIter it;gtk_text_buffer_get_end_iter(text_buffer,&it);
-	gtk_text_buffer_insert(text_buffer,&it,b,s);
+	gtk_text_buffer_insert(text_buffer,&it,(const char*)b,-1);
 	/* now scroll to the end using marker */
-	gtk_text_view_scroll_to_mark ((GtkTextView*)text_view,
+	gtk_text_view_scroll_to_mark (text_view,
 	                              text_mark_end,
 	                              0., FALSE, 0., 0.);
+	free(b);
+	return FALSE;
+}
+static void main_text(const char*b,int s){
+	char*a=(char*)malloc((size_t)s+1);
+	if(a!=nullptr){
+		memcpy(a,b,(size_t)s);a[s]='\0';
+		g_idle_add(textviewthreadsfunc,a);
+	}
 }
 #define main_text_s(b) main_text(b,sizeof(b)-1)
 
@@ -90,7 +99,7 @@ struct init_pass_struct{int dim[2];char*path;};
 
 static BOOL parse_host_ports(const char*indata,char*hostname,int*p1,int*pn) {
 	size_t sz=strlen(indata);
-	char*ptr=strchr(indata,':');
+	const char*ptr=strchr(indata,':');
 	if(ptr!=nullptr)sz=(size_t)(ptr-indata);
 	if(sz<hostname_sz){
 		memcpy(hostname, indata, sz);
@@ -99,7 +108,7 @@ static BOOL parse_host_ports(const char*indata,char*hostname,int*p1,int*pn) {
 			*p1=6667;return TRUE;
 		}
 		ptr++;
-		char*mid=strchr(ptr,'-');
+		const char*mid=strchr(ptr,'-');
 		if(mid==nullptr){
 			*p1=atoi(ptr);
 			return *p1<0x10000;
@@ -401,8 +410,8 @@ activate (GtkApplication* app,
 	  /* Text view is a widget in which can display the text buffer. 
 	   * The line wrapping is set to break lines in between words.
 	   */
-	text_view = gtk_text_view_new ();
-	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer ((GtkTextView*)text_view);
+	text_view =(GtkTextView*) gtk_text_view_new ();
+	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
 	  /* The text buffer represents the text being edited */
 	GtkTextIter text_iter_end;
 	gtk_text_buffer_get_end_iter (text_buffer, &text_iter_end);
@@ -410,8 +419,8 @@ activate (GtkApplication* app,
 	                                             nullptr,
 	                                             &text_iter_end,
 	                                             FALSE);
-	gtk_text_view_set_editable((GtkTextView*) text_view, FALSE);
-	gtk_text_view_set_wrap_mode ((GtkTextView*)text_view, GTK_WRAP_WORD);
+	gtk_text_view_set_editable(text_view, FALSE);
+	gtk_text_view_set_wrap_mode (text_view, GTK_WRAP_WORD);
 	  /* Create the scrolled window. Usually nullptr is passed for both parameters so 
 	   * that it creates the horizontal/vertical adjustments automatically. Setting 
 	   * the scrollbar policy to automatic allows the scrollbars to only show up 
@@ -426,7 +435,7 @@ activate (GtkApplication* app,
 	   * gtk_scrolled_window_add_with_viewport() would have been used
 	   */
 	gtk_container_add ((GtkContainer*) scrolled_window, 
-	                                         text_view);
+	                                       (GtkWidget*) text_view);
 	gtk_container_set_border_width ((GtkContainer*)scrolled_window, 5);
 	//
 	GtkWidget*en=gtk_combo_box_text_new_with_entry();
