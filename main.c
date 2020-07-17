@@ -75,11 +75,11 @@ static SSL *ssl=nullptr;static int plain_socket=-1;static GThread*con_th=nullptr
 #define hostname_sz 256
 static char*info_path_name=nullptr;
 
-struct init_pass_struct{int dim[2];char*path;};
 enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };
+struct init_pass_struct{int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;};
 
 static gboolean textviewthreadsfunc(gpointer b){
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
@@ -279,22 +279,24 @@ static gpointer worker (gpointer data)
 	return nullptr;
 }
 
-static void save_combo_box(GtkTreeModel*list,GtkTreeIter*it){
+static void save_combo_box(GtkTreeModel*list){
+//can be from add, from remove
+	GtkTreeIter it;
 	if(info_path_name!=nullptr){
 		int f=open(info_path_name,O_WRONLY|O_TRUNC);
 		if(f!=-1){
-			gboolean valid;gchar*text;
+			gchar*text;
 			int i=0;
-			gtk_tree_model_get_iter_first (list, it);
-			do{
-				gtk_tree_model_get (list, it, 0, &text, -1);
+			gboolean valid=gtk_tree_model_get_iter_first (list, &it);
+			while(valid){
+				gtk_tree_model_get (list, &it, 0, &text, -1);
 				if(i!=0)if(write(f,"\n",1)!=1){g_free(text);break;}
 				size_t sz=strlen(text);
 				if((size_t)write(f,text,sz)!=sz){g_free(text);break;}
 				g_free(text);
 				i++;
-				valid = gtk_tree_model_iter_next( list, it);
-			}while(valid);
+				valid = gtk_tree_model_iter_next( list, &it);
+			}
 			close(f);
 		}
 	}
@@ -323,7 +325,7 @@ static void set_combo_box_text(GtkComboBox * box,const char*txt)
 		valid = gtk_tree_model_iter_next( list_store, &iter);
 	}
 	gtk_combo_box_text_append_text((GtkComboBoxText*)box,txt);
-	save_combo_box(list_store,&iter);
+	save_combo_box(list_store);
 	gtk_combo_box_set_active(box, i);
 }
 
@@ -399,49 +401,63 @@ static BOOL info_path_name_restore(GtkComboBoxText*cbt,char*nm){
 	}
 	return TRUE;
 }
-static void organize_connections_dialog (GtkDialog *dialog, gint response_id, gpointer cbt){
-	gtk_widget_destroy((GtkWidget*)dialog);
-}
-static void organize_connections (GtkButton *button, gpointer   cbt){
-	(void)button;
-	GtkWidget *dialog = gtk_dialog_new_with_buttons ("Organize Connections",
-	                     (GtkWindow *)gtk_widget_get_toplevel ((GtkWidget *)cbt),
-	                     (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
-	                     "Move _Up",0,"Move D_own",1,"_Delete",2,"Do_ne",3,nullptr);
-	g_signal_connect_data (dialog, "response",G_CALLBACK (organize_connections_dialog),cbt,nullptr,(GConnectFlags) 0);
-	//
-	GtkCellRenderer *renderer;
-	GtkTreeViewColumn *column;
-	GtkListStore *store;
-	GtkWidget *tree=gtk_tree_view_new();
-	gtk_tree_view_set_headers_visible((GtkTreeView*)tree,FALSE);
-	renderer = gtk_cell_renderer_text_new();
-	column = gtk_tree_view_column_new_with_attributes("", renderer, "text", LIST_ITEM, nullptr);
-	gtk_tree_view_append_column((GtkTreeView*)tree, column);
-	store= gtk_list_store_new(N_COLUMNS, G_TYPE_STRING);
-	gtk_tree_view_set_model((GtkTreeView*)tree, (GtkTreeModel*)store);
-	g_object_unref(store);
-	//
-	GtkTreeIter iterFrom;
-	GtkTreeIter iterTo;
-	gboolean valid;
-	int i=0;
-	GtkTreeModel * list = gtk_combo_box_get_model((GtkComboBox*)cbt);
-	valid = gtk_tree_model_get_iter_first (list, &iterFrom);
-	while (valid) {
-		gchar *item_text;
-		gtk_tree_model_get (list, &iterFrom, 0, &item_text, -1);
-		//
-		gtk_list_store_append(store, &iterTo);
-		gtk_list_store_set(store, &iterTo, LIST_ITEM, item_text, -1);
-		//
-		g_free(item_text);
-		i++; 
-		valid = gtk_tree_model_iter_next( list, &iterFrom);
+static void organize_connections_dialog (GtkDialog *dialog, gint response, struct init_pass_struct*ps){
+	if(response==2){
+		GtkTreeSelection *sel=gtk_tree_view_get_selection(ps->tv);
+		GtkTreeModel*mod;GtkTreeIter it;
+		gtk_tree_selection_get_selected (sel,&mod,&it);
+		GtkTreePath * path = gtk_tree_model_get_path ( mod , &it ) ;
+		int i = (gtk_tree_path_get_indices ( path ))[0] ;
+		gtk_tree_path_free(path);
+		gtk_combo_box_text_remove(ps->cbt,i);
+		if(gtk_list_store_remove ((GtkListStore*)mod,&it)==FALSE&&i==0)//GtkListStore *
+			organize_connections_dialog (dialog, 3, ps);
+	}else{//if(response==3)
+		save_combo_box(gtk_combo_box_get_model((GtkComboBox*)ps->cbt));
+		gtk_widget_destroy((GtkWidget*)dialog);
 	}
-	//
-	gtk_container_add ((GtkContainer*)gtk_dialog_get_content_area ((GtkDialog*)dialog),tree);
-	gtk_widget_show_all (dialog);
+}
+static void organize_connections (GtkButton *button, struct init_pass_struct*ps){
+	(void)button;
+	GtkTreeModel * list = gtk_combo_box_get_model((GtkComboBox*)ps->cbt);
+	GtkTreeIter iterFrom;
+	gboolean valid = gtk_tree_model_get_iter_first (list, &iterFrom);
+	if(valid){
+		GtkWidget *dialog = gtk_dialog_new_with_buttons ("Organize Connections",
+		                     (GtkWindow *)gtk_widget_get_toplevel ((GtkWidget *)ps->cbt),
+		                     (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
+		                     "Move _Up",0,"Move D_own",1,"_Delete",2,"Do_ne",3,nullptr);
+		GtkWidget *tree=gtk_tree_view_new();ps->tv=(GtkTreeView*)tree;
+		g_signal_connect_data (dialog, "response",G_CALLBACK (organize_connections_dialog),ps,nullptr,(GConnectFlags) 0);
+		//
+		GtkCellRenderer *renderer;
+		GtkTreeViewColumn *column;
+		GtkListStore *store;
+		gtk_tree_view_set_headers_visible((GtkTreeView*)tree,FALSE);
+		renderer = gtk_cell_renderer_text_new();
+		column = gtk_tree_view_column_new_with_attributes("", renderer, "text", LIST_ITEM, nullptr);
+		gtk_tree_view_append_column((GtkTreeView*)tree, column);
+		store= gtk_list_store_new(N_COLUMNS, G_TYPE_STRING);
+		gtk_tree_view_set_model((GtkTreeView*)tree, (GtkTreeModel*)store);
+		g_object_unref(store);
+		//
+		GtkTreeIter iterTo;
+		int i=0;
+		do{
+			gchar *item_text;
+			gtk_tree_model_get (list, &iterFrom, 0, &item_text, -1);
+			//
+			gtk_list_store_append(store, &iterTo);
+			gtk_list_store_set(store, &iterTo, LIST_ITEM, item_text, -1);
+			//
+			g_free(item_text);
+			i++; 
+			valid = gtk_tree_model_iter_next( list, &iterFrom);
+		}while (valid);
+		//
+		gtk_container_add((GtkContainer*)gtk_dialog_get_content_area ((GtkDialog*)dialog),tree);
+		gtk_widget_show_all (dialog);
+	}
 }
 static void
 activate (GtkApplication* app,
@@ -491,8 +507,8 @@ activate (GtkApplication* app,
 	if(info_path_name_restore((GtkComboBoxText*)en,ps->path))gtk_entry_set_text ((GtkEntry*)entext,":");
 	g_signal_connect_data (entext, "activate",G_CALLBACK (enter_callback),nullptr,nullptr,(GConnectFlags) 0);
 	//
-	GtkWidget *org=gtk_button_new_with_label("\u22EE");
-	g_signal_connect_data (org, "clicked",G_CALLBACK (organize_connections),en,nullptr,(GConnectFlags) 0);
+	GtkWidget *org=gtk_button_new_with_label("\u22EE");ps->cbt=(GtkComboBoxText*)en;
+	g_signal_connect_data (org, "clicked",G_CALLBACK (organize_connections),ps,nullptr,(GConnectFlags) 0);
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 	gtk_box_pack_start((GtkBox*)top,en,TRUE,TRUE,0);
 	gtk_box_pack_start((GtkBox*)top,org,FALSE,FALSE,0);
