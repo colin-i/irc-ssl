@@ -340,7 +340,7 @@ static void enter_callback( GtkWidget *widget){//,gpointer data
 		set_combo_box_text((GtkComboBox*)gtk_widget_get_ancestor(widget,gtk_combo_box_text_get_type()),t);
 		#pragma GCC diagnostic push
 		#pragma GCC diagnostic ignored "-Wcast-qual"
-		con_th=g_thread_new("a",worker,(gpointer)t);
+		con_th=g_thread_new(nullptr,worker,(gpointer)t);
 		#pragma GCC diagnostic pop
 		g_thread_unref(con_th);
 	}
