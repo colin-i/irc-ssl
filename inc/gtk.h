@@ -10,7 +10,10 @@ typedef double gdouble;
 typedef gsize GType;
 typedef void GApplication;
 typedef void GThread;
+typedef void GVariant;
 typedef void GVariantDict;
+typedef void GVariantType;
+typedef void GdkEvent;
 typedef void GtkAdjustment;
 typedef void GtkApplication;
 typedef void GtkBin;
@@ -23,6 +26,8 @@ typedef void GtkContainer;
 typedef void GtkDialog;
 typedef void GtkEntry;
 typedef void GtkListStore;
+typedef void GtkMenu;
+typedef void GtkMenuShell;
 typedef void GtkScrolledWindow;
 typedef void GtkTextBuffer;
 typedef void GtkTextMark;
@@ -43,8 +48,9 @@ typedef gpointer (*GThreadFunc)(gpointer data);
 #define G_TYPE_FUNDAMENTAL_SHIFT (2)
 #define G_TYPE_MAKE_FUNDAMENTAL(x) ((GType) ((x) << G_TYPE_FUNDAMENTAL_SHIFT))
 #define G_TYPE_STRING G_TYPE_MAKE_FUNDAMENTAL (16)
+#define G_VARIANT_TYPE_STRING ((const GVariantType *) "s")
 typedef enum{G_APPLICATION_FLAGS_NONE} GApplicationFlags;
-typedef enum{G_CONNECT_BEFOR}GConnectFlags;//G_CONNECT_AFTER = 1 << 0,
+typedef enum{G_CONNECT_SWAPPED = 1 << 1}GConnectFlags;//_BEFOR G_CONNECT_AFTER = 1 << 0,
 typedef enum{  G_OPTION_ARG_NONE,  G_OPTION_ARG_STRING}//,  G_OPTION_ARG_INT,  G_OPTION_ARG_CALLBACK,  G_OPTION_ARG_FILENAME,  G_OPTION_ARG_STRING_ARRAY,  G_OPTION_ARG_FILENAME_ARRAY,  G_OPTION_ARG_DOUBLE,  G_OPTION_ARG_INT64
  GOptionArg;
 typedef enum{G_OPTION_FLAG_IN_MAIN = 1 << 1}//  G_OPTION_FLAG_NONE = 0,  G_OPTION_FLAG_HIDDEN = 1 << 0,
@@ -94,6 +100,8 @@ gulong g_signal_connect_data (gpointer instance,const gchar *detailed_signal,GCa
 GThread * g_thread_new (const gchar *name, GThreadFunc func, gpointer data);
 void g_thread_unref (GThread *thread);
 gboolean g_variant_dict_lookup (GVariantDict *dict, const gchar *key, const gchar *format_string, ...);
+GVariant * g_variant_dict_lookup_value (GVariantDict *dict, const gchar *key, const GVariantType *expected_type);
+gchar * g_variant_dup_string (GVariant *value, gsize *length);
 GtkApplication * gtk_application_new (const gchar *application_id, GApplicationFlags flags);
 GtkWidget * gtk_application_window_new (GtkApplication *application);
 GtkWidget *gtk_bin_get_child (GtkBin *bin);
@@ -118,6 +126,10 @@ GtkListStore *gtk_list_store_new (gint n_columns, ...);
 gboolean gtk_list_store_remove (GtkListStore *list_store, GtkTreeIter *iter);
 void gtk_list_store_set (GtkListStore *list_store, GtkTreeIter *iter, ...);
 void gtk_list_store_swap (GtkListStore *store, GtkTreeIter *a, GtkTreeIter *b);
+GtkWidget* gtk_menu_item_new_with_label (const gchar *label);
+GtkWidget* gtk_menu_new (void);
+void gtk_menu_popup_at_pointer (GtkMenu *menu, const GdkEvent *trigger_event);
+void gtk_menu_shell_append (GtkMenuShell *menu_shell, GtkWidget *child);
 void gtk_scrolled_window_set_policy (GtkScrolledWindow *scrolled_window,GtkPolicyType hscrollbar_policy,GtkPolicyType vscrollbar_policy);
 GtkWidget* gtk_scrolled_window_new (GtkAdjustment *hadjustment,GtkAdjustment *vadjustment);
 GtkTextMark *gtk_text_buffer_create_mark (GtkTextBuffer *buffer,const gchar *mark_name,const GtkTextIter *where,gboolean left_gravity);
@@ -147,6 +159,7 @@ void gtk_tree_view_set_model (GtkTreeView *tree_view, GtkTreeModel *model);
 void gtk_widget_destroy (GtkWidget *widget);
 GtkWidget* gtk_widget_get_ancestor (GtkWidget *widget, GType widget_type);
 GtkWidget* gtk_widget_get_toplevel (GtkWidget *widget);
+void gtk_widget_show (GtkWidget *widget);
 void gtk_widget_show_all (GtkWidget *widget);
 void gtk_window_set_default_size (GtkWindow *window, gint width, gint height);
 void gtk_window_set_title (GtkWindow *window,const gchar *title);

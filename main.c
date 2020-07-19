@@ -69,19 +69,24 @@
 
 static GtkTextView *text_view;static GtkTextMark *text_mark_end;
 static SSL *ssl=nullptr;static int plain_socket=-1;static GThread*con_th=nullptr;
+static int portindex;static int portend;
 #define ssl_con_try "Trying with SSL.\n"
 #define ssl_con_no "Trying unencrypted.\n"
 #define irc_bsz 512
 #define hostname_sz 256
 #define password_sz 128
 #define password_con "PASS %s\n"
+#define nickname_con "NICK %s\n"
 static char*info_path_name=nullptr;
 
 enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };
-struct init_pass_struct{int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;};
+struct init_pass_struct{
+	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
+	char*nick;const char*text;
+};
 
 static gboolean textviewthreadsfunc(gpointer b){
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
@@ -103,38 +108,58 @@ static void main_text(const char*b,int s){
 }
 #define main_text_s(b) main_text(b,sizeof(b)-1)
 
-static BOOL parse_host_str(const char*indata,char*hostname,int*p1,int*pn,char*psw) {
+static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int*sens,struct init_pass_struct*ps) {
 	size_t sz=strlen(indata);
-	const char*left=strchr(indata,'@');
+	//
+	const char*left=strchr(indata,'@');BOOL nonick=TRUE;
 	if(left!=nullptr){
-		size_t psz=(size_t)(left-indata);
+		size_t lsz=(size_t)(left-indata);
+		size_t i=lsz;
+		while(i>0){
+			i--;
+			if(indata[i]==':'){
+				if(i>=password_sz)return FALSE;
+				if(i>0){
+					memcpy(nkn,indata,i);nkn[i]='\0';nonick=FALSE;
+				}
+				i++;
+				break;
+			}
+		}
+		size_t psz=lsz-i;
 		if(psz>=password_sz)return FALSE;
-		memcpy(psw,indata,psz);psw[psz]='\0';
+		memcpy(psw,indata+i,psz);psw[psz]='\0';
 		sz-=(size_t)(left+1-indata);indata=left+1;
 	}else *psw='\0';
+	if(nonick){
+		if(ps->nick!=nullptr)memcpy(nkn,ps->nick,strlen(ps->nick)+1);
+		else memcpy(nkn,"guest_abc",sizeof("guest_abc"));
+	}
+	//
 	const char*ptr=strchr(indata,':');
 	if(ptr!=nullptr)sz=(size_t)(ptr-indata);
 	if(sz<hostname_sz){
 		memcpy(hostname, indata, sz);
 		hostname[sz]='\0';
 		if(ptr==nullptr){
-			*p1=6667;*pn=6667;
+			portindex=6667;portend=6667;
 			return TRUE;
 		}
 		ptr++;
 		const char*mid=strchr(ptr,'-');
 		if(mid==nullptr){
-			*p1=atoi(ptr);*pn=*p1;
-			return *p1<0x10000;
+			portindex=atoi(ptr);portend=portindex;
+			return portindex<0x10000;
 		}
 		char portnum[6];
 		size_t p1sz=(size_t)(mid-ptr);
 		if(p1sz>=6)return FALSE;
 		memcpy(portnum,ptr,p1sz);portnum[p1sz]='\0';
-		*p1=atoi(portnum);
-		*pn=atoi(mid+1);
-		if(*pn>0xffFF)return FALSE;
-		if(*pn<*p1){int aux=*p1;*p1=*pn;*pn=aux;}
+		portindex=atoi(portnum);
+		portend=atoi(mid+1);
+		if(portend>0xffFF)return FALSE;
+		if(portindex<=portend)*sens=1;
+		else *sens=-1;
 		return TRUE;
 	}
 	return FALSE;
@@ -174,14 +199,18 @@ static int create_socket(char*hostname,int port) {
 		main_text_s("Error: Cannot resolve hostname.\n");
 	return -1;
 }
-static void irc_start(char*psw){
-	const char*format="NICK guest_abc\nUSER guest tolmoon tolsun :Ronnie Reagan\n\n";
-	size_t ln=strlen(format);
-	if(*psw!='\0')ln+=(size_t)snprintf(nullptr,0,password_con,psw);
-	char*i1=(char*)malloc(ln);
+static void irc_start(char*psw,char*nkn){
+	const char*format="USER guest tolmoon tolsun :Ronnie Reagan\n\n";
+	size_t fln=strlen(format);
+	size_t nln=(size_t)snprintf(nullptr,0,nickname_con,nkn);
+	size_t pln=*psw=='\0'?0:(size_t)snprintf(nullptr,0,password_con,psw);
+	char*i1=(char*)malloc(pln+nln+fln);
 	if(i1!=nullptr){
-		size_t len=*psw=='\0'?0:(size_t)sprintf(i1,password_con,psw);
-		size_t a=strlen(format);memcpy(i1+len,format,a);i1[len+a]='\0';
+		if(*psw!='\0')sprintf(i1,password_con,psw);
+		sprintf(i1+pln,nickname_con,nkn);
+		memcpy(i1+pln+nln,format,fln);
+		i1[pln+nln+fln]='\0';
+		//
 		if(ssl!=nullptr)SSL_write(ssl,i1,(int)strlen(i1));
 		else send(plain_socket,i1,strlen(i1),0);
 		char buf[irc_bsz];
@@ -212,7 +241,7 @@ static void irc_start(char*psw){
 		free(i1);
 	}
 }
-static void proced(const char*dest_url){
+static void proced(struct init_pass_struct*ps){
 	const SSL_METHOD *method;
 	SSL_CTX *ctx;
 	int server;
@@ -235,14 +264,14 @@ static void proced(const char*dest_url){
 		SSL*withssl = SSL_new(ctx);
 		if(withssl!=nullptr){
 			char hostname[hostname_sz];
-			int p;int pn;char psw[password_sz];
-			if(parse_host_str(dest_url,hostname,&p,&pn,psw)) {
-				do{
+			int sens;char psw[password_sz];char nkn[password_sz];
+			if(parse_host_str(ps->text,hostname,psw,nkn,&sens,ps)) {
+				for(;;){
 					ssl=withssl;				
 					  /* ---------------------------------------------------------- *
 					   * Make the underlying TCP socket connection                  *
 					   * ---------------------------------------------------------- */
-					server = create_socket(hostname,p);
+					server = create_socket(hostname,portindex);
 					if(server != -1){
 						  /* ---------------------------------------------------------- *
 						   * Attach the SSL session to the socket descriptor            *
@@ -253,7 +282,7 @@ static void proced(const char*dest_url){
 							   * ---------------------------------------------------------- */
 							main_text_s(ssl_con_try);
 							//is waiting until timeout if not SSL// || printf("No SSL")||1
-							if ( SSL_connect(withssl) == 1){
+							if ( SSL_connect(withssl) == 1){//this at reconnects, is not ready for ssl conect,disc,plain connect
 								main_text_s("Successfully enabled SSL/TLS session.\n");
 								//cert = SSL_get_peer_certificate(ssl);
 								//certname = X509_NAME_new();
@@ -262,23 +291,26 @@ static void proced(const char*dest_url){
 								  /* ---------------------------------------------------------- *
 								   * Start                                                      *
 								   * ---------------------------------------------------------- */
-								irc_start(psw);
+								irc_start(psw,nkn);
+								close(server);break;
 							}else{
 								ssl=nullptr;
 								//main_text_s("Error: Could not build a SSL session.\n");
 								main_text_s(ssl_con_no);
-								plain_socket=create_socket(hostname,p);
+								plain_socket=create_socket(hostname,portindex);
 								if(plain_socket!=-1){
-									irc_start(psw);
+									irc_start(psw,nkn);
 									close(plain_socket);plain_socket=-1;
+									close(server);break;
 								}
 							}
 						}else main_text_s("Error: SSL_set_fd failed.\n");
 						close(server);
 					}
-					p++;
-				}while(p<=pn);
-			}else main_text_s("Error: Input must be [password@]host[:port1[-portn]] ,e.g. localhost:6660-6669 or 127.0.0.1 .\n");
+					if(portindex==portend)break;
+					portindex+=sens;
+				}
+			}else main_text_s("Error: Wrong input. For format, press the vertical ellipsis button and then Help.\n");
   			/* ---------------------------------------------------------- *
   			* Free the structures we don't need anymore, and close       *
   			* -----------------------------------------------------------*/
@@ -289,15 +321,15 @@ static void proced(const char*dest_url){
 	}
 }
 	
-static gpointer worker (gpointer data)
+static gpointer worker (gpointer ps)
 {
-	proced((const char*)data);
+	proced((struct init_pass_struct*)ps);
 	con_th=nullptr;
 	return nullptr;
 }
 
 static void save_combo_box(GtkTreeModel*list){
-//can be from add, from remove
+//can be from add, from remove,from test org con menu nothing
 	GtkTreeIter it;
 	if(info_path_name!=nullptr){
 		int f=open(info_path_name,O_WRONLY|O_TRUNC);
@@ -346,18 +378,20 @@ static void set_combo_box_text(GtkComboBox * box,const char*txt)
 	gtk_combo_box_set_active(box, i);
 }
 
-static void enter_callback( GtkWidget *widget){//,gpointer data
+static void enter_callback( GtkWidget *widget,struct init_pass_struct*ps){
 	const char* t=gtk_entry_get_text ((GtkEntry*)widget);
 	if(strlen(t)>0){
 		while(con_th!=nullptr){
+			portindex=portend;
 			if(ssl!=nullptr)SSL_shutdown(ssl);
 			else if(plain_socket!=-1)shutdown(plain_socket,2);
 			sleep(1);
 		}
 		set_combo_box_text((GtkComboBox*)gtk_widget_get_ancestor(widget,gtk_combo_box_text_get_type()),t);
+		ps->text=t;
 		#pragma GCC diagnostic push
 		#pragma GCC diagnostic ignored "-Wcast-qual"
-		con_th=g_thread_new(nullptr,worker,(gpointer)t);
+		con_th=g_thread_new(nullptr,worker,ps);
 		#pragma GCC diagnostic pop
 		g_thread_unref(con_th);
 	}
@@ -464,13 +498,12 @@ static void organize_connections_dialog (GtkDialog *dialog, gint response, struc
 		gtk_widget_destroy((GtkWidget*)dialog);
 	}
 }
-static void organize_connections (GtkButton *button, struct init_pass_struct*ps){
-	(void)button;
+static void organize_connections (struct init_pass_struct*ps){
 	GtkTreeModel * list = gtk_combo_box_get_model((GtkComboBox*)ps->cbt);
 	GtkTreeIter iterFrom;
 	gboolean valid = gtk_tree_model_get_iter_first (list, &iterFrom);
+	GtkWidget *dialog;
 	if(valid){
-		GtkWidget *dialog;
 		if(gtk_tree_model_iter_n_children (list,nullptr)>1)
 			dialog = gtk_dialog_new_with_buttons ("Organize Connections",
 			    (GtkWindow *)gtk_widget_get_toplevel ((GtkWidget *)ps->cbt),
@@ -482,7 +515,6 @@ static void organize_connections (GtkButton *button, struct init_pass_struct*ps)
 			    (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
 			    "_Delete",0,"Do_ne",1,nullptr);
 		GtkWidget *tree=gtk_tree_view_new();ps->tv=(GtkTreeView*)tree;
-		g_signal_connect_data (dialog, "response",G_CALLBACK (organize_connections_dialog),ps,nullptr,(GConnectFlags) 0);
 		//
 		GtkCellRenderer *renderer;
 		GtkTreeViewColumn *column;
@@ -510,8 +542,24 @@ static void organize_connections (GtkButton *button, struct init_pass_struct*ps)
 		}while (valid);
 		//
 		gtk_container_add((GtkContainer*)gtk_dialog_get_content_area ((GtkDialog*)dialog),tree);
-		gtk_widget_show_all (dialog);
+	}else{
+		dialog = gtk_dialog_new_with_buttons ("Organize Connections",
+			(GtkWindow *)gtk_widget_get_toplevel ((GtkWidget *)ps->cbt),
+			(GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
+			"Do_ne",0,nullptr);
 	}
+	g_signal_connect_data (dialog, "response",G_CALLBACK (organize_connections_dialog),ps,nullptr,(GConnectFlags) 0);
+	gtk_widget_show_all (dialog);
+}
+static gboolean prog_menu_popup (GtkMenu*menu,GdkEvent*evn){
+	gtk_menu_popup_at_pointer(menu,evn);
+	return FALSE;
+}
+static void help_popup(GtkWindow*top){
+	GtkWidget *dialog = gtk_dialog_new_with_buttons ("Organize Connections",
+			    top, (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
+			    "OK",0,nullptr);
+	gtk_widget_show_all (dialog);
 }
 static void
 activate (GtkApplication* app,
@@ -562,22 +610,28 @@ activate (GtkApplication* app,
 	GtkWidget*en=gtk_combo_box_text_new_with_entry();
 	GtkWidget*entext=gtk_bin_get_child((GtkBin*)en);
 	if(info_path_name_restore((GtkComboBoxText*)en,ps->path))gtk_entry_set_text ((GtkEntry*)entext,":");
-	g_signal_connect_data (entext, "activate",G_CALLBACK (enter_callback),nullptr,nullptr,(GConnectFlags) 0);
+	g_signal_connect_data (entext, "activate",G_CALLBACK (enter_callback),ps,nullptr,(GConnectFlags) 0);
 	//
 	GtkWidget *org=gtk_button_new_with_label("\u22EE");ps->cbt=(GtkComboBoxText*)en;
-	g_signal_connect_data (org, "clicked",G_CALLBACK (organize_connections),ps,nullptr,(GConnectFlags) 0);
+	GtkWidget *menu = gtk_menu_new ();
+	GtkWidget *menu_item = gtk_menu_item_new_with_label ("Organize Connections");
+	g_signal_connect_data (menu_item, "activate",G_CALLBACK (organize_connections),ps,nullptr,G_CONNECT_SWAPPED);
+	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
+	menu_item = gtk_menu_item_new_with_label ("Help");
+	g_signal_connect_data (menu_item, "activate",G_CALLBACK (help_popup),window,nullptr,G_CONNECT_SWAPPED);
+	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
+	g_signal_connect_data (org, "button-press-event",G_CALLBACK (prog_menu_popup),menu,nullptr,G_CONNECT_SWAPPED);
+	//
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 	gtk_box_pack_start((GtkBox*)top,en,TRUE,TRUE,0);
 	gtk_box_pack_start((GtkBox*)top,org,FALSE,FALSE,0);
-	//
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	gtk_box_pack_start((GtkBox*)box,top,FALSE,FALSE,0);
 	gtk_box_pack_start((GtkBox*)box,scrolled_window,TRUE,TRUE,0);
 	gtk_container_add ((GtkContainer*)window, box);
 	gtk_widget_show_all (window);
 }
-static gint handle_local_options (GApplication*application, GVariantDict*options, struct init_pass_struct* ps){
-	(void)application;
+static gint handle_local_options (struct init_pass_struct* ps, GVariantDict*options){
 	gchar*result;
 	if (g_variant_dict_lookup (options, "dimensions", "s", &result)){//missing argument is not reaching here
 		char*b=strchr(result,'x');
@@ -585,7 +639,11 @@ static gint handle_local_options (GApplication*application, GVariantDict*options
 		ps->dim[0]=atoi(result);
 		ps->dim[1]=b!=nullptr?atoi(b):ps->dim[0];
 		g_free(result);
-	}
+	}else ps->dim[0]=-1;//this is default at gtk
+	GVariant*v=g_variant_dict_lookup_value(options,"nick",G_VARIANT_TYPE_STRING);
+	if(v!=nullptr){
+		ps->nick=g_variant_dup_string(v,nullptr);//get is not the same pointer as argv[2],is always utf-8
+	}else ps->nick=nullptr;
 	return -1;
 }
 int
@@ -600,14 +658,15 @@ main (int    argc,
 		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
 		//if(app!=nullptr){
 		g_application_add_main_option((GApplication*)app,"dimensions",'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
+		g_application_add_main_option((GApplication*)app,"nick",'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
 		struct init_pass_struct ps;
-		ps.dim[0]=-1;//this is default at gtk
 		ps.path=argv[0];
-		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,(GConnectFlags) 0);
+		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
 		//  if(han>0)
 		g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
-		g_object_unref (app);//#include gobject.h gobject-2.0
+		g_object_unref (app);
+		if(ps.nick!=nullptr)g_free(ps.nick);
 	}else puts("openssl error");
 	if(info_path_name!=nullptr)free(info_path_name);
 }
