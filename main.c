@@ -463,11 +463,11 @@ static int organize_connections_ini(GtkTreeView*tv,GtkTreeModel**mod,GtkTreeIter
 static void organize_connections_dialog (GtkDialog *dialog, gint response, struct init_pass_struct*ps){
 	GtkTreeModel*mod;GtkTreeIter it;
 	GtkTreeIter i2;
-	if(response==0){
+	if(response==1){
 		int i = organize_connections_ini(ps->tv,&mod,&it);
 		gtk_combo_box_text_remove(ps->cbt,i);
 		if(gtk_list_store_remove ((GtkListStore*)mod,&it)==FALSE&&i==0)//GtkListStore *
-			organize_connections_dialog (dialog, 3, ps);
+			organize_connections_dialog (dialog, 0, ps);
 	}
 	else if(response==2){
 		int i = organize_connections_ini(ps->tv,&mod,&it);
@@ -493,7 +493,7 @@ static void organize_connections_dialog (GtkDialog *dialog, gint response, struc
 			gtk_list_store_swap((GtkListStore*)mdl,&it,&i2);
 		}
 	}
-	else{// if(response==1){
+	else{// if(response==0){
 		save_combo_box(gtk_combo_box_get_model((GtkComboBox*)ps->cbt));
 		gtk_widget_destroy((GtkWidget*)dialog);
 	}
@@ -508,12 +508,12 @@ static void organize_connections (struct init_pass_struct*ps){
 			dialog = gtk_dialog_new_with_buttons ("Organize Connections",
 			    (GtkWindow *)gtk_widget_get_toplevel ((GtkWidget *)ps->cbt),
 			    (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
-			    "Move _Up",2,"Move D_own",3,"_Delete",0,"Do_ne",1,nullptr);
+			    "Move _Up",2,"Move D_own",3,"_Delete",1,"Do_ne",0,nullptr);
 		else
 			dialog = gtk_dialog_new_with_buttons ("Organize Connections",
 			    (GtkWindow *)gtk_widget_get_toplevel ((GtkWidget *)ps->cbt),
 			    (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
-			    "_Delete",0,"Do_ne",1,nullptr);
+			    "_Delete",1,"Do_ne",0,nullptr);
 		GtkWidget *tree=gtk_tree_view_new();ps->tv=(GtkTreeView*)tree;
 		//
 		GtkCellRenderer *renderer;
