@@ -208,7 +208,7 @@ static int create_socket(char*hostname,int port) {
 }
 static void send_data(const char*str,size_t sz){
 	if(ssl!=nullptr)SSL_write(ssl,str,(int)sz);
-	else send(plain_socket,str,sz,0);
+	else write(plain_socket,str,sz);
 }
 #define send_string(s) send_data(s,strlen(s))
 static void incomings(char*a,size_t n){
@@ -240,7 +240,7 @@ static void irc_start(char*psw,char*nkn){
 		for(;;){
 			int sz;
 			if(ssl!=nullptr)sz=SSL_read(ssl, buf, irc_bsz);
-			else sz=recv(plain_socket,buf,irc_bsz,0);
+			else sz=read(plain_socket,buf,irc_bsz);
 			if(sz<=0)break;
 			char*b=buf;
 			for(;;){

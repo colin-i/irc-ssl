@@ -1,7 +1,7 @@
 
 #include "inc/stddef.h"
 
-#include"inc/sys/types.h"
+typedef int ssize_t;
 typedef long off_t;
 
 //#include <bits/seek_constants.h>
