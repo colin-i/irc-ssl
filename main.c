@@ -78,6 +78,12 @@ static int portindex;static int portend;
 #define password_con "PASS %s\n"
 #define nickname_con "NICK %s\n"
 static char*info_path_name=nullptr;
+static GtkListStore*channels;
+#define help_text "Most of the parameters are set at start.\n\
+Launch the program with --help argument for more info.\n\
+\n\
+Connection format is [[nickname:]password@]hostname[:port1[-portn]].\n\
+newNick:abc@127.0.0.1:6665-6669"
 
 enum {
   LIST_ITEM = 0,
@@ -86,27 +92,8 @@ enum {
 struct init_pass_struct{
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;
+	int separator;
 };
-
-static gboolean textviewthreadsfunc(gpointer b){
-	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
-	GtkTextIter it;gtk_text_buffer_get_end_iter(text_buffer,&it);
-	gtk_text_buffer_insert(text_buffer,&it,(const char*)b,-1);
-	/* now scroll to the end using marker */
-	gtk_text_view_scroll_to_mark (text_view,
-	                              text_mark_end,
-	                              0., FALSE, 0., 0.);
-	free(b);
-	return FALSE;
-}
-static void main_text(const char*b,int s){
-	char*a=(char*)malloc((size_t)s+1);
-	if(a!=nullptr){
-		memcpy(a,b,(size_t)s);a[s]='\0';
-		g_idle_add(textviewthreadsfunc,a);
-	}
-}
-#define main_text_s(b) main_text(b,sizeof(b)-1)
 
 static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int*sens,struct init_pass_struct*ps) {
 	size_t sz=strlen(indata);
@@ -164,6 +151,25 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int
 	}
 	return FALSE;
 }
+static gboolean textviewthreadsfunc(gpointer b){
+	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
+	GtkTextIter it;gtk_text_buffer_get_end_iter(text_buffer,&it);
+	gtk_text_buffer_insert(text_buffer,&it,(const char*)b,-1);
+	/* now scroll to the end using marker */
+	gtk_text_view_scroll_to_mark (text_view,
+	                              text_mark_end,
+	                              0., FALSE, 0., 0.);
+	free(b);
+	return FALSE;
+}
+static void main_text(const char*b,size_t s){
+	char*a=(char*)malloc(s+1);
+	if(a!=nullptr){
+		memcpy(a,b,s);a[s]='\0';
+		g_idle_add(textviewthreadsfunc,a);
+	}
+}
+#define main_text_s(b) main_text(b,sizeof(b)-1)
 /* ---------------------------------------------------------- *
  * create_socket() creates the socket & TCP-connect to server *
  * ---------------------------------------------------------- */
@@ -199,8 +205,24 @@ static int create_socket(char*hostname,int port) {
 		main_text_s("Error: Cannot resolve hostname.\n");
 	return -1;
 }
+static void send_data(const char*str,size_t sz){
+	if(ssl!=nullptr)SSL_write(ssl,str,(int)sz);
+	else send(plain_socket,str,sz,0);
+}
+#define send_string(s) send_data(s,strlen(s))
+static void incomings(char*a,size_t n){
+	a[n]=0;
+	char channm[63+1+10+1];int d;unsigned int e;//if its >63 ,c is not 3
+	int c=sscanf(a,"%*s %d %*s %63s %u",&d,channm,&e);
+	if(d==322&&c==3){
+		GtkTreeIter it;
+		gtk_list_store_append(channels, &it);
+		size_t ln=strlen(channm);channm[ln]=' ';sprintf(channm+ln+1,"%u",e);
+		gtk_list_store_set(channels, &it, LIST_ITEM, channm, -1);
+	}
+}
 static void irc_start(char*psw,char*nkn){
-	const char*format="USER guest tolmoon tolsun :Ronnie Reagan\n\n";
+	const char*format="USER guest tolmoon tolsun :Ronnie Reagan\n";
 	size_t fln=strlen(format);
 	size_t nln=(size_t)snprintf(nullptr,0,nickname_con,nkn);
 	size_t pln=*psw=='\0'?0:(size_t)snprintf(nullptr,0,password_con,psw);
@@ -210,31 +232,29 @@ static void irc_start(char*psw,char*nkn){
 		sprintf(i1+pln,nickname_con,nkn);
 		memcpy(i1+pln+nln,format,fln);
 		i1[pln+nln+fln]='\0';
+		send_string(i1);
+		send_string("LIST\n");
 		//
-		if(ssl!=nullptr)SSL_write(ssl,i1,(int)strlen(i1));
-		else send(plain_socket,i1,strlen(i1),0);
 		char buf[irc_bsz];
 		for(;;){
 			int sz;
-			if(ssl!=nullptr)sz=SSL_read(ssl, buf, irc_bsz-1);
-			else sz=recv(plain_socket,buf,irc_bsz-1,0);
+			if(ssl!=nullptr)sz=SSL_read(ssl, buf, irc_bsz);
+			else sz=recv(plain_socket,buf,irc_bsz,0);
 			if(sz<=0)break;
-			buf[sz]='\0';char*b=buf;
+			char*b=buf;
 			for(;;){
-				char*n=strstr(b,"\n");
+				char*n=(char*)memchr(b,'\n',(size_t)sz);
 				if(n!=nullptr){
-					char aux=n[1];n[1]='\0';
-					int s=n+1-b;
+					size_t s=(size_t)(n+1-b);
 					main_text(b,s);
-					n[1]=aux;
-					if(strncmp(b,"PING",4)==0){
+					if(s>4&&memcmp(b,"PING",4)==0){
 						b[1]='O';
-						if(ssl!=nullptr)sz=SSL_write(ssl,b,(int)strlen(b));
-						else sz=send(plain_socket,b,strlen(b),0);
-					}
-					b=n+1;sz-=s;continue;
+						send_data(b,s);
+					}else if(*b==':')incomings(b,s-(b[s-2]=='\r'?2:1));
+					b=n+1;sz-=s;
+					continue;
 				}
-				main_text(b,sz);
+				main_text(b,(size_t)sz);
 				break;
 			}
 		}
@@ -299,9 +319,10 @@ static void proced(struct init_pass_struct*ps){
 								main_text_s(ssl_con_no);
 								plain_socket=create_socket(hostname,portindex);
 								if(plain_socket!=-1){
+									close(server);
 									irc_start(psw,nkn);
 									close(plain_socket);plain_socket=-1;
-									close(server);break;
+									break;
 								}
 							}
 						}else main_text_s("Error: SSL_set_fd failed.\n");
@@ -311,6 +332,7 @@ static void proced(struct init_pass_struct*ps){
 					portindex+=sens;
 				}
 			}else main_text_s("Error: Wrong input. For format, press the vertical ellipsis button and then Help.\n");
+			main_text_s("Disconnected.\n");
   			/* ---------------------------------------------------------- *
   			* Free the structures we don't need anymore, and close       *
   			* -----------------------------------------------------------*/
@@ -504,15 +526,14 @@ static void organize_connections (struct init_pass_struct*ps){
 	gboolean valid = gtk_tree_model_get_iter_first (list, &iterFrom);
 	GtkWidget *dialog;
 	if(valid){
+		GtkWindow*top=(GtkWindow *)gtk_widget_get_toplevel ((GtkWidget *)ps->cbt);
 		if(gtk_tree_model_iter_n_children (list,nullptr)>1)
 			dialog = gtk_dialog_new_with_buttons ("Organize Connections",
-			    (GtkWindow *)gtk_widget_get_toplevel ((GtkWidget *)ps->cbt),
-			    (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
+			    top, (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
 			    "Move _Up",2,"Move D_own",3,"_Delete",1,"Do_ne",0,nullptr);
 		else
 			dialog = gtk_dialog_new_with_buttons ("Organize Connections",
-			    (GtkWindow *)gtk_widget_get_toplevel ((GtkWidget *)ps->cbt),
-			    (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
+			    top, (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
 			    "_Delete",1,"Do_ne",0,nullptr);
 		GtkWidget *tree=gtk_tree_view_new();ps->tv=(GtkTreeView*)tree;
 		//
@@ -541,7 +562,13 @@ static void organize_connections (struct init_pass_struct*ps){
 			valid = gtk_tree_model_iter_next( list, &iterFrom);
 		}while (valid);
 		//
-		gtk_container_add((GtkContainer*)gtk_dialog_get_content_area ((GtkDialog*)dialog),tree);
+		int w;int h;
+		gtk_window_get_size (top,&w,&h);
+		gtk_window_set_default_size((GtkWindow*)dialog,w,h);
+		GtkWidget*scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
+		gtk_container_add((GtkContainer*)scrolled_window,tree);
+		GtkWidget*box=gtk_dialog_get_content_area((GtkDialog*)dialog);
+		gtk_box_pack_start((GtkBox*)box, scrolled_window, TRUE, TRUE, 0);
 	}else{
 		dialog = gtk_dialog_new_with_buttons ("Organize Connections",
 			(GtkWindow *)gtk_widget_get_toplevel ((GtkWidget *)ps->cbt),
@@ -558,7 +585,21 @@ static gboolean prog_menu_popup (GtkMenu*menu,GdkEvent*evn){
 static void help_popup(GtkWindow*top){
 	GtkWidget *dialog = gtk_dialog_new_with_buttons ("Organize Connections",
 			    top, (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
-			    "OK",0,nullptr);
+			    "OK",GTK_RESPONSE_NONE,nullptr);
+	int w;int h;
+	gtk_window_get_size (top,&w,&h);
+	gtk_window_set_default_size((GtkWindow*)dialog,w,h);
+	g_signal_connect_data (dialog,"response",G_CALLBACK (gtk_widget_destroy),
+	                       dialog,nullptr,G_CONNECT_SWAPPED);
+	//
+	GtkWidget*scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
+	GtkWidget*text = gtk_text_view_new ();
+	gtk_text_view_set_editable((GtkTextView*)text, FALSE);
+	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer ((GtkTextView*)text);
+	gtk_text_buffer_set_text (text_buffer,help_text,sizeof(help_text)-1);
+	gtk_container_add ( (GtkContainer*)scrolled_window, text);
+	GtkWidget*box=gtk_dialog_get_content_area((GtkDialog*)dialog);
+	gtk_box_pack_start((GtkBox*)box, scrolled_window, TRUE, TRUE, 0);
 	gtk_widget_show_all (dialog);
 }
 static void
@@ -604,8 +645,20 @@ activate (GtkApplication* app,
 	                                       (GtkWidget*) text_view);
 	gtk_container_set_border_width ((GtkContainer*)scrolled_window, 5);
 	//
-	//GtkWidget *pan=gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
-	//gtk_paned_pack1((GtkPaned*)pan,scrolled_window,TRUE,TRUE);
+	GtkWidget *tree=gtk_tree_view_new();
+	GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
+	GtkTreeViewColumn *column = gtk_tree_view_column_new_with_attributes("", renderer, "text", LIST_ITEM, nullptr);
+	channels= gtk_list_store_new(N_COLUMNS, G_TYPE_STRING);
+	gtk_tree_view_set_headers_visible((GtkTreeView*)tree,FALSE);
+	gtk_tree_view_append_column((GtkTreeView*)tree, column);
+	gtk_tree_view_set_model((GtkTreeView*)tree, (GtkTreeModel*)channels);
+	g_object_unref(channels);
+	GtkWidget*scrolled_right = gtk_scrolled_window_new (nullptr, nullptr);
+	gtk_container_add((GtkContainer*)scrolled_right,tree);
+	//
+	GtkWidget *pan=gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
+	gtk_paned_pack1((GtkPaned*)pan,scrolled_window,TRUE,TRUE);
+	gtk_paned_pack2((GtkPaned*)pan,scrolled_right,FALSE,TRUE);
 	//
 	GtkWidget*en=gtk_combo_box_text_new_with_entry();
 	GtkWidget*entext=gtk_bin_get_child((GtkBin*)en);
@@ -627,9 +680,14 @@ activate (GtkApplication* app,
 	gtk_box_pack_start((GtkBox*)top,org,FALSE,FALSE,0);
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	gtk_box_pack_start((GtkBox*)box,top,FALSE,FALSE,0);
-	gtk_box_pack_start((GtkBox*)box,scrolled_window,TRUE,TRUE,0);
+	gtk_box_pack_start((GtkBox*)box,pan,TRUE,TRUE,0);
 	gtk_container_add ((GtkContainer*)window, box);
 	gtk_widget_show_all (window);
+	//after show set a size
+	int wd;
+	gtk_window_get_size((GtkWindow*)window,&wd,nullptr);
+	wd=ps->separator!=-1?wd*ps->separator/100:125<(wd/4)?125:wd/4;
+	gtk_widget_set_size_request (scrolled_right, wd, -1);
 }
 static gint handle_local_options (struct init_pass_struct* ps, GVariantDict*options){
 	gchar*result;
@@ -644,7 +702,10 @@ static gint handle_local_options (struct init_pass_struct* ps, GVariantDict*opti
 	if(v!=nullptr){
 		ps->nick=g_variant_dup_string(v,nullptr);//get is not the same pointer as argv[2],is always utf-8
 	}else ps->nick=nullptr;
-	return -1;
+	if (g_variant_dict_lookup (options, "separator", "s", &result)){
+		ps->separator=atoi(result);
+		g_free(result);
+	}return -1;
 }
 int
 main (int    argc,
@@ -659,6 +720,7 @@ main (int    argc,
 		//if(app!=nullptr){
 		g_application_add_main_option((GApplication*)app,"dimensions",'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
 		g_application_add_main_option((GApplication*)app,"nick",'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
+		g_application_add_main_option((GApplication*)app,"separator",'s',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Right pane percent (%) from window","PERCENT");
 		struct init_pass_struct ps;
 		ps.path=argv[0];
 		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);

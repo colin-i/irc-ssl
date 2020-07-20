@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 int puts(const char*);
+int sscanf(const char *str, const char *format, ...);
 int snprintf(char* __buf, size_t __size, const char* __fmt, ...);
 int sprintf(char*,const char*,...);
 
