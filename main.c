@@ -660,6 +660,7 @@ activate (GtkApplication* app,
 	GtkWidget *pan=gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
 	gtk_paned_pack1((GtkPaned*)pan,scrolled_window,TRUE,TRUE);
 	gtk_paned_pack2((GtkPaned*)pan,scrolled_right,FALSE,TRUE);
+	gtk_widget_set_size_request (scrolled_right, ps->separator!=-1?ps->separator:150, -1);
 	//
 	GtkWidget*en=gtk_combo_box_text_new_with_entry();
 	GtkWidget*entext=gtk_bin_get_child((GtkBin*)en);
@@ -684,11 +685,6 @@ activate (GtkApplication* app,
 	gtk_box_pack_start((GtkBox*)box,pan,TRUE,TRUE,0);
 	gtk_container_add ((GtkContainer*)window, box);
 	gtk_widget_show_all (window);
-	//after show set a size
-	int wd;
-	gtk_window_get_size((GtkWindow*)window,&wd,nullptr);
-	wd=ps->separator!=-1?wd*ps->separator/100:125<(wd/4)?125:wd/4;
-	gtk_widget_set_size_request (scrolled_right, wd, -1);
 }
 static gint handle_local_options (struct init_pass_struct* ps, GVariantDict*options){
 	gchar*result;
@@ -725,7 +721,7 @@ main (int    argc,
 		ps.args[1]="nick";
 		g_application_add_main_option((GApplication*)app,ps.args[1],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
 		ps.args[2]="right";
-		g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Right pane size percent (%) from window, default 125 or width/4","PERCENT");
+		g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Right pane size, default 150","WIDTH");
 		ps.path=argv[0];
 		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
