@@ -90,6 +90,7 @@ enum {
   N_COLUMNS
 };
 struct init_pass_struct{
+	const char*args[3];
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;
 	int separator;
@@ -691,18 +692,18 @@ activate (GtkApplication* app,
 }
 static gint handle_local_options (struct init_pass_struct* ps, GVariantDict*options){
 	gchar*result;
-	if (g_variant_dict_lookup (options, "dimensions", "s", &result)){//missing argument is not reaching here
+	if (g_variant_dict_lookup (options, ps->args[0], "s", &result)){//missing argument is not reaching here
 		char*b=strchr(result,'x');
 		if(b!=nullptr){*b='\0';b++;}
 		ps->dim[0]=atoi(result);
 		ps->dim[1]=b!=nullptr?atoi(b):ps->dim[0];
 		g_free(result);
 	}else ps->dim[0]=-1;//this is default at gtk
-	GVariant*v=g_variant_dict_lookup_value(options,"nick",G_VARIANT_TYPE_STRING);
+	GVariant*v=g_variant_dict_lookup_value(options,ps->args[1],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr){
 		ps->nick=g_variant_dup_string(v,nullptr);//get is not the same pointer as argv[2],is always utf-8
 	}else ps->nick=nullptr;
-	if (g_variant_dict_lookup (options, "separator", "s", &result)){
+	if (g_variant_dict_lookup (options,ps->args[2], "s", &result)){
 		ps->separator=atoi(result);
 		g_free(result);
 	}return -1;
@@ -718,10 +719,13 @@ main (int    argc,
 		GtkApplication *app;
 		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
 		//if(app!=nullptr){
-		g_application_add_main_option((GApplication*)app,"dimensions",'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
-		g_application_add_main_option((GApplication*)app,"nick",'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
-		g_application_add_main_option((GApplication*)app,"separator",'s',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Right pane percent (%) from window","PERCENT");
 		struct init_pass_struct ps;
+		ps.args[0]="dimensions";
+		g_application_add_main_option((GApplication*)app,ps.args[0],'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
+		ps.args[1]="nick";
+		g_application_add_main_option((GApplication*)app,ps.args[1],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
+		ps.args[2]="right";
+		g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Right pane size percent (%) from window, default 125 or width/4","PERCENT");
 		ps.path=argv[0];
 		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
