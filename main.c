@@ -660,7 +660,7 @@ activate (GtkApplication* app,
 	GtkWidget *pan=gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
 	gtk_paned_pack1((GtkPaned*)pan,scrolled_window,TRUE,TRUE);
 	gtk_paned_pack2((GtkPaned*)pan,scrolled_right,FALSE,TRUE);
-	gtk_widget_set_size_request (scrolled_right, ps->separator!=-1?ps->separator:150, -1);
+	gtk_widget_set_size_request (scrolled_right, ps->separator, -1);
 	//
 	GtkWidget*en=gtk_combo_box_text_new_with_entry();
 	GtkWidget*entext=gtk_bin_get_child((GtkBin*)en);
@@ -702,7 +702,8 @@ static gint handle_local_options (struct init_pass_struct* ps, GVariantDict*opti
 	if (g_variant_dict_lookup (options,ps->args[2], "s", &result)){
 		ps->separator=atoi(result);
 		g_free(result);
-	}return -1;
+	}else ps->separator=150;
+	return -1;
 }
 int
 main (int    argc,
