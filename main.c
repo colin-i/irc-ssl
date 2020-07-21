@@ -703,6 +703,7 @@ activate (GtkApplication* app,
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	gtk_box_pack_start((GtkBox*)box,top,FALSE,FALSE,0);
 	gtk_box_pack_start((GtkBox*)box,pan,TRUE,TRUE,0);
+	gtk_box_pack_start((GtkBox*)box,sendentry,FALSE,FALSE,0);
 	gtk_container_add ((GtkContainer*)window, box);
 	gtk_widget_show_all (window);
 }
