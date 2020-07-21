@@ -125,6 +125,8 @@ void gtk_container_set_border_width (GtkContainer *container,guint border_width)
 GtkWidget * gtk_dialog_get_content_area (GtkDialog *dialog);
 GtkWidget* gtk_dialog_new_with_buttons (const gchar *title,  GtkWindow *parent, GtkDialogFlags flags, const gchar *first_button_text, ...) __attribute__((__sentinel__));
 const gchar *gtk_entry_get_text (GtkEntry *entry);
+GtkWidget* gtk_entry_new (void);
+void gtk_entry_set_max_length (GtkEntry *entry, gint max);
 void gtk_entry_set_text (GtkEntry *entry, const gchar *text);
 void gtk_list_store_append (GtkListStore *list_store, GtkTreeIter *iter);
 GtkListStore *gtk_list_store_new (gint n_columns, ...);

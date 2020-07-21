@@ -72,7 +72,7 @@ static SSL *ssl=nullptr;static int plain_socket=-1;static GThread*con_th=nullptr
 static int portindex;static int portend;
 #define ssl_con_try "Trying with SSL.\n"
 #define ssl_con_no "Trying unencrypted.\n"
-#define irc_bsz 512
+#define irc_bsz 64
 #define hostname_sz 256
 #define password_sz 128
 #define password_con "PASS %s\n"
@@ -94,6 +94,7 @@ struct init_pass_struct{
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;
 	int separator;
+	int send_size;
 };
 
 static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int*sens,struct init_pass_struct*ps) {
@@ -211,6 +212,10 @@ static void send_data(const char*str,size_t sz){
 	else write(plain_socket,str,sz);
 }
 #define send_string(s) send_data(s,strlen(s))
+static int recv_data(char*b,int sz){
+	if(ssl!=nullptr)return SSL_read(ssl, b, sz);
+	return read(plain_socket,b,(size_t)sz);
+}
 static void incomings(char*a,size_t n){
 	a[n]=0;
 	char channm[63+1+10+1];int d;unsigned int e;//if its >63 ,c is not 3
@@ -236,28 +241,40 @@ static void irc_start(char*psw,char*nkn){
 		send_string(i1);
 		send_string("LIST\n");
 		//
-		char buf[irc_bsz];
-		for(;;){
-			int sz;
-			if(ssl!=nullptr)sz=SSL_read(ssl, buf, irc_bsz);
-			else sz=read(plain_socket,buf,irc_bsz);
-			if(sz<=0)break;
-			char*b=buf;
+		char*buf=(char*)malloc(irc_bsz);int bsz=irc_bsz;
+		if(buf!=nullptr){
 			for(;;){
-				char*n=(char*)memchr(b,'\n',(size_t)sz);
-				if(n!=nullptr){
-					size_t s=(size_t)(n+1-b);
-					main_text(b,s);
-					if(s>4&&memcmp(b,"PING",4)==0){
-						b[1]='O';
-						send_data(b,s);
-					}else if(*b==':')incomings(b,s-(b[s-2]=='\r'?2:1));
-					b=n+1;sz-=s;
-					continue;
+				int sz=recv_data(buf,bsz);
+				if(sz==bsz&&buf[sz-1]!='\n'){
+					void*re;
+					do{
+						re=realloc(buf,(size_t)bsz+irc_bsz);
+						if(re==nullptr)break;
+						buf=(char*)re;
+						sz+=recv_data(buf+bsz,irc_bsz);
+						bsz+=irc_bsz;
+					}while(sz==bsz&&buf[sz-1]!='\n');
+					if(re==nullptr)break;
 				}
-				main_text(b,(size_t)sz);
-				break;
+				if(sz<=0)break;
+				char*b=buf;
+				for(;;){
+					char*n=(char*)memchr(b,'\n',(size_t)sz);
+					if(n!=nullptr){
+						size_t s=(size_t)(n+1-b);
+						main_text(b,s);
+						if(s>4&&memcmp(b,"PING",4)==0){
+							b[1]='O';
+							send_data(b,s);
+						}else if(*b==':')incomings(b,s-(b[s-2]=='\r'?2:1));
+						b=n+1;sz-=s;
+						continue;
+					}
+					main_text(b,(size_t)sz);
+					break;
+				}
 			}
+			free(buf);
 		}
 		free(i1);
 	}
@@ -677,6 +694,9 @@ activate (GtkApplication* app,
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	g_signal_connect_data (org, "button-press-event",G_CALLBACK (prog_menu_popup),menu,nullptr,G_CONNECT_SWAPPED);
 	//
+	GtkWidget*sendentry=gtk_entry_new();
+	gtk_entry_set_max_length((GtkEntry*)sendentry,ps->send_size);
+	//
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 	gtk_box_pack_start((GtkBox*)top,en,TRUE,TRUE,0);
 	gtk_box_pack_start((GtkBox*)top,org,FALSE,FALSE,0);
@@ -705,31 +725,45 @@ static gint handle_local_options (struct init_pass_struct* ps, GVariantDict*opti
 	}else ps->separator=150;
 	return -1;
 }
-int
-main (int    argc,
+static int send_sizing(){
+	int s=socket(AF_INET, SOCK_STREAM, 0);
+	if(s!=-1){
+		int n;//"This option shall store an int value."
+		socklen_t m = sizeof(n);
+		if(getsockopt(s,SOL_SOCKET,SO_SNDBUF,(void *)&n, &m)==0)
+			return n;
+		close(s);
+	}
+	return -1;
+}
+int main (int    argc,
       char **argv)
 {
 	  /* ---------------------------------------------------------- *
 	   * initialize SSL library and register algorithms             *
 	   * ---------------------------------------------------------- */
 	if(OPENSSL_init_ssl(OPENSSL_INIT_NO_LOAD_SSL_STRINGS,nullptr)==1){
-		GtkApplication *app;
-		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
-		//if(app!=nullptr){
-		struct init_pass_struct ps;
-		ps.args[0]="dimensions";
-		g_application_add_main_option((GApplication*)app,ps.args[0],'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
-		ps.args[1]="nick";
-		g_application_add_main_option((GApplication*)app,ps.args[1],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
-		ps.args[2]="right";
-		g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Right pane size, default 150","WIDTH");
-		ps.path=argv[0];
-		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
-		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
-		//  if(han>0)
-		g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
-		g_object_unref (app);
-		if(ps.nick!=nullptr)g_free(ps.nick);
+		int s=send_sizing();
+		if(s!=-1){
+			struct init_pass_struct ps;
+			ps.send_size=s/4;//utf8 can store unicode on 1-4 B,can be "clamped"
+			GtkApplication *app;
+			app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
+			//if(app!=nullptr){
+			ps.args[0]="dimensions";
+			g_application_add_main_option((GApplication*)app,ps.args[0],'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
+			ps.args[1]="nick";
+			g_application_add_main_option((GApplication*)app,ps.args[1],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
+			ps.args[2]="right";
+			g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Right pane size, default 150","WIDTH");
+			ps.path=argv[0];
+			g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
+			g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
+			//  if(han>0)
+			g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
+			if(ps.nick!=nullptr)g_free(ps.nick);
+			g_object_unref (app);
+		}else puts("socket find size error");
 	}else puts("openssl error");
 	if(info_path_name!=nullptr)free(info_path_name);
 }

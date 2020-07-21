@@ -7,6 +7,7 @@ extern "C" {
 int atoi(const char*);
 void free(void*);
 void*malloc(size_t);
+void* realloc(void* __ptr, size_t __byte_count);
 #ifdef __cplusplus
 }
 #endif
