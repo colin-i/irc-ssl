@@ -86,9 +86,9 @@ Connection format is [[nickname:]password@]hostname[:port1[-portn]].\n\
 newNick:abc@127.0.0.1:6665-6669"
 #define channm_sz 64
 #define channm_scan "63"
-#define channm_parse_1 "%*s %d %*s %" channm_scan "s %u"
-#define channm_parse_2 "%" channm_scan "s %u"
 #define channm_parse_3 "%" channm_scan "s"
+#define channm_parse_2 channm_parse_3 " %u"
+#define channm_parse_1 "%*s %d %*s " channm_parse_2
 
 enum {
   LIST_ITEM = 0,
