@@ -84,11 +84,16 @@ Launch the program with --help argument for more info.\n\
 \n\
 Connection format is [[nickname:]password@]hostname[:port1[-portn]].\n\
 newNick:abc@127.0.0.1:6665-6669"
+#define channm_sz 64
+#define channm_scan "63"
+#define channm_parse_1 "%*s %d %*s %" channm_scan "s %u"
+#define channm_parse_2 "%" channm_scan "s %u"
+#define channm_parse_3 "%" channm_scan "s"
 
 enum {
   LIST_ITEM = 0,
   N_COLUMNS
-};
+};//connections org,channels
 struct init_pass_struct{
 	const char*args[3];
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
@@ -216,16 +221,75 @@ static int recv_data(char*b,int sz){
 	if(ssl!=nullptr)return SSL_read(ssl, b, sz);
 	return read(plain_socket,b,(size_t)sz);
 }
+static void pars_chan_end(GtkTreeIter*it,char*channm,unsigned int nr){
+	size_t ln=strlen(channm);channm[ln]=' ';sprintf(channm+ln+1,"%u",nr);
+	gtk_list_store_set(channels, it, LIST_ITEM, channm, -1);
+}
+static BOOL pars_chans_b(char*chan,unsigned int nr,char*text,BOOL*decided,BOOL*present,GtkTreeIter*it,GtkTreeIter*altit){
+	char c[channm_sz];unsigned int n;
+	if(*decided==FALSE&&*present==FALSE){
+		sscanf(text,channm_parse_2,c,&n);
+		int a=strcmp(chan,c);
+		if(nr>n){
+			if(a==0){
+				pars_chan_end(it,chan,nr);
+				return TRUE;
+			}
+			*altit=*it;*decided=TRUE;
+		}else if(nr==n){
+			if(a==0)return TRUE;
+			if(a<0){*altit=*it;*decided=TRUE;}
+		}else if(a==0){
+			*altit=*it;
+			*present=TRUE;
+		}
+	}else if(*decided){
+		sscanf(text,channm_parse_3,c);
+		if(strcmp(chan,c)==0){
+			pars_chan_end(it,chan,nr);
+			gtk_list_store_move_before(channels,it,altit);
+			return TRUE;
+		}
+	}else{// if(present){
+		sscanf(text,channm_parse_2,c,&n);
+		if(nr>n||(nr==n&&strcmp(chan,c)<0)){
+			pars_chan_end(altit,chan,nr);
+			gtk_list_store_move_before(channels,altit,it);
+			return TRUE;
+		}		
+	}
+	return FALSE;
+}
+static void pars_chans(char*chan,unsigned int nr){
+	GtkTreeIter it;GtkTreeIter altit;
+	BOOL decided=FALSE;BOOL present=FALSE;
+	gboolean valid=gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, &it);
+	while(valid){
+		char*text;
+		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
+		BOOL a=pars_chans_b(chan,nr,text,&decided,&present,&it,&altit);
+		g_free(text);
+		if(a)return;
+		valid = gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it);
+	}
+	if(decided==FALSE&&present==FALSE){
+		gtk_list_store_append(channels,&it);
+		pars_chan_end(&it,chan,nr);
+		return;
+	}
+	else if(decided){
+		gtk_list_store_insert_before(channels,&it,&altit);
+		pars_chan_end(&it,chan,nr);
+		return;
+	}
+	pars_chan_end(&altit,chan,nr);
+	gtk_list_store_move_before(channels,&altit,nullptr);
+}
 static void incomings(char*a,size_t n){
 	a[n]=0;
-	char channm[63+1+10+1];int d;unsigned int e;//if its >63 ,c is not 3
-	int c=sscanf(a,"%*s %d %*s %63s %u",&d,channm,&e);
-	if(d==322&&c==3){
-		GtkTreeIter it;
-		gtk_list_store_append(channels, &it);
-		size_t ln=strlen(channm);channm[ln]=' ';sprintf(channm+ln+1,"%u",e);
-		gtk_list_store_set(channels, &it, LIST_ITEM, channm, -1);
-	}
+	char channm[channm_sz+1+10];int d;unsigned int e;
+	int c=sscanf(a,channm_parse_1,&d,channm,&e);//if its >nr ,c is not 3
+	if(c==3&&d==322)pars_chans(channm,e);
 }
 static void irc_start(char*psw,char*nkn){
 	const char*format="USER guest tolmoon tolsun :Ronnie Reagan\n";
@@ -374,16 +438,16 @@ static void save_combo_box(GtkTreeModel*list){
 	if(info_path_name!=nullptr){
 		int f=open(info_path_name,O_WRONLY|O_TRUNC);
 		if(f!=-1){
-			gchar*text;
-			int i=0;
+			BOOL i=FALSE;
 			gboolean valid=gtk_tree_model_get_iter_first (list, &it);
 			while(valid){
+				gchar*text;
 				gtk_tree_model_get (list, &it, 0, &text, -1);
-				if(i!=0)if(write(f,"\n",1)!=1){g_free(text);break;}
+				if(i){if(write(f,"\n",1)!=1){g_free(text);break;}}
+				else i=TRUE;
 				size_t sz=strlen(text);
 				if((size_t)write(f,text,sz)!=sz){g_free(text);break;}
 				g_free(text);
-				i++;
 				valid = gtk_tree_model_iter_next( list, &it);
 			}
 			close(f);
@@ -418,8 +482,8 @@ static void set_combo_box_text(GtkComboBox * box,const char*txt)
 	gtk_combo_box_set_active(box, i);
 }
 
-static void enter_callback( GtkWidget *widget,struct init_pass_struct*ps){
-	const char* t=gtk_entry_get_text ((GtkEntry*)widget);
+static void enter_callback( GtkEntry *widget,struct init_pass_struct*ps){
+	const char* t=gtk_entry_get_text (widget);
 	if(strlen(t)>0){
 		while(con_th!=nullptr){
 			portindex=portend;
@@ -427,7 +491,7 @@ static void enter_callback( GtkWidget *widget,struct init_pass_struct*ps){
 			else if(plain_socket!=-1)shutdown(plain_socket,2);
 			sleep(1);
 		}
-		set_combo_box_text((GtkComboBox*)gtk_widget_get_ancestor(widget,gtk_combo_box_text_get_type()),t);
+		set_combo_box_text((GtkComboBox*)gtk_widget_get_ancestor((GtkWidget*)widget,gtk_combo_box_text_get_type()),t);
 		ps->text=t;
 		#pragma GCC diagnostic push
 		#pragma GCC diagnostic ignored "-Wcast-qual"
@@ -620,6 +684,18 @@ static void help_popup(GtkWindow*top){
 	gtk_box_pack_start((GtkBox*)box, scrolled_window, TRUE, TRUE, 0);
 	gtk_widget_show_all (dialog);
 }
+static void send_activate(GtkEntry*entry){
+	GtkEntryBuffer*t=gtk_entry_get_buffer(entry);
+	const char*text=gtk_entry_buffer_get_text(t);
+	size_t sz=strlen(text);
+	char*b=(char*)malloc(sz+1);
+	if(b!=nullptr){
+		memcpy(b,text,sz);b[sz]='\n';
+		send_data(b,sz+1);
+		free(b);
+		gtk_entry_buffer_delete_text(t,0,-1);
+	}
+}
 static void
 activate (GtkApplication* app,
           struct init_pass_struct*ps)
@@ -696,6 +772,7 @@ activate (GtkApplication* app,
 	//
 	GtkWidget*sendentry=gtk_entry_new();
 	gtk_entry_set_max_length((GtkEntry*)sendentry,ps->send_size);
+	g_signal_connect_data(sendentry,"activate",G_CALLBACK(send_activate),nullptr,nullptr,(GConnectFlags)0);
 	//
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 	gtk_box_pack_start((GtkBox*)top,en,TRUE,TRUE,0);

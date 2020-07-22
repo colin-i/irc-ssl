@@ -25,6 +25,7 @@ typedef void GtkComboBoxText;
 typedef void GtkContainer;
 typedef void GtkDialog;
 typedef void GtkEntry;
+typedef void GtkEntryBuffer;
 typedef void GtkListStore;
 typedef void GtkMenu;
 typedef void GtkMenuShell;
@@ -53,7 +54,7 @@ typedef gpointer (*GThreadFunc)(gpointer data);
 typedef enum{G_APPLICATION_FLAGS_NONE}
  GApplicationFlags;
 typedef enum{G_CONNECT_SWAPPED = 1 << 1}
-GConnectFlags;//_BEFOR G_CONNECT_AFTER = 1 << 0,
+GConnectFlags;//_BEFORE G_CONNECT_AFTER = 1 << 0,
 typedef enum{  G_OPTION_ARG_NONE,  G_OPTION_ARG_STRING}//,  G_OPTION_ARG_INT,  G_OPTION_ARG_CALLBACK,  G_OPTION_ARG_FILENAME,  G_OPTION_ARG_STRING_ARRAY,  G_OPTION_ARG_FILENAME_ARRAY,  G_OPTION_ARG_DOUBLE,  G_OPTION_ARG_INT64
  GOptionArg;
 typedef enum{G_OPTION_FLAG_IN_MAIN = 1 << 1}//  G_OPTION_FLAG_NONE = 0,  G_OPTION_FLAG_HIDDEN = 1 << 0,
@@ -124,11 +125,16 @@ void gtk_container_add (GtkContainer *container,GtkWidget *widget);
 void gtk_container_set_border_width (GtkContainer *container,guint border_width);
 GtkWidget * gtk_dialog_get_content_area (GtkDialog *dialog);
 GtkWidget* gtk_dialog_new_with_buttons (const gchar *title,  GtkWindow *parent, GtkDialogFlags flags, const gchar *first_button_text, ...) __attribute__((__sentinel__));
+guint gtk_entry_buffer_delete_text (GtkEntryBuffer *buffer, guint position, gint n_chars);
+const gchar* gtk_entry_buffer_get_text (GtkEntryBuffer *buffer);
+GtkEntryBuffer *gtk_entry_get_buffer (GtkEntry *entry);
 const gchar *gtk_entry_get_text (GtkEntry *entry);
 GtkWidget* gtk_entry_new (void);
 void gtk_entry_set_max_length (GtkEntry *entry, gint max);
 void gtk_entry_set_text (GtkEntry *entry, const gchar *text);
 void gtk_list_store_append (GtkListStore *list_store, GtkTreeIter *iter);
+void gtk_list_store_insert_before (GtkListStore *list_store, GtkTreeIter *iter, GtkTreeIter *sibling);
+void gtk_list_store_move_before (GtkListStore *store,GtkTreeIter *iter,GtkTreeIter *position);
 GtkListStore *gtk_list_store_new (gint n_columns, ...);
 gboolean gtk_list_store_remove (GtkListStore *list_store, GtkTreeIter *iter);
 void gtk_list_store_set (GtkListStore *list_store, GtkTreeIter *iter, ...);
