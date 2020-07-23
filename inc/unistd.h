@@ -15,7 +15,6 @@ extern "C" {
 int close(int);
 off_t lseek(int,off_t,int);
 ssize_t read(int,void*,size_t);
-unsigned int sleep(unsigned int seconds);
 ssize_t write(int,const void*,size_t);
 
 #ifdef __cplusplus

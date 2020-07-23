@@ -100,8 +100,28 @@ struct init_pass_struct{
 	char*nick;const char*text;
 	int separator;
 	int send_size;
+	GtkWidget*con_entry;gulong con_entry_act;GtkWidget*sen_entry;gulong sen_entry_act;
 };
 
+static gboolean textviewthreadsfunc(gpointer b){
+	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
+	GtkTextIter it;gtk_text_buffer_get_end_iter(text_buffer,&it);
+	gtk_text_buffer_insert(text_buffer,&it,(const char*)b,-1);
+	/* now scroll to the end using marker */
+	gtk_text_view_scroll_to_mark (text_view,
+	                              text_mark_end,
+	                              0., FALSE, 0., 0.);
+	free(b);
+	return FALSE;
+}
+static void main_text(const char*b,size_t s){
+	char*a=(char*)malloc(s+1);
+	if(a!=nullptr){
+		memcpy(a,b,s);a[s]='\0';
+		g_idle_add(textviewthreadsfunc,a);
+	}
+}
+#define main_text_s(b) main_text(b,sizeof(b)-1)
 static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int*sens,struct init_pass_struct*ps) {
 	size_t sz=strlen(indata);
 	//
@@ -158,25 +178,6 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int
 	}
 	return FALSE;
 }
-static gboolean textviewthreadsfunc(gpointer b){
-	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
-	GtkTextIter it;gtk_text_buffer_get_end_iter(text_buffer,&it);
-	gtk_text_buffer_insert(text_buffer,&it,(const char*)b,-1);
-	/* now scroll to the end using marker */
-	gtk_text_view_scroll_to_mark (text_view,
-	                              text_mark_end,
-	                              0., FALSE, 0., 0.);
-	free(b);
-	return FALSE;
-}
-static void main_text(const char*b,size_t s){
-	char*a=(char*)malloc(s+1);
-	if(a!=nullptr){
-		memcpy(a,b,s);a[s]='\0';
-		g_idle_add(textviewthreadsfunc,a);
-	}
-}
-#define main_text_s(b) main_text(b,sizeof(b)-1)
 /* ---------------------------------------------------------- *
  * create_socket() creates the socket & TCP-connect to server *
  * ---------------------------------------------------------- */
@@ -291,7 +292,8 @@ static void incomings(char*a,size_t n){
 	int c=sscanf(a,channm_parse_1,&d,channm,&e);//if its >nr ,c is not 3
 	if(c==3&&d==322)pars_chans(channm,e);
 }
-static void irc_start(char*psw,char*nkn){
+static void irc_start(char*psw,char*nkn,struct init_pass_struct*ps){
+	g_signal_handler_unblock(ps->sen_entry,ps->sen_entry_act);
 	const char*format="USER guest tolmoon tolsun :Ronnie Reagan\n";
 	size_t fln=strlen(format);
 	size_t nln=(size_t)snprintf(nullptr,0,nickname_con,nkn);
@@ -342,6 +344,7 @@ static void irc_start(char*psw,char*nkn){
 		}
 		free(i1);
 	}
+	g_signal_handler_block(ps->sen_entry,ps->sen_entry_act);
 }
 static void proced(struct init_pass_struct*ps){
 	const SSL_METHOD *method;
@@ -393,7 +396,7 @@ static void proced(struct init_pass_struct*ps){
 								  /* ---------------------------------------------------------- *
 								   * Start                                                      *
 								   * ---------------------------------------------------------- */
-								irc_start(psw,nkn);
+								irc_start(psw,nkn,ps);
 								close(server);break;
 							}else{
 								ssl=nullptr;
@@ -402,7 +405,7 @@ static void proced(struct init_pass_struct*ps){
 								plain_socket=create_socket(hostname,portindex);
 								if(plain_socket!=-1){
 									close(server);
-									irc_start(psw,nkn);
+									irc_start(psw,nkn,ps);
 									close(plain_socket);plain_socket=-1;
 									break;
 								}
@@ -482,23 +485,29 @@ static void set_combo_box_text(GtkComboBox * box,const char*txt)
 	gtk_combo_box_set_active(box, i);
 }
 
-static void enter_callback( GtkEntry *widget,struct init_pass_struct*ps){
-	const char* t=gtk_entry_get_text (widget);
+static gboolean enter_callback( gpointer ps){
+	//block this ENTER
+	g_signal_handler_block(((struct init_pass_struct*)ps)->con_entry,((struct init_pass_struct*)ps)->con_entry_act);
+	const char* t=gtk_entry_get_text ((GtkEntry*)((struct init_pass_struct*)ps)->con_entry);
 	if(strlen(t)>0){
-		while(con_th!=nullptr){
+		if(con_th!=nullptr){
 			portindex=portend;
 			if(ssl!=nullptr)SSL_shutdown(ssl);
 			else if(plain_socket!=-1)shutdown(plain_socket,2);
-			sleep(1);
+			g_timeout_add(1000,enter_callback,ps);
+			return FALSE;
 		}
-		set_combo_box_text((GtkComboBox*)gtk_widget_get_ancestor((GtkWidget*)widget,gtk_combo_box_text_get_type()),t);
-		ps->text=t;
+		set_combo_box_text((GtkComboBox*)gtk_widget_get_ancestor(((struct init_pass_struct*)ps)->con_entry,gtk_combo_box_text_get_type()),t);
+		((struct init_pass_struct*)ps)->text=t;
 		#pragma GCC diagnostic push
 		#pragma GCC diagnostic ignored "-Wcast-qual"
 		con_th=g_thread_new(nullptr,worker,ps);
 		#pragma GCC diagnostic pop
 		g_thread_unref(con_th);
 	}
+	//unblock this ENTER
+	g_signal_handler_unblock(((struct init_pass_struct*)ps)->con_entry,((struct init_pass_struct*)ps)->con_entry_act);
+	return FALSE;
 }
 static BOOL info_path_name_set_val(const char*a,char*b,size_t i,size_t j){
 	info_path_name=(char*)malloc(i+j+6);
@@ -758,7 +767,8 @@ activate (GtkApplication* app,
 	GtkWidget*en=gtk_combo_box_text_new_with_entry();
 	GtkWidget*entext=gtk_bin_get_child((GtkBin*)en);
 	if(info_path_name_restore((GtkComboBoxText*)en,ps->path))gtk_entry_set_text ((GtkEntry*)entext,":");
-	g_signal_connect_data (entext, "activate",G_CALLBACK (enter_callback),ps,nullptr,(GConnectFlags) 0);
+	ps->con_entry=entext;//this for timeouts
+	ps->con_entry_act=g_signal_connect_data (entext, "activate",G_CALLBACK (enter_callback),ps,nullptr,G_CONNECT_SWAPPED);
 	//
 	GtkWidget *org=gtk_button_new_with_label("\u22EE");ps->cbt=(GtkComboBoxText*)en;
 	GtkWidget *menu = gtk_menu_new ();
@@ -770,9 +780,10 @@ activate (GtkApplication* app,
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	g_signal_connect_data (org, "button-press-event",G_CALLBACK (prog_menu_popup),menu,nullptr,G_CONNECT_SWAPPED);
 	//
-	GtkWidget*sendentry=gtk_entry_new();
-	gtk_entry_set_max_length((GtkEntry*)sendentry,ps->send_size);
-	g_signal_connect_data(sendentry,"activate",G_CALLBACK(send_activate),nullptr,nullptr,(GConnectFlags)0);
+	ps->sen_entry=gtk_entry_new();
+	gtk_entry_set_max_length((GtkEntry*)ps->sen_entry,ps->send_size);
+	ps->sen_entry_act=g_signal_connect_data(ps->sen_entry,"activate",G_CALLBACK(send_activate),nullptr,nullptr,(GConnectFlags)0);
+	g_signal_handler_block(ps->sen_entry,ps->sen_entry_act);
 	//
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 	gtk_box_pack_start((GtkBox*)top,en,TRUE,TRUE,0);
@@ -780,7 +791,7 @@ activate (GtkApplication* app,
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	gtk_box_pack_start((GtkBox*)box,top,FALSE,FALSE,0);
 	gtk_box_pack_start((GtkBox*)box,pan,TRUE,TRUE,0);
-	gtk_box_pack_start((GtkBox*)box,sendentry,FALSE,FALSE,0);
+	gtk_box_pack_start((GtkBox*)box,ps->sen_entry,FALSE,FALSE,0);
 	gtk_container_add ((GtkContainer*)window, box);
 	gtk_widget_show_all (window);
 }
