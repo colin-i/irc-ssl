@@ -9,7 +9,6 @@ typedef unsigned int gsize;
 typedef double gdouble;
 typedef gsize GType;
 typedef void GApplication;
-typedef void GThread;
 typedef void GVariant;
 typedef void GVariantDict;
 typedef void GVariantType;
@@ -45,7 +44,6 @@ typedef void GtkWindow;
 typedef void (*GCallback)(void);
 typedef void *GClosureNotify;
 typedef gboolean(*GSourceFunc)(gpointer user_data);
-typedef gpointer (*GThreadFunc)(gpointer data);
 #define G_CALLBACK(f) ((GCallback)(f))
 #define G_TYPE_FUNDAMENTAL_SHIFT (2)
 #define G_TYPE_MAKE_FUNDAMENTAL(x) ((GType) ((x) << G_TYPE_FUNDAMENTAL_SHIFT))
@@ -106,8 +104,6 @@ gulong g_signal_connect_data (gpointer instance,const gchar *detailed_signal,GCa
 void g_signal_handler_block (gpointer instance, gulong handler_id);
 void g_signal_handler_unblock (gpointer instance, gulong handler_id);
 guint g_timeout_add (guint interval, GSourceFunc function, gpointer data);
-GThread * g_thread_new (const gchar *name, GThreadFunc func, gpointer data);
-void g_thread_unref (GThread *thread);
 gboolean g_variant_dict_lookup (GVariantDict *dict, const gchar *key, const gchar *format_string, ...);
 GVariant * g_variant_dict_lookup_value (GVariantDict *dict, const gchar *key, const GVariantType *expected_type);
 gchar * g_variant_dup_string (GVariant *value, gsize *length);

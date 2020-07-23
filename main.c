@@ -32,6 +32,16 @@
 #else
 #include "inc/openssl.h"
 #endif
+#ifdef HAVE_PTHREAD_H
+#include <pthread.h>
+#else
+#include "inc/pthread.h"
+#endif
+#ifdef HAVE_SIGNAL_H
+#include <signal.h>
+#else
+#include "inc/signal.h"
+#endif
 #ifdef HAVE_STDIO_H
 #include <stdio.h>
 #else
@@ -68,7 +78,8 @@
 #endif
 
 static GtkTextView *text_view;static GtkTextMark *text_mark_end;
-static SSL *ssl=nullptr;static int plain_socket=-1;static GThread*con_th=nullptr;
+static SSL *ssl=nullptr;static int plain_socket=-1;
+static int con_th=-1;//static GThread*con_th=nullptr;
 static int portindex;static int portend;
 #define ssl_con_try "Trying with SSL.\n"
 #define ssl_con_no "Trying unencrypted.\n"
@@ -89,6 +100,10 @@ newNick:abc@127.0.0.1:6665-6669"
 #define channm_parse_3 "%" channm_scan "s"
 #define channm_parse_2 channm_parse_3 " %u"
 #define channm_parse_1 "%*s %d %*s " channm_parse_2
+struct data_len{
+	const char*data;size_t len;
+};
+static long threadid;static sigset_t threadset;
 
 enum {
   LIST_ITEM = 0,
@@ -106,20 +121,19 @@ struct init_pass_struct{
 static gboolean textviewthreadsfunc(gpointer b){
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
 	GtkTextIter it;gtk_text_buffer_get_end_iter(text_buffer,&it);
-	gtk_text_buffer_insert(text_buffer,&it,(const char*)b,-1);
+	gtk_text_buffer_insert(text_buffer,&it,((struct data_len*)b)->data,(int)((struct data_len*)b)->len);
+	//let thread continue
+	pthread_kill( threadid, SIGUSR1);
 	/* now scroll to the end using marker */
 	gtk_text_view_scroll_to_mark (text_view,
 	                              text_mark_end,
 	                              0., FALSE, 0., 0.);
-	free(b);
 	return FALSE;
 }
 static void main_text(const char*b,size_t s){
-	char*a=(char*)malloc(s+1);
-	if(a!=nullptr){
-		memcpy(a,b,s);a[s]='\0';
-		g_idle_add(textviewthreadsfunc,a);
-	}
+	struct data_len dl;dl.data=b;dl.len=s;
+	g_idle_add(textviewthreadsfunc,&dl);
+	int out;sigwait(&threadset,&out);
 }
 #define main_text_s(b) main_text(b,sizeof(b)-1)
 static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int*sens,struct init_pass_struct*ps) {
@@ -430,8 +444,10 @@ static void proced(struct init_pass_struct*ps){
 	
 static gpointer worker (gpointer ps)
 {
-	proced((struct init_pass_struct*)ps);
-	con_th=nullptr;
+	int s = pthread_sigmask(SIG_BLOCK, &threadset, nullptr);
+	if (s == 0)
+		proced((struct init_pass_struct*)ps);
+	con_th=-1;//nullptr;
 	return nullptr;
 }
 
@@ -490,7 +506,7 @@ static gboolean enter_callback( gpointer ps){
 	g_signal_handler_block(((struct init_pass_struct*)ps)->con_entry,((struct init_pass_struct*)ps)->con_entry_act);
 	const char* t=gtk_entry_get_text ((GtkEntry*)((struct init_pass_struct*)ps)->con_entry);
 	if(strlen(t)>0){
-		if(con_th!=nullptr){
+		if(con_th==0){//con_th!=nullptr){
 			portindex=portend;
 			if(ssl!=nullptr)SSL_shutdown(ssl);
 			else if(plain_socket!=-1)shutdown(plain_socket,2);
@@ -499,11 +515,12 @@ static gboolean enter_callback( gpointer ps){
 		}
 		set_combo_box_text((GtkComboBox*)gtk_widget_get_ancestor(((struct init_pass_struct*)ps)->con_entry,gtk_combo_box_text_get_type()),t);
 		((struct init_pass_struct*)ps)->text=t;
-		#pragma GCC diagnostic push
+		/*#pragma GCC diagnostic push
 		#pragma GCC diagnostic ignored "-Wcast-qual"
 		con_th=g_thread_new(nullptr,worker,ps);
 		#pragma GCC diagnostic pop
-		g_thread_unref(con_th);
+		g_thread_unref(con_th);*/
+		con_th = pthread_create( &threadid, nullptr, worker,ps);
 	}
 	//unblock this ENTER
 	g_signal_handler_unblock(((struct init_pass_struct*)ps)->con_entry,((struct init_pass_struct*)ps)->con_entry_act);
@@ -828,6 +845,8 @@ static int send_sizing(){
 int main (int    argc,
       char **argv)
 {
+	sigemptyset(&threadset);
+	sigaddset(&threadset, SIGUSR1);
 	  /* ---------------------------------------------------------- *
 	   * initialize SSL library and register algorithms             *
 	   * ---------------------------------------------------------- */
