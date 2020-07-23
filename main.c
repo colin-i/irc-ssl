@@ -444,9 +444,10 @@ static void proced(struct init_pass_struct*ps){
 	
 static gpointer worker (gpointer ps)
 {
-	int s = pthread_sigmask(SIG_BLOCK, &threadset, nullptr);
-	if (s == 0)
-		proced((struct init_pass_struct*)ps);
+	//int s = 
+	pthread_sigmask(SIG_BLOCK, &threadset, nullptr);
+	//if (s == 0)
+	proced((struct init_pass_struct*)ps);
 	con_th=-1;//nullptr;
 	return nullptr;
 }
