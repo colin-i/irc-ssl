@@ -846,14 +846,14 @@ static int send_sizing(){
 int main (int    argc,
       char **argv)
 {
-	sigemptyset(&threadset);
-	sigaddset(&threadset, SIGUSR1);
 	  /* ---------------------------------------------------------- *
 	   * initialize SSL library and register algorithms             *
 	   * ---------------------------------------------------------- */
 	if(OPENSSL_init_ssl(OPENSSL_INIT_NO_LOAD_SSL_STRINGS,nullptr)==1){
 		int s=send_sizing();
 		if(s!=-1){
+			sigemptyset(&threadset);
+			sigaddset(&threadset, SIGUSR1);
 			struct init_pass_struct ps;
 			ps.send_size=s/4;//utf8 can store unicode on 1-4 B,can be "clamped"
 			GtkApplication *app;
