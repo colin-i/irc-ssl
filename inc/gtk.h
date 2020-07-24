@@ -103,6 +103,7 @@ void g_object_unref (gpointer object);
 gulong g_signal_connect_data (gpointer instance,const gchar *detailed_signal,GCallback c_handler,gpointer data,GClosureNotify destroy_data,GConnectFlags connect_flags);
 void g_signal_handler_block (gpointer instance, gulong handler_id);
 void g_signal_handler_unblock (gpointer instance, gulong handler_id);
+gboolean g_source_remove (guint tag);
 guint g_timeout_add (guint interval, GSourceFunc function, gpointer data);
 gboolean g_variant_dict_lookup (GVariantDict *dict, const gchar *key, const gchar *format_string, ...);
 GVariant * g_variant_dict_lookup_value (GVariantDict *dict, const gchar *key, const GVariantType *expected_type);

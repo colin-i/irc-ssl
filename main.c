@@ -110,12 +110,12 @@ enum {
   N_COLUMNS
 };//connections org,channels
 struct init_pass_struct{
-	const char*args[3];
+	const char*args[4];
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;
 	int separator;
-	int send_size;
 	GtkWidget*con_entry;gulong con_entry_act;GtkWidget*sen_entry;gulong sen_entry_act;
+	unsigned int refresh;unsigned int refreshid;
 };
 
 static gboolean textviewthreadsfunc(gpointer b){
@@ -161,7 +161,10 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int
 	}else *psw='\0';
 	if(nonick){
 		if(ps->nick!=nullptr)memcpy(nkn,ps->nick,strlen(ps->nick)+1);
-		else memcpy(nkn,"guest_abc",sizeof("guest_abc"));
+		else{
+			const char def_n[]="guest_abc";
+			memcpy(nkn,def_n,sizeof(def_n));
+		}
 	}
 	//
 	const char*ptr=strchr(indata,':');
@@ -231,7 +234,8 @@ static void send_data(const char*str,size_t sz){
 	if(ssl!=nullptr)SSL_write(ssl,str,(int)sz);
 	else write(plain_socket,str,sz);
 }
-#define send_string(s) send_data(s,strlen(s))
+#define sendlist "LIST\n"
+#define send_list() send_data(sendlist,sizeof(sendlist)-1)
 static int recv_data(char*b,int sz){
 	if(ssl!=nullptr)return SSL_read(ssl, b, sz);
 	return read(plain_socket,b,(size_t)sz);
@@ -306,10 +310,40 @@ static void incomings(char*a,size_t n){
 	int c=sscanf(a,channm_parse_1,&d,channm,&e);//if its >nr ,c is not 3
 	if(c==3&&d==322)pars_chans(channm,e);
 }
+static gboolean refresh_callback( gpointer ps){(void)ps;
+	send_list();
+	return TRUE;
+}
+static gboolean senstartthreadsfunc(gpointer ps){
+	int s;
+	if(ssl!=nullptr)s=SSL_get_fd(ssl);
+	else s=plain_socket;
+	int n;//"This option shall store an int value."
+	socklen_t m = sizeof(n);
+	getsockopt(s,SOL_SOCKET,SO_SNDBUF,(void *)&n, &m);
+	gtk_entry_set_max_length((GtkEntry*)((struct init_pass_struct*)ps)->sen_entry,n/4);//utf8 can store unicode on 1-4 B,can be "clamped"
+	g_signal_handler_unblock(((struct init_pass_struct*)ps)->sen_entry,((struct init_pass_struct*)ps)->sen_entry_act);
+	//
+	if(((struct init_pass_struct*)ps)->refresh>0)
+		((struct init_pass_struct*)ps)->refreshid=g_timeout_add(1000*((struct init_pass_struct*)ps)->refresh,refresh_callback,nullptr);
+	//
+	pthread_kill( threadid, SIGUSR1);
+	return FALSE;
+}
+static gboolean senstopthreadsfunc(gpointer ps){
+	g_signal_handler_block(((struct init_pass_struct*)ps)->sen_entry,((struct init_pass_struct*)ps)->sen_entry_act);
+	//
+	if(((struct init_pass_struct*)ps)->refresh>0)
+		g_source_remove(((struct init_pass_struct*)ps)->refreshid);
+	//
+	pthread_kill( threadid, SIGUSR1);
+	return FALSE;
+}
 static void irc_start(char*psw,char*nkn,struct init_pass_struct*ps){
-	g_signal_handler_unblock(ps->sen_entry,ps->sen_entry_act);
-	const char*format="USER guest tolmoon tolsun :Ronnie Reagan\n";
-	size_t fln=strlen(format);
+	g_idle_add(senstartthreadsfunc,ps);
+	int out;sigwait(&threadset,&out);
+	const char format[]="USER guest tolmoon tolsun :Ronnie Reagan\n";
+	size_t fln=sizeof(format)-1;
 	size_t nln=(size_t)snprintf(nullptr,0,nickname_con,nkn);
 	size_t pln=*psw=='\0'?0:(size_t)snprintf(nullptr,0,password_con,psw);
 	char*i1=(char*)malloc(pln+nln+fln);
@@ -317,9 +351,8 @@ static void irc_start(char*psw,char*nkn,struct init_pass_struct*ps){
 		if(*psw!='\0')sprintf(i1,password_con,psw);
 		sprintf(i1+pln,nickname_con,nkn);
 		memcpy(i1+pln+nln,format,fln);
-		i1[pln+nln+fln]='\0';
-		send_string(i1);
-		send_string("LIST\n");
+		send_data(i1,pln+nln+fln);
+		send_list();
 		//
 		char*buf=(char*)malloc(irc_bsz);int bsz=irc_bsz;
 		if(buf!=nullptr){
@@ -358,7 +391,8 @@ static void irc_start(char*psw,char*nkn,struct init_pass_struct*ps){
 		}
 		free(i1);
 	}
-	g_signal_handler_block(ps->sen_entry,ps->sen_entry_act);
+	g_idle_add(senstopthreadsfunc,ps);
+	sigwait(&threadset,&out);
 }
 static void proced(struct init_pass_struct*ps){
 	const SSL_METHOD *method;
@@ -501,17 +535,14 @@ static void set_combo_box_text(GtkComboBox * box,const char*txt)
 	save_combo_box(list_store);
 	gtk_combo_box_set_active(box, i);
 }
-
-static gboolean enter_callback( gpointer ps){
-	//block this ENTER
-	g_signal_handler_block(((struct init_pass_struct*)ps)->con_entry,((struct init_pass_struct*)ps)->con_entry_act);
+static gboolean enter_recallback( gpointer ps){
 	const char* t=gtk_entry_get_text ((GtkEntry*)((struct init_pass_struct*)ps)->con_entry);
 	if(strlen(t)>0){
 		if(con_th==0){//con_th!=nullptr){
 			portindex=portend;
 			if(ssl!=nullptr)SSL_shutdown(ssl);
 			else if(plain_socket!=-1)shutdown(plain_socket,2);
-			g_timeout_add(1000,enter_callback,ps);
+			g_timeout_add(1000,enter_recallback,ps);
 			return FALSE;
 		}
 		set_combo_box_text((GtkComboBox*)gtk_widget_get_ancestor(((struct init_pass_struct*)ps)->con_entry,gtk_combo_box_text_get_type()),t);
@@ -526,6 +557,11 @@ static gboolean enter_callback( gpointer ps){
 	//unblock this ENTER
 	g_signal_handler_unblock(((struct init_pass_struct*)ps)->con_entry,((struct init_pass_struct*)ps)->con_entry_act);
 	return FALSE;
+}
+static gboolean enter_callback( gpointer ps){
+	//block this ENTER
+	g_signal_handler_block(((struct init_pass_struct*)ps)->con_entry,((struct init_pass_struct*)ps)->con_entry_act);
+	return enter_recallback(ps);
 }
 static BOOL info_path_name_set_val(const char*a,char*b,size_t i,size_t j){
 	info_path_name=(char*)malloc(i+j+6);
@@ -782,6 +818,8 @@ activate (GtkApplication* app,
 	gtk_paned_pack2((GtkPaned*)pan,scrolled_right,FALSE,TRUE);
 	gtk_widget_set_size_request (scrolled_right, ps->separator, -1);
 	//
+	sigemptyset(&threadset);
+	sigaddset(&threadset, SIGUSR1);
 	GtkWidget*en=gtk_combo_box_text_new_with_entry();
 	GtkWidget*entext=gtk_bin_get_child((GtkBin*)en);
 	if(info_path_name_restore((GtkComboBoxText*)en,ps->path))gtk_entry_set_text ((GtkEntry*)entext,":");
@@ -799,7 +837,6 @@ activate (GtkApplication* app,
 	g_signal_connect_data (org, "button-press-event",G_CALLBACK (prog_menu_popup),menu,nullptr,G_CONNECT_SWAPPED);
 	//
 	ps->sen_entry=gtk_entry_new();
-	gtk_entry_set_max_length((GtkEntry*)ps->sen_entry,ps->send_size);
 	ps->sen_entry_act=g_signal_connect_data(ps->sen_entry,"activate",G_CALLBACK(send_activate),nullptr,nullptr,(GConnectFlags)0);
 	g_signal_handler_block(ps->sen_entry,ps->sen_entry_act);
 	//
@@ -830,17 +867,10 @@ static gint handle_local_options (struct init_pass_struct* ps, GVariantDict*opti
 		ps->separator=atoi(result);
 		g_free(result);
 	}else ps->separator=150;
-	return -1;
-}
-static int send_sizing(){
-	int s=socket(AF_INET, SOCK_STREAM, 0);
-	if(s!=-1){
-		int n;//"This option shall store an int value."
-		socklen_t m = sizeof(n);
-		if(getsockopt(s,SOL_SOCKET,SO_SNDBUF,(void *)&n, &m)==0)
-			return n;
-		close(s);
-	}
+	if (g_variant_dict_lookup (options,ps->args[3], "s", &result)){
+		ps->refresh=(unsigned int)atoi(result);
+		g_free(result);
+	}else ps->refresh=60;
 	return -1;
 }
 int main (int    argc,
@@ -850,29 +880,25 @@ int main (int    argc,
 	   * initialize SSL library and register algorithms             *
 	   * ---------------------------------------------------------- */
 	if(OPENSSL_init_ssl(OPENSSL_INIT_NO_LOAD_SSL_STRINGS,nullptr)==1){
-		int s=send_sizing();
-		if(s!=-1){
-			sigemptyset(&threadset);
-			sigaddset(&threadset, SIGUSR1);
-			struct init_pass_struct ps;
-			ps.send_size=s/4;//utf8 can store unicode on 1-4 B,can be "clamped"
-			GtkApplication *app;
-			app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
-			//if(app!=nullptr){
-			ps.args[0]="dimensions";
-			g_application_add_main_option((GApplication*)app,ps.args[0],'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
-			ps.args[1]="nick";
-			g_application_add_main_option((GApplication*)app,ps.args[1],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
-			ps.args[2]="right";
-			g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Right pane size, default 150","WIDTH");
-			ps.path=argv[0];
-			g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
-			g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
-			//  if(han>0)
-			g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
-			if(ps.nick!=nullptr)g_free(ps.nick);
-			g_object_unref (app);
-		}else puts("socket find size error");
+		struct init_pass_struct ps;
+		GtkApplication *app;
+		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
+		//if(app!=nullptr){
+		ps.args[0]="dimensions";
+		g_application_add_main_option((GApplication*)app,ps.args[0],'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
+		ps.args[1]="nick";
+		g_application_add_main_option((GApplication*)app,ps.args[1],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
+		ps.args[2]="right";
+		g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Right pane size, default 150","WIDTH");
+		ps.args[3]="refresh";
+		g_application_add_main_option((GApplication*)app,ps.args[3],'f',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Refresh channels interval in seconds. Default 60. 0 for no refresh.","SECONDS");
+		ps.path=argv[0];
+		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
+		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
+		//  if(han>0)
+		g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
+		if(ps.nick!=nullptr)g_free(ps.nick);
+		g_object_unref (app);
 	}else puts("openssl error");
 	if(info_path_name!=nullptr)free(info_path_name);
 }
