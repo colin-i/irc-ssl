@@ -77,7 +77,7 @@
 #include "inc/gtk.h"
 #endif
 
-static GtkTextView *text_view;static GtkTextMark *text_mark_end;
+static GtkTextView *text_view;static GtkTextMark *text_mark_end;static GtkListStore*channels;
 static SSL *ssl=nullptr;static int plain_socket=-1;
 static int con_th=-1;//static GThread*con_th=nullptr;
 static int portindex;static int portend;
@@ -89,7 +89,6 @@ static int portindex;static int portend;
 #define password_con "PASS %s\n"
 #define nickname_con "NICK %s\n"
 static char*info_path_name=nullptr;
-static GtkListStore*channels;
 #define help_text "Most of the parameters are set at start.\n\
 Launch the program with --help argument for more info.\n\
 \n\
@@ -759,38 +758,27 @@ static void send_activate(GtkEntry*entry){
 		gtk_entry_buffer_delete_text(t,0,-1);
 	}
 }
-static void
-activate (GtkApplication* app,
-          struct init_pass_struct*ps)
-{
-	/* Declare variables */
-	GtkWidget *window;
-	GtkWidget *scrolled_window;
-	  /* Create a window with a title, and a default size */
-	window = gtk_application_window_new (app);
-	gtk_window_set_title ((GtkWindow*) window, "IRC");
-	if(ps->dim[0]!=-1)
-		gtk_window_set_default_size ((GtkWindow*) window, ps->dim[0], ps->dim[1]);
-	  /* Text view is a widget in which can display the text buffer. 
+static GtkWidget*container_frame(GtkTextView**text_v,GtkTextMark**text_m,GtkListStore**store,int sep){
+	  /* Text view is a widget in which can display the text buffer.
 	   * The line wrapping is set to break lines in between words.
 	   */
-	text_view =(GtkTextView*) gtk_text_view_new ();
-	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
+	GtkTextView*text = (GtkTextView*)gtk_text_view_new ();
+	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text);
 	  /* The text buffer represents the text being edited */
 	GtkTextIter text_iter_end;
 	gtk_text_buffer_get_end_iter (text_buffer, &text_iter_end);
-	text_mark_end = gtk_text_buffer_create_mark (text_buffer,
+	GtkTextMark*text_m_end = gtk_text_buffer_create_mark (text_buffer,
 	                                             nullptr,
 	                                             &text_iter_end,
 	                                             FALSE);
-	gtk_text_view_set_editable(text_view, FALSE);
-	gtk_text_view_set_wrap_mode (text_view, GTK_WRAP_WORD);
+	gtk_text_view_set_editable(text, FALSE);
+	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD);
 	  /* Create the scrolled window. Usually nullptr is passed for both parameters so 
 	   * that it creates the horizontal/vertical adjustments automatically. Setting 
 	   * the scrollbar policy to automatic allows the scrollbars to only show up 
 	   * when needed. 
 	   */
-	scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
+	GtkWidget *scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
 	gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window, 
 	                                  GTK_POLICY_AUTOMATIC, 
 	                                  GTK_POLICY_AUTOMATIC); 
@@ -799,24 +787,41 @@ activate (GtkApplication* app,
 	   * gtk_scrolled_window_add_with_viewport() would have been used
 	   */
 	gtk_container_add ((GtkContainer*) scrolled_window, 
-	                                       (GtkWidget*) text_view);
+	                                       (GtkWidget*) text);
 	gtk_container_set_border_width ((GtkContainer*)scrolled_window, 5);
 	//
 	GtkWidget *tree=gtk_tree_view_new();
 	GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
 	GtkTreeViewColumn *column = gtk_tree_view_column_new_with_attributes("", renderer, "text", LIST_ITEM, nullptr);
-	channels= gtk_list_store_new(N_COLUMNS, G_TYPE_STRING);
+	//
+	GtkListStore*ls= gtk_list_store_new(N_COLUMNS, G_TYPE_STRING);
 	gtk_tree_view_set_headers_visible((GtkTreeView*)tree,FALSE);
 	gtk_tree_view_append_column((GtkTreeView*)tree, column);
-	gtk_tree_view_set_model((GtkTreeView*)tree, (GtkTreeModel*)channels);
-	g_object_unref(channels);
+	gtk_tree_view_set_model((GtkTreeView*)tree, (GtkTreeModel*)ls);
+	g_object_unref(ls);
+	//
 	GtkWidget*scrolled_right = gtk_scrolled_window_new (nullptr, nullptr);
 	gtk_container_add((GtkContainer*)scrolled_right,tree);
 	//
 	GtkWidget *pan=gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
 	gtk_paned_pack1((GtkPaned*)pan,scrolled_window,TRUE,TRUE);
 	gtk_paned_pack2((GtkPaned*)pan,scrolled_right,FALSE,TRUE);
-	gtk_widget_set_size_request (scrolled_right, ps->separator, -1);
+	gtk_widget_set_size_request (scrolled_right, sep, -1);
+	//
+	*text_v=text;*text_m=text_m_end;*store=ls;
+	return pan;
+}
+static void
+activate (GtkApplication* app,
+          struct init_pass_struct*ps)
+{
+	  /* Create a window with a title, and a default size */
+	GtkWidget *window = gtk_application_window_new (app);
+	gtk_window_set_title ((GtkWindow*) window, "IRC");
+	if(ps->dim[0]!=-1)
+		gtk_window_set_default_size ((GtkWindow*) window, ps->dim[0], ps->dim[1]);
+	//
+	GtkWidget*pan=container_frame(&text_view,&text_mark_end,&channels,ps->separator);
 	//
 	sigemptyset(&threadset);
 	sigaddset(&threadset, SIGUSR1);
