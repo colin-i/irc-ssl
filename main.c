@@ -95,10 +95,9 @@ Launch the program with --help argument for more info.\n\
 Connection format is [[nickname:]password@]hostname[:port1[-portn]].\n\
 newNick:abc@127.0.0.1:6665-6669"
 #define channm_sz 64
-#define channm_scan "63"
-#define channm_parse_3 "%" channm_scan "s"
+#define channm_parse_3 "%s"
 #define channm_parse_2 channm_parse_3 " %u"
-#define channm_parse_1 "%*s %d %*s " channm_parse_2
+#define channm_parse_1 "%*s %d %*s %63s %u"
 struct data_len{
 	const char*data;size_t len;
 };
@@ -758,6 +757,22 @@ static void send_activate(GtkEntry*entry){
 		gtk_entry_buffer_delete_text(t,0,-1);
 	}
 }
+static void chan_join (GtkTreeSelection *sel){
+	char join_str[]="JOIN";
+	char buf[channm_sz+sizeof(join_str)+1];
+	GtkTreeIter iterator;char*item_text;
+	gtk_tree_selection_get_selected (sel,nullptr,&iterator);
+	gtk_tree_model_get ((GtkTreeModel*)channels, &iterator, LIST_ITEM, &item_text, -1);
+	for(int i=0;;i++){
+		if(item_text[i]==' '){
+			item_text[i]='\0';
+			ssize_t n=sprintf(buf,"%s %s\n",join_str,item_text);
+			send_data(buf,(size_t)n);
+			free(item_text);
+			return;
+		}
+	}
+}
 static GtkWidget*container_frame(GtkTextView**text_v,GtkTextMark**text_m,GtkListStore**store,int sep){
 	  /* Text view is a widget in which can display the text buffer.
 	   * The line wrapping is set to break lines in between words.
@@ -799,6 +814,9 @@ static GtkWidget*container_frame(GtkTextView**text_v,GtkTextMark**text_m,GtkList
 	gtk_tree_view_append_column((GtkTreeView*)tree, column);
 	gtk_tree_view_set_model((GtkTreeView*)tree, (GtkTreeModel*)ls);
 	g_object_unref(ls);
+	//
+	GtkWidget *sel=(GtkWidget *)gtk_tree_view_get_selection((GtkTreeView*)tree);
+	g_signal_connect_data(sel,"changed",G_CALLBACK(chan_join),nullptr,nullptr,(GConnectFlags)0);
 	//
 	GtkWidget*scrolled_right = gtk_scrolled_window_new (nullptr, nullptr);
 	gtk_container_add((GtkContainer*)scrolled_right,tree);
