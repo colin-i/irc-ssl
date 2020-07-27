@@ -97,7 +97,6 @@ newNick:abc@127.0.0.1:6665-6669"
 #define channm_sz 64
 #define channm_parse_3 "%s"
 #define channm_parse_2 channm_parse_3 " %u"
-#define channm_parse_1 "%*s %d %*s %63s %u"
 struct data_len{
 	const char*data;size_t len;
 };
@@ -114,6 +113,7 @@ struct init_pass_struct{
 	int separator;
 	GtkWidget*con_entry;gulong con_entry_act;GtkWidget*sen_entry;gulong sen_entry_act;
 	unsigned int refresh;unsigned int refreshid;
+	GtkNotebook*notebook;
 };
 
 static gboolean textviewthreadsfunc(gpointer b){
@@ -302,11 +302,99 @@ static void pars_chans(char*chan,unsigned int nr){
 	pars_chan_end(&altit,chan,nr);
 	gtk_list_store_move_before(channels,&altit,nullptr);
 }
-static void incomings(char*a,size_t n){
+static void chan_join (GtkTreeSelection *sel){
+	char join_str[]="JOIN";
+	char buf[channm_sz+sizeof(join_str)+1];
+	GtkTreeIter iterator;char*item_text;
+	gtk_tree_selection_get_selected (sel,nullptr,&iterator);
+	gtk_tree_model_get ((GtkTreeModel*)channels, &iterator, LIST_ITEM, &item_text, -1);
+	for(int i=0;;i++){
+		if(item_text[i]==' '){
+			item_text[i]='\0';
+			ssize_t n=sprintf(buf,"%s %s\n",join_str,item_text);
+			send_data(buf,(size_t)n);
+			free(item_text);
+			return;
+		}
+	}
+}
+static GtkWidget*container_frame(GtkTextView**text_v,GtkTextMark**text_m,GtkListStore**store,int sep){
+	  /* Text view is a widget in which can display the text buffer.
+	   * The line wrapping is set to break lines in between words.
+	   */
+	GtkTextView*text = (GtkTextView*)gtk_text_view_new ();
+	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text);
+	  /* The text buffer represents the text being edited */
+	GtkTextIter text_iter_end;
+	gtk_text_buffer_get_end_iter (text_buffer, &text_iter_end);
+	GtkTextMark*text_m_end = gtk_text_buffer_create_mark (text_buffer,
+	                                             nullptr,
+	                                             &text_iter_end,
+	                                             FALSE);
+	gtk_text_view_set_editable(text, FALSE);
+	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD);
+	  /* Create the scrolled window. Usually nullptr is passed for both parameters so 
+	   * that it creates the horizontal/vertical adjustments automatically. Setting 
+	   * the scrollbar policy to automatic allows the scrollbars to only show up 
+	   * when needed. 
+	   */
+	GtkWidget *scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
+	gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window, 
+	                                  GTK_POLICY_AUTOMATIC, 
+	                                  GTK_POLICY_AUTOMATIC); 
+	  /* The function directly below is used to add children to the scrolled window 
+	   * with scrolling capabilities (e.g text_view), otherwise, 
+	   * gtk_scrolled_window_add_with_viewport() would have been used
+	   */
+	gtk_container_add ((GtkContainer*) scrolled_window, 
+	                                       (GtkWidget*) text);
+	gtk_container_set_border_width ((GtkContainer*)scrolled_window, 5);
+	//
+	GtkWidget *tree=gtk_tree_view_new();
+	GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
+	GtkTreeViewColumn *column = gtk_tree_view_column_new_with_attributes("", renderer, "text", LIST_ITEM, nullptr);
+	//
+	GtkListStore*ls= gtk_list_store_new(N_COLUMNS, G_TYPE_STRING);
+	gtk_tree_view_set_headers_visible((GtkTreeView*)tree,FALSE);
+	gtk_tree_view_append_column((GtkTreeView*)tree, column);
+	gtk_tree_view_set_model((GtkTreeView*)tree, (GtkTreeModel*)ls);
+	g_object_unref(ls);
+	//
+	GtkWidget *sel=(GtkWidget *)gtk_tree_view_get_selection((GtkTreeView*)tree);
+	g_signal_connect_data(sel,"changed",G_CALLBACK(chan_join),nullptr,nullptr,(GConnectFlags)0);
+	//
+	GtkWidget*scrolled_right = gtk_scrolled_window_new (nullptr, nullptr);
+	gtk_container_add((GtkContainer*)scrolled_right,tree);
+	//
+	GtkWidget *pan=gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
+	gtk_paned_pack1((GtkPaned*)pan,scrolled_window,TRUE,TRUE);
+	gtk_paned_pack2((GtkPaned*)pan,scrolled_right,FALSE,TRUE);
+	gtk_widget_set_size_request (scrolled_right, sep, -1);
+	//
+	*text_v=text;*text_m=text_m_end;*store=ls;
+	return pan;
+}
+static void incomings(char*a,size_t n,struct init_pass_struct*ps){
 	a[n]=0;
-	char channm[channm_sz+1+10];int d;unsigned int e;
-	int c=sscanf(a,channm_parse_1,&d,channm,&e);//if its >nr ,c is not 3
-	if(c==3&&d==322)pars_chans(channm,e);
+	int d;
+	int c=sscanf(a,"%*s %i",&d);
+	if(c==1){
+		char channm[channm_sz+1+10];
+		if(d==322){
+			unsigned int e;
+			c=sscanf(a,"%*s %*i %*s %63s %u",channm,&e);//if its >nr ,c is not 2
+			if(c==2)pars_chans(channm,e);
+		}else if(d==353){
+			c=sscanf(a,"%*s %*i %*s %*c %63s",channm);
+			if(c==1){
+				GtkTextView*text_v;GtkTextMark*text_m;GtkListStore*store;
+				GtkWidget*pan=container_frame(&text_v,&text_m,&store,ps->separator);
+				gtk_widget_show_all (pan);
+				GtkWidget*t=gtk_label_new (channm);gtk_widget_show(t);
+				gtk_notebook_append_page (ps->notebook, pan, t);
+			}
+		}
+	}
 }
 static gboolean refresh_callback( gpointer ps){(void)ps;
 	send_list();
@@ -377,7 +465,7 @@ static void irc_start(char*psw,char*nkn,struct init_pass_struct*ps){
 						if(s>4&&memcmp(b,"PING",4)==0){
 							b[1]='O';
 							send_data(b,s);
-						}else if(*b==':')incomings(b,s-(b[s-2]=='\r'?2:1));
+						}else if(*b==':')incomings(b,s-(b[s-2]=='\r'?2:1),ps);
 						b=n+1;sz-=s;
 						continue;
 					}
@@ -757,78 +845,6 @@ static void send_activate(GtkEntry*entry){
 		gtk_entry_buffer_delete_text(t,0,-1);
 	}
 }
-static void chan_join (GtkTreeSelection *sel){
-	char join_str[]="JOIN";
-	char buf[channm_sz+sizeof(join_str)+1];
-	GtkTreeIter iterator;char*item_text;
-	gtk_tree_selection_get_selected (sel,nullptr,&iterator);
-	gtk_tree_model_get ((GtkTreeModel*)channels, &iterator, LIST_ITEM, &item_text, -1);
-	for(int i=0;;i++){
-		if(item_text[i]==' '){
-			item_text[i]='\0';
-			ssize_t n=sprintf(buf,"%s %s\n",join_str,item_text);
-			send_data(buf,(size_t)n);
-			free(item_text);
-			return;
-		}
-	}
-}
-static GtkWidget*container_frame(GtkTextView**text_v,GtkTextMark**text_m,GtkListStore**store,int sep){
-	  /* Text view is a widget in which can display the text buffer.
-	   * The line wrapping is set to break lines in between words.
-	   */
-	GtkTextView*text = (GtkTextView*)gtk_text_view_new ();
-	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text);
-	  /* The text buffer represents the text being edited */
-	GtkTextIter text_iter_end;
-	gtk_text_buffer_get_end_iter (text_buffer, &text_iter_end);
-	GtkTextMark*text_m_end = gtk_text_buffer_create_mark (text_buffer,
-	                                             nullptr,
-	                                             &text_iter_end,
-	                                             FALSE);
-	gtk_text_view_set_editable(text, FALSE);
-	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD);
-	  /* Create the scrolled window. Usually nullptr is passed for both parameters so 
-	   * that it creates the horizontal/vertical adjustments automatically. Setting 
-	   * the scrollbar policy to automatic allows the scrollbars to only show up 
-	   * when needed. 
-	   */
-	GtkWidget *scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
-	gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window, 
-	                                  GTK_POLICY_AUTOMATIC, 
-	                                  GTK_POLICY_AUTOMATIC); 
-	  /* The function directly below is used to add children to the scrolled window 
-	   * with scrolling capabilities (e.g text_view), otherwise, 
-	   * gtk_scrolled_window_add_with_viewport() would have been used
-	   */
-	gtk_container_add ((GtkContainer*) scrolled_window, 
-	                                       (GtkWidget*) text);
-	gtk_container_set_border_width ((GtkContainer*)scrolled_window, 5);
-	//
-	GtkWidget *tree=gtk_tree_view_new();
-	GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
-	GtkTreeViewColumn *column = gtk_tree_view_column_new_with_attributes("", renderer, "text", LIST_ITEM, nullptr);
-	//
-	GtkListStore*ls= gtk_list_store_new(N_COLUMNS, G_TYPE_STRING);
-	gtk_tree_view_set_headers_visible((GtkTreeView*)tree,FALSE);
-	gtk_tree_view_append_column((GtkTreeView*)tree, column);
-	gtk_tree_view_set_model((GtkTreeView*)tree, (GtkTreeModel*)ls);
-	g_object_unref(ls);
-	//
-	GtkWidget *sel=(GtkWidget *)gtk_tree_view_get_selection((GtkTreeView*)tree);
-	g_signal_connect_data(sel,"changed",G_CALLBACK(chan_join),nullptr,nullptr,(GConnectFlags)0);
-	//
-	GtkWidget*scrolled_right = gtk_scrolled_window_new (nullptr, nullptr);
-	gtk_container_add((GtkContainer*)scrolled_right,tree);
-	//
-	GtkWidget *pan=gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
-	gtk_paned_pack1((GtkPaned*)pan,scrolled_window,TRUE,TRUE);
-	gtk_paned_pack2((GtkPaned*)pan,scrolled_right,FALSE,TRUE);
-	gtk_widget_set_size_request (scrolled_right, sep, -1);
-	//
-	*text_v=text;*text_m=text_m_end;*store=ls;
-	return pan;
-}
 static void
 activate (GtkApplication* app,
           struct init_pass_struct*ps)
@@ -840,6 +856,9 @@ activate (GtkApplication* app,
 		gtk_window_set_default_size ((GtkWindow*) window, ps->dim[0], ps->dim[1]);
 	//
 	GtkWidget*pan=container_frame(&text_view,&text_mark_end,&channels,ps->separator);
+	ps->notebook = (GtkNotebook*)gtk_notebook_new ();
+	gtk_notebook_set_tab_pos (ps->notebook, GTK_POS_TOP);
+	gtk_notebook_append_page (ps->notebook, pan, gtk_label_new ("Home"));
 	//
 	sigemptyset(&threadset);
 	sigaddset(&threadset, SIGUSR1);
@@ -868,7 +887,7 @@ activate (GtkApplication* app,
 	gtk_box_pack_start((GtkBox*)top,org,FALSE,FALSE,0);
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	gtk_box_pack_start((GtkBox*)box,top,FALSE,FALSE,0);
-	gtk_box_pack_start((GtkBox*)box,pan,TRUE,TRUE,0);
+	gtk_box_pack_start((GtkBox*)box,(GtkWidget*)ps->notebook,TRUE,TRUE,0);
 	gtk_box_pack_start((GtkBox*)box,ps->sen_entry,FALSE,FALSE,0);
 	gtk_container_add ((GtkContainer*)window, box);
 	gtk_widget_show_all (window);

@@ -28,6 +28,7 @@ typedef void GtkEntryBuffer;
 typedef void GtkListStore;
 typedef void GtkMenu;
 typedef void GtkMenuShell;
+typedef void GtkNotebook;
 typedef void GtkPaned;
 typedef void GtkScrolledWindow;
 typedef void GtkTextBuffer;
@@ -62,6 +63,8 @@ typedef enum{  GTK_DIALOG_MODAL = 1 << 0, GTK_DIALOG_DESTROY_WITH_PARENT = 1 << 
  GtkDialogFlags;
 typedef enum{  GTK_POLICY_ALWAYS,  GTK_POLICY_AUTOMATIC}//,  GTK_POLICY_NEVER,  GTK_POLICY_EXTERNAL
  GtkPolicyType;
+typedef enum{  GTK_POS_LEFT,  GTK_POS_RIGHT,  GTK_POS_TOP}
+ GtkPositionType;
 typedef enum{  GTK_RESPONSE_NONE = -1
 } GtkResponseType;
 typedef enum{  GTK_WRAP_NONE,  GTK_WRAP_CHAR,  GTK_WRAP_WORD}//,  GTK_WRAP_WORD_CHAR
@@ -132,6 +135,7 @@ const gchar *gtk_entry_get_text (GtkEntry *entry);
 GtkWidget* gtk_entry_new (void);
 void gtk_entry_set_max_length (GtkEntry *entry, gint max);
 void gtk_entry_set_text (GtkEntry *entry, const gchar *text);
+GtkWidget* gtk_label_new (const gchar *str);
 void gtk_list_store_append (GtkListStore *list_store, GtkTreeIter *iter);
 void gtk_list_store_insert_before (GtkListStore *list_store, GtkTreeIter *iter, GtkTreeIter *sibling);
 void gtk_list_store_move_before (GtkListStore *store,GtkTreeIter *iter,GtkTreeIter *position);
@@ -158,6 +162,9 @@ void gtk_text_view_scroll_to_mark (GtkTextView *text_view,GtkTextMark *mark,gdou
 void gtk_text_view_set_wrap_mode (GtkTextView *text_view, GtkWrapMode wrap_mode);
 void gtk_text_view_set_editable (GtkTextView *text_view,gboolean setting);
 void gtk_tree_model_get (GtkTreeModel *tree_model, GtkTreeIter *iter, ...);
+gint gtk_notebook_append_page (GtkNotebook *notebook, GtkWidget *child, GtkWidget *tab_label);
+GtkWidget * gtk_notebook_new (void);
+void gtk_notebook_set_tab_pos (GtkNotebook *notebook, GtkPositionType pos);
 gboolean gtk_tree_model_get_iter_first(GtkTreeModel *tree_model, GtkTreeIter *iter);
 GtkTreePath *gtk_tree_model_get_path (GtkTreeModel *tree_model,GtkTreeIter *iter);
 gint gtk_tree_model_iter_n_children (GtkTreeModel *tree_model, GtkTreeIter *iter);
