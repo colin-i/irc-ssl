@@ -106,7 +106,7 @@ enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };//connections org,channels
-struct init_pass_struct{
+struct stk_s{
 	const char*args[4];
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;
@@ -114,18 +114,22 @@ struct init_pass_struct{
 	GtkWidget*con_entry;gulong con_entry_act;GtkWidget*sen_entry;gulong sen_entry_act;
 	unsigned int refresh;unsigned int refreshid;
 	GtkNotebook*notebook;
+	struct data_len*dl;
 };
 
-static gboolean textviewthreadsfunc(gpointer b){
+static void addattextview(struct data_len*b){
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
 	GtkTextIter it;gtk_text_buffer_get_end_iter(text_buffer,&it);
-	gtk_text_buffer_insert(text_buffer,&it,((struct data_len*)b)->data,(int)((struct data_len*)b)->len);
+	gtk_text_buffer_insert(text_buffer,&it,b->data,(int)b->len);
 	//let thread continue
-	pthread_kill( threadid, SIGUSR1);
 	/* now scroll to the end using marker */
 	gtk_text_view_scroll_to_mark (text_view,
 	                              text_mark_end,
 	                              0., FALSE, 0., 0.);
+}
+static gboolean textviewthreadsfunc(gpointer b){
+	addattextview((struct data_len*)b);
+	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
 }
 static void main_text(const char*b,size_t s){
@@ -134,7 +138,26 @@ static void main_text(const char*b,size_t s){
 	int out;sigwait(&threadset,&out);
 }
 #define main_text_s(b) main_text(b,sizeof(b)-1)
-static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int*sens,struct init_pass_struct*ps) {
+static int recv_data(char*b,int sz){
+	if(ssl!=nullptr)return SSL_read(ssl, b, sz);
+	return read(plain_socket,b,(size_t)sz);
+}
+static void send_data(const char*str,size_t sz){
+	if(ssl!=nullptr)SSL_write(ssl,str,(int)sz);
+	else write(plain_socket,str,sz);
+}
+#define sendlist "LIST\n"
+static gboolean sendthreadsfunc(gpointer b){
+	send_data(((struct data_len*)b)->data,((struct data_len*)b)->len);
+	pthread_kill( threadid, SIGUSR1);
+	return FALSE;
+}
+static void send_safe(const char*str,size_t sz){
+	struct data_len dl;dl.data=str;dl.len=sz;
+	g_idle_add(sendthreadsfunc,&dl);
+	int out;sigwait(&threadset,&out);
+}
+static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int*sens,struct stk_s*ps) {
 	size_t sz=strlen(indata);
 	//
 	const char*left=strchr(indata,'@');BOOL nonick=TRUE;
@@ -228,16 +251,6 @@ static int create_socket(char*hostname,int port) {
 		main_text_s("Error: Cannot resolve hostname.\n");
 	return -1;
 }
-static void send_data(const char*str,size_t sz){
-	if(ssl!=nullptr)SSL_write(ssl,str,(int)sz);
-	else write(plain_socket,str,sz);
-}
-#define sendlist "LIST\n"
-#define send_list() send_data(sendlist,sizeof(sendlist)-1)
-static int recv_data(char*b,int sz){
-	if(ssl!=nullptr)return SSL_read(ssl, b, sz);
-	return read(plain_socket,b,(size_t)sz);
-}
 static void pars_chan_end(GtkTreeIter*it,char*channm,unsigned int nr){
 	size_t ln=strlen(channm);channm[ln]=' ';sprintf(channm+ln+1,"%u",nr);
 	gtk_list_store_set(channels, it, LIST_ITEM, channm, -1);
@@ -303,16 +316,15 @@ static void pars_chans(char*chan,unsigned int nr){
 	gtk_list_store_move_before(channels,&altit,nullptr);
 }
 static void chan_join (GtkTreeSelection *sel){
-	char join_str[]="JOIN";
-	char buf[channm_sz+sizeof(join_str)+1];
+	char buf[5+channm_sz]="JOIN ";
 	GtkTreeIter iterator;char*item_text;
 	gtk_tree_selection_get_selected (sel,nullptr,&iterator);
 	gtk_tree_model_get ((GtkTreeModel*)channels, &iterator, LIST_ITEM, &item_text, -1);
-	for(int i=0;;i++){
+	for(size_t i=0;;i++){
 		if(item_text[i]==' '){
-			item_text[i]='\0';
-			ssize_t n=sprintf(buf,"%s %s\n",join_str,item_text);
-			send_data(buf,(size_t)n);
+			item_text[i]='\n';
+			memcpy(buf+5,item_text,i+1);
+			send_data(buf,6+i);
 			free(item_text);
 			return;
 		}
@@ -374,8 +386,37 @@ static GtkWidget*container_frame(GtkTextView**text_v,GtkTextMark**text_m,GtkList
 	*text_v=text;*text_m=text_m_end;*store=ls;
 	return pan;
 }
-static void incomings(char*a,size_t n,struct init_pass_struct*ps){
-	a[n]=0;
+static void close_channel(GtkLabel*t){
+	char buf[5+channm_sz]="PART ";
+	const char*a=gtk_label_get_text(t);
+	size_t n=strlen(a);
+	memcpy(buf+5,a,n);buf[5+n]='\n';
+	send_data(buf,6+n);
+}
+static void pars_join(char*chan,struct stk_s*ps){
+	GtkTextView*text_v;GtkTextMark*text_m;GtkListStore*store;
+	GtkWidget*pan=container_frame(&text_v,&text_m,&store,ps->separator);
+	gtk_widget_show_all (pan);
+	GtkWidget*t=gtk_label_new (chan);
+	GtkWidget*close=gtk_button_new();
+	gtk_button_set_relief((GtkButton*)close,GTK_RELIEF_NONE);
+	GtkWidget*closeimg=gtk_image_new_from_icon_name ("window-close",GTK_ICON_SIZE_MENU);
+	gtk_button_set_image((GtkButton*)close,closeimg);
+	g_signal_connect_data (close, "clicked",G_CALLBACK (close_channel),t,nullptr,G_CONNECT_SWAPPED);
+	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
+	gtk_box_pack_start((GtkBox*)box,t,TRUE,TRUE,0);
+	gtk_box_pack_start((GtkBox*)box,close,FALSE,FALSE,0);
+	gtk_widget_show_all(box);
+	gtk_notebook_append_page (ps->notebook, pan, box);
+}
+static gboolean incsafe(gpointer ps){
+	addattextview(((struct stk_s*)ps)->dl);
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Wcast-qual"
+	char*a=(char*)((struct stk_s*)ps)->dl->data;
+	#pragma GCC diagnostic pop
+	size_t s=((struct stk_s*)ps)->dl->len;
+	a[s-(a[s-2]=='\r'?2:1)]=0;
 	int d;
 	int c=sscanf(a,"%*s %i",&d);
 	if(c==1){
@@ -386,46 +427,41 @@ static void incomings(char*a,size_t n,struct init_pass_struct*ps){
 			if(c==2)pars_chans(channm,e);
 		}else if(d==353){
 			c=sscanf(a,"%*s %*i %*s %*c %63s",channm);
-			if(c==1){
-				GtkTextView*text_v;GtkTextMark*text_m;GtkListStore*store;
-				GtkWidget*pan=container_frame(&text_v,&text_m,&store,ps->separator);
-				gtk_widget_show_all (pan);
-				GtkWidget*t=gtk_label_new (channm);gtk_widget_show(t);
-				gtk_notebook_append_page (ps->notebook, pan, t);
-			}
+			if(c==1)pars_join(channm,(struct stk_s*)ps);
 		}
 	}
+	pthread_kill(threadid,SIGUSR1);
+	return FALSE;
+}
+static void incomings(char*a,size_t n,struct stk_s*ps){
+	struct data_len dl;dl.data=a;dl.len=n;
+	ps->dl=&dl;
+	g_idle_add(incsafe,ps);
+	int out;sigwait(&threadset,&out);
 }
 static gboolean refresh_callback( gpointer ps){(void)ps;
-	send_list();
+	send_data(sendlist,sizeof(sendlist)-1);
 	return TRUE;
 }
 static gboolean senstartthreadsfunc(gpointer ps){
-	int s;
-	if(ssl!=nullptr)s=SSL_get_fd(ssl);
-	else s=plain_socket;
-	int n;//"This option shall store an int value."
-	socklen_t m = sizeof(n);
-	getsockopt(s,SOL_SOCKET,SO_SNDBUF,(void *)&n, &m);
-	gtk_entry_set_max_length((GtkEntry*)((struct init_pass_struct*)ps)->sen_entry,n/4);//utf8 can store unicode on 1-4 B,can be "clamped"
-	g_signal_handler_unblock(((struct init_pass_struct*)ps)->sen_entry,((struct init_pass_struct*)ps)->sen_entry_act);
+	g_signal_handler_unblock(((struct stk_s*)ps)->sen_entry,((struct stk_s*)ps)->sen_entry_act);
 	//
-	if(((struct init_pass_struct*)ps)->refresh>0)
-		((struct init_pass_struct*)ps)->refreshid=g_timeout_add(1000*((struct init_pass_struct*)ps)->refresh,refresh_callback,nullptr);
+	if(((struct stk_s*)ps)->refresh>0)
+		((struct stk_s*)ps)->refreshid=g_timeout_add(1000*((struct stk_s*)ps)->refresh,refresh_callback,nullptr);
 	//
 	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
 }
 static gboolean senstopthreadsfunc(gpointer ps){
-	g_signal_handler_block(((struct init_pass_struct*)ps)->sen_entry,((struct init_pass_struct*)ps)->sen_entry_act);
+	g_signal_handler_block(((struct stk_s*)ps)->sen_entry,((struct stk_s*)ps)->sen_entry_act);
 	//
-	if(((struct init_pass_struct*)ps)->refresh>0)
-		g_source_remove(((struct init_pass_struct*)ps)->refreshid);
+	if(((struct stk_s*)ps)->refresh>0)
+		g_source_remove(((struct stk_s*)ps)->refreshid);
 	//
 	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
 }
-static void irc_start(char*psw,char*nkn,struct init_pass_struct*ps){
+static void irc_start(char*psw,char*nkn,struct stk_s*ps){
 	g_idle_add(senstartthreadsfunc,ps);
 	int out;sigwait(&threadset,&out);
 	const char format[]="USER guest tolmoon tolsun :Ronnie Reagan\n";
@@ -437,8 +473,8 @@ static void irc_start(char*psw,char*nkn,struct init_pass_struct*ps){
 		if(*psw!='\0')sprintf(i1,password_con,psw);
 		sprintf(i1+pln,nickname_con,nkn);
 		memcpy(i1+pln+nln,format,fln);
-		send_data(i1,pln+nln+fln);
-		send_list();
+		send_safe(i1,pln+nln+fln);
+		send_safe(sendlist,sizeof(sendlist)-1);
 		//
 		char*buf=(char*)malloc(irc_bsz);int bsz=irc_bsz;
 		if(buf!=nullptr){
@@ -461,11 +497,11 @@ static void irc_start(char*psw,char*nkn,struct init_pass_struct*ps){
 					char*n=(char*)memchr(b,'\n',(size_t)sz);
 					if(n!=nullptr){
 						size_t s=(size_t)(n+1-b);
-						main_text(b,s);
 						if(s>4&&memcmp(b,"PING",4)==0){
+							main_text(b,s);
 							b[1]='O';
-							send_data(b,s);
-						}else if(*b==':')incomings(b,s-(b[s-2]=='\r'?2:1),ps);
+							send_safe(b,s);
+						}else if(*b==':')incomings(b,s,ps);
 						b=n+1;sz-=s;
 						continue;
 					}
@@ -480,7 +516,7 @@ static void irc_start(char*psw,char*nkn,struct init_pass_struct*ps){
 	g_idle_add(senstopthreadsfunc,ps);
 	sigwait(&threadset,&out);
 }
-static void proced(struct init_pass_struct*ps){
+static void proced(struct stk_s*ps){
 	const SSL_METHOD *method;
 	SSL_CTX *ctx;
 	int server;
@@ -567,7 +603,7 @@ static gpointer worker (gpointer ps)
 	//int s = 
 	pthread_sigmask(SIG_BLOCK, &threadset, nullptr);
 	//if (s == 0)
-	proced((struct init_pass_struct*)ps);
+	proced((struct stk_s*)ps);
 	con_th=-1;//nullptr;
 	return nullptr;
 }
@@ -622,7 +658,7 @@ static void set_combo_box_text(GtkComboBox * box,const char*txt)
 	gtk_combo_box_set_active(box, i);
 }
 static gboolean enter_recallback( gpointer ps){
-	const char* t=gtk_entry_get_text ((GtkEntry*)((struct init_pass_struct*)ps)->con_entry);
+	const char* t=gtk_entry_get_text ((GtkEntry*)((struct stk_s*)ps)->con_entry);
 	if(strlen(t)>0){
 		if(con_th==0){//con_th!=nullptr){
 			portindex=portend;
@@ -631,8 +667,8 @@ static gboolean enter_recallback( gpointer ps){
 			g_timeout_add(1000,enter_recallback,ps);
 			return FALSE;
 		}
-		set_combo_box_text((GtkComboBox*)gtk_widget_get_ancestor(((struct init_pass_struct*)ps)->con_entry,gtk_combo_box_text_get_type()),t);
-		((struct init_pass_struct*)ps)->text=t;
+		set_combo_box_text((GtkComboBox*)gtk_widget_get_ancestor(((struct stk_s*)ps)->con_entry,gtk_combo_box_text_get_type()),t);
+		((struct stk_s*)ps)->text=t;
 		/*#pragma GCC diagnostic push
 		#pragma GCC diagnostic ignored "-Wcast-qual"
 		con_th=g_thread_new(nullptr,worker,ps);
@@ -641,12 +677,12 @@ static gboolean enter_recallback( gpointer ps){
 		con_th = pthread_create( &threadid, nullptr, worker,ps);
 	}
 	//unblock this ENTER
-	g_signal_handler_unblock(((struct init_pass_struct*)ps)->con_entry,((struct init_pass_struct*)ps)->con_entry_act);
+	g_signal_handler_unblock(((struct stk_s*)ps)->con_entry,((struct stk_s*)ps)->con_entry_act);
 	return FALSE;
 }
 static gboolean enter_callback( gpointer ps){
 	//block this ENTER
-	g_signal_handler_block(((struct init_pass_struct*)ps)->con_entry,((struct init_pass_struct*)ps)->con_entry_act);
+	g_signal_handler_block(((struct stk_s*)ps)->con_entry,((struct stk_s*)ps)->con_entry_act);
 	return enter_recallback(ps);
 }
 static BOOL info_path_name_set_val(const char*a,char*b,size_t i,size_t j){
@@ -713,7 +749,7 @@ static int organize_connections_ini(GtkTreeView*tv,GtkTreeModel**mod,GtkTreeIter
 	gtk_tree_path_free(path);
 	return i;
 }
-static void organize_connections_dialog (GtkDialog *dialog, gint response, struct init_pass_struct*ps){
+static void organize_connections_dialog (GtkDialog *dialog, gint response, struct stk_s*ps){
 	GtkTreeModel*mod;GtkTreeIter it;
 	GtkTreeIter i2;
 	if(response==1){
@@ -751,7 +787,7 @@ static void organize_connections_dialog (GtkDialog *dialog, gint response, struc
 		gtk_widget_destroy((GtkWidget*)dialog);
 	}
 }
-static void organize_connections (struct init_pass_struct*ps){
+static void organize_connections (struct stk_s*ps){
 	GtkTreeModel * list = gtk_combo_box_get_model((GtkComboBox*)ps->cbt);
 	GtkTreeIter iterFrom;
 	gboolean valid = gtk_tree_model_get_iter_first (list, &iterFrom);
@@ -847,7 +883,7 @@ static void send_activate(GtkEntry*entry){
 }
 static void
 activate (GtkApplication* app,
-          struct init_pass_struct*ps)
+          struct stk_s*ps)
 {
 	  /* Create a window with a title, and a default size */
 	GtkWidget *window = gtk_application_window_new (app);
@@ -892,7 +928,7 @@ activate (GtkApplication* app,
 	gtk_container_add ((GtkContainer*)window, box);
 	gtk_widget_show_all (window);
 }
-static gint handle_local_options (struct init_pass_struct* ps, GVariantDict*options){
+static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	gchar*result;
 	if (g_variant_dict_lookup (options, ps->args[0], "s", &result)){//missing argument is not reaching here
 		char*b=strchr(result,'x');
@@ -922,7 +958,7 @@ int main (int    argc,
 	   * initialize SSL library and register algorithms             *
 	   * ---------------------------------------------------------- */
 	if(OPENSSL_init_ssl(OPENSSL_INIT_NO_LOAD_SSL_STRINGS,nullptr)==1){
-		struct init_pass_struct ps;
+		struct stk_s ps;
 		GtkApplication *app;
 		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
 		//if(app!=nullptr){

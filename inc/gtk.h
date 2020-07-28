@@ -25,6 +25,7 @@ typedef void GtkContainer;
 typedef void GtkDialog;
 typedef void GtkEntry;
 typedef void GtkEntryBuffer;
+typedef void GtkLabel;
 typedef void GtkListStore;
 typedef void GtkMenu;
 typedef void GtkMenuShell;
@@ -61,10 +62,14 @@ typedef enum{G_OPTION_FLAG_IN_MAIN = 1 << 1}//  G_OPTION_FLAG_NONE = 0,  G_OPTIO
 typedef enum{GTK_ORIENTATION_HORIZONTAL,GTK_ORIENTATION_VERTICAL} GtkOrientation;
 typedef enum{  GTK_DIALOG_MODAL = 1 << 0, GTK_DIALOG_DESTROY_WITH_PARENT = 1 << 1}//, GTK_DIALOG_USE_HEADER_BAR = 1 << 2
  GtkDialogFlags;
+typedef enum{  GTK_ICON_SIZE_INVALID,  GTK_ICON_SIZE_MENU
+} GtkIconSize;
 typedef enum{  GTK_POLICY_ALWAYS,  GTK_POLICY_AUTOMATIC}//,  GTK_POLICY_NEVER,  GTK_POLICY_EXTERNAL
  GtkPolicyType;
 typedef enum{  GTK_POS_LEFT,  GTK_POS_RIGHT,  GTK_POS_TOP}
  GtkPositionType;
+typedef enum{  GTK_RELIEF_NORMAL,  GTK_RELIEF_HALF,  GTK_RELIEF_NONE
+} GtkReliefStyle;
 typedef enum{  GTK_RESPONSE_NONE = -1
 } GtkResponseType;
 typedef enum{  GTK_WRAP_NONE,  GTK_WRAP_CHAR,  GTK_WRAP_WORD}//,  GTK_WRAP_WORD_CHAR
@@ -116,7 +121,10 @@ GtkWidget * gtk_application_window_new (GtkApplication *application);
 GtkWidget *gtk_bin_get_child (GtkBin *bin);
 GtkWidget* gtk_box_new (GtkOrientation orientation,gint spacing);
 void gtk_box_pack_start (GtkBox *box,GtkWidget *child,gboolean expand,gboolean fill,guint padding);
+GtkWidget* gtk_button_new (void);
 GtkWidget* gtk_button_new_with_label (const gchar *label);
+void gtk_button_set_image (GtkButton *button, GtkWidget *image);
+void gtk_button_set_relief (GtkButton *button, GtkReliefStyle relief);
 GtkCellRenderer *gtk_cell_renderer_text_new (void);
 GtkTreeModel*gtk_combo_box_get_model (GtkComboBox *combo_box);
 void gtk_combo_box_set_active (GtkComboBox *combo_box, gint index_);
@@ -133,8 +141,9 @@ const gchar* gtk_entry_buffer_get_text (GtkEntryBuffer *buffer);
 GtkEntryBuffer *gtk_entry_get_buffer (GtkEntry *entry);
 const gchar *gtk_entry_get_text (GtkEntry *entry);
 GtkWidget* gtk_entry_new (void);
-void gtk_entry_set_max_length (GtkEntry *entry, gint max);
 void gtk_entry_set_text (GtkEntry *entry, const gchar *text);
+GtkWidget* gtk_image_new_from_icon_name (const gchar *icon_name, GtkIconSize size);
+const gchar* gtk_label_get_text (GtkLabel *label);
 GtkWidget* gtk_label_new (const gchar *str);
 void gtk_list_store_append (GtkListStore *list_store, GtkTreeIter *iter);
 void gtk_list_store_insert_before (GtkListStore *list_store, GtkTreeIter *iter, GtkTreeIter *sibling);

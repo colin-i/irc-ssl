@@ -18,7 +18,6 @@ SSL_CTX *SSL_CTX_new(const SSL_METHOD *meth);
 unsigned long SSL_CTX_set_options(SSL_CTX *ctx, unsigned long op);
 int SSL_connect(SSL *ssl);
 void SSL_free(SSL *ssl);
-int SSL_get_fd(const SSL *ssl);
 SSL *SSL_new(SSL_CTX *ctx);
 int SSL_read(SSL *ssl, void *buf, int num);
 int SSL_set_fd(SSL *s, int fd);
