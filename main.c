@@ -407,7 +407,17 @@ static void pars_join(char*chan,struct stk_s*ps){
 	gtk_box_pack_start((GtkBox*)box,t,TRUE,TRUE,0);
 	gtk_box_pack_start((GtkBox*)box,close,FALSE,FALSE,0);
 	gtk_widget_show_all(box);
-	gtk_notebook_append_page (ps->notebook, pan, box);
+	gtk_notebook_append_page_menu (ps->notebook, pan, box, gtk_label_new (chan));
+}
+static void pars_part(char*c,GtkNotebook*nb){
+	int n=gtk_notebook_get_n_pages(nb);
+	for(int i=0;i<n;i++){
+		const char*d=gtk_notebook_get_menu_label_text(nb,gtk_notebook_get_nth_page(nb,i));
+		if(strcmp(c,d)==0){
+			gtk_notebook_remove_page(nb,i);
+			break;
+		}
+	}
 }
 static gboolean incsafe(gpointer ps){
 	addattextview(((struct stk_s*)ps)->dl);
@@ -417,17 +427,24 @@ static gboolean incsafe(gpointer ps){
 	#pragma GCC diagnostic pop
 	size_t s=((struct stk_s*)ps)->dl->len;
 	a[s-(a[s-2]=='\r'?2:1)]=0;
-	int d;
-	int c=sscanf(a,"%*s %i",&d);
+	//
+	char com[5];
+	int c=sscanf(a,"%*s %4s",com);
 	if(c==1){
+		size_t ln=strlen(com);
+		a=strchr(a,' ')+1+ln;if(*a==' ')a++;
+		int d=atoi(com);
 		char channm[channm_sz+1+10];
 		if(d==322){
 			unsigned int e;
-			c=sscanf(a,"%*s %*i %*s %63s %u",channm,&e);//if its >nr ,c is not 2
+			c=sscanf(a,"%*s %63s %u",channm,&e);//if its >nr ,c is not 2
 			if(c==2)pars_chans(channm,e);
 		}else if(d==353){
-			c=sscanf(a,"%*s %*i %*s %*c %63s",channm);
+			c=sscanf(a,"%*s %*c %63s",channm);
 			if(c==1)pars_join(channm,(struct stk_s*)ps);
+		}else if(strcmp(com,"PART")==0){
+			c=sscanf(a,"%s",channm);
+			if(c==1)pars_part(channm,((struct stk_s*)ps)->notebook);
 		}
 	}
 	pthread_kill(threadid,SIGUSR1);
@@ -893,8 +910,9 @@ activate (GtkApplication* app,
 	//
 	GtkWidget*pan=container_frame(&text_view,&text_mark_end,&channels,ps->separator);
 	ps->notebook = (GtkNotebook*)gtk_notebook_new ();
+	gtk_notebook_popup_enable(ps->notebook);
 	gtk_notebook_set_tab_pos (ps->notebook, GTK_POS_TOP);
-	gtk_notebook_append_page (ps->notebook, pan, gtk_label_new ("Home"));
+	gtk_notebook_append_page_menu (ps->notebook, pan, gtk_label_new ("@Home"), gtk_label_new ("@Home"));//with _menu eill return _menu_label_text
 	//
 	sigemptyset(&threadset);
 	sigaddset(&threadset, SIGUSR1);
