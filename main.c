@@ -408,6 +408,7 @@ static void pars_join(char*chan,struct stk_s*ps){
 	gtk_box_pack_start((GtkBox*)box,close,FALSE,FALSE,0);
 	gtk_widget_show_all(box);
 	gtk_notebook_append_page_menu (ps->notebook, pan, box, gtk_label_new (chan));
+	gtk_notebook_set_tab_reorderable(ps->notebook, pan, TRUE);
 }
 static void pars_part(char*c,GtkNotebook*nb){
 	int n=gtk_notebook_get_n_pages(nb);
@@ -912,7 +913,8 @@ activate (GtkApplication* app,
 	ps->notebook = (GtkNotebook*)gtk_notebook_new ();
 	gtk_notebook_popup_enable(ps->notebook);
 	gtk_notebook_set_tab_pos (ps->notebook, GTK_POS_TOP);
-	gtk_notebook_append_page_menu (ps->notebook, pan, gtk_label_new ("@Home"), gtk_label_new ("@Home"));//with _menu eill return _menu_label_text
+	gtk_notebook_append_page_menu (ps->notebook, pan, gtk_label_new ("@Home"), gtk_label_new ("@Home"));//with _menu will return _menu_label_text
+	gtk_notebook_set_tab_reorderable(ps->notebook, pan, TRUE);
 	//
 	sigemptyset(&threadset);
 	sigaddset(&threadset, SIGUSR1);
