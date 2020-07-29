@@ -164,6 +164,7 @@ GtkWidget * gtk_notebook_new (void);
 void gtk_notebook_popup_enable (GtkNotebook *notebook);
 void gtk_notebook_remove_page (GtkNotebook *notebook, gint page_num);
 void gtk_notebook_set_tab_pos (GtkNotebook *notebook, GtkPositionType pos);
+void gtk_notebook_set_tab_reorderable (GtkNotebook *notebook, GtkWidget *child, gboolean reorderable);
 GtkWidget * gtk_paned_new (GtkOrientation orientation);
 void gtk_paned_pack1 (GtkPaned *paned, GtkWidget *child, gboolean resize, gboolean shrink);
 void gtk_paned_pack2 (GtkPaned *paned, GtkWidget *child, gboolean resize, gboolean shrink);
