@@ -101,6 +101,7 @@ struct data_len{
 	const char*data;size_t len;
 };
 static long threadid;static sigset_t threadset;
+static GtkWidget*chan_menu;
 
 enum {
   LIST_ITEM = 0,
@@ -157,6 +158,7 @@ static void send_safe(const char*str,size_t sz){
 	g_idle_add(sendthreadsfunc,&dl);
 	int out;sigwait(&threadset,&out);
 }
+//
 static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int*sens,struct stk_s*ps) {
 	size_t sz=strlen(indata);
 	//
@@ -393,6 +395,11 @@ static void close_channel(GtkLabel*t){
 	memcpy(buf+5,a,n);buf[5+n]='\n';
 	send_data(buf,6+n);
 }
+static void chan_popup(GtkBin*menuitem,GtkNotebook*nb){
+	GtkWidget*lab=gtk_bin_get_child (menuitem);
+	GtkWidget*pan=gtk_label_get_mnemonic_widget((GtkLabel*)lab);
+	gtk_notebook_set_current_page(nb,gtk_notebook_page_num(nb,pan));
+}
 static void pars_join(char*chan,struct stk_s*ps){
 	GtkTextView*text_v;GtkTextMark*text_m;GtkListStore*store;
 	GtkWidget*pan=container_frame(&text_v,&text_m,&store,ps->separator);
@@ -409,16 +416,27 @@ static void pars_join(char*chan,struct stk_s*ps){
 	gtk_widget_show_all(box);
 	gtk_notebook_append_page_menu (ps->notebook, pan, box, gtk_label_new (chan));
 	gtk_notebook_set_tab_reorderable(ps->notebook, pan, TRUE);
+	//
+	GtkWidget*menu_item = gtk_menu_item_new_with_label (chan);
+	g_signal_connect_data (menu_item, "activate",G_CALLBACK (chan_popup),ps->notebook,nullptr,(GConnectFlags)0);
+	GtkWidget*lab=gtk_bin_get_child ((GtkBin*)menu_item);
+	gtk_label_set_mnemonic_widget((GtkLabel*)lab,pan);
+	gtk_menu_shell_append ((GtkMenuShell*)chan_menu, menu_item);gtk_widget_show(menu_item);
 }
 static void pars_part(char*c,GtkNotebook*nb){
-	int n=gtk_notebook_get_n_pages(nb);
-	for(int i=0;i<n;i++){
-		const char*d=gtk_notebook_get_menu_label_text(nb,gtk_notebook_get_nth_page(nb,i));
+	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
+	do{
+		GtkWidget*menu_item=(GtkWidget*)list->data;
+		const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
 		if(strcmp(c,d)==0){
-			gtk_notebook_remove_page(nb,i);
+			GtkWidget*lab=gtk_bin_get_child ((GtkBin*)menu_item);
+			GtkWidget*pan=gtk_label_get_mnemonic_widget((GtkLabel*)lab);
+			gtk_notebook_remove_page(nb,gtk_notebook_page_num(nb,pan));
+			gtk_widget_destroy(menu_item);
 			break;
 		}
-	}
+	}while(g_list_next(list)!=nullptr);
+	g_list_free(list);
 }
 static gboolean incsafe(gpointer ps){
 	addattextview(((struct stk_s*)ps)->dl);
@@ -911,9 +929,9 @@ activate (GtkApplication* app,
 	//
 	GtkWidget*pan=container_frame(&text_view,&text_mark_end,&channels,ps->separator);
 	ps->notebook = (GtkNotebook*)gtk_notebook_new ();
+	gtk_notebook_set_scrollable(ps->notebook,TRUE);
 	gtk_notebook_popup_enable(ps->notebook);
-	gtk_notebook_set_tab_pos (ps->notebook, GTK_POS_TOP);
-	gtk_notebook_append_page_menu (ps->notebook, pan, gtk_label_new ("@Home"), gtk_label_new ("@Home"));//with _menu will return _menu_label_text
+	gtk_notebook_append_page_menu (ps->notebook, pan, gtk_label_new ("@Home"), gtk_label_new ("@Home"));//i dont like the display (at 2,3..) without the last parameter
 	gtk_notebook_set_tab_reorderable(ps->notebook, pan, TRUE);
 	//
 	sigemptyset(&threadset);
@@ -931,6 +949,10 @@ activate (GtkApplication* app,
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	menu_item = gtk_menu_item_new_with_label ("Help");
 	g_signal_connect_data (menu_item, "activate",G_CALLBACK (help_popup),window,nullptr,G_CONNECT_SWAPPED);
+	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
+	menu_item = gtk_menu_item_new_with_label ("Channels");
+	chan_menu = gtk_menu_new ();
+	gtk_menu_item_set_submenu((GtkMenuItem*)menu_item,chan_menu);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	g_signal_connect_data (org, "button-press-event",G_CALLBACK (prog_menu_popup),menu,nullptr,G_CONNECT_SWAPPED);
 	//

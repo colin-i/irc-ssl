@@ -28,6 +28,7 @@ typedef void GtkEntryBuffer;
 typedef void GtkLabel;
 typedef void GtkListStore;
 typedef void GtkMenu;
+typedef void GtkMenuItem;
 typedef void GtkMenuShell;
 typedef void GtkNotebook;
 typedef void GtkPaned;
@@ -66,15 +67,19 @@ typedef enum{  GTK_ICON_SIZE_INVALID,  GTK_ICON_SIZE_MENU
 } GtkIconSize;
 typedef enum{  GTK_POLICY_ALWAYS,  GTK_POLICY_AUTOMATIC}//,  GTK_POLICY_NEVER,  GTK_POLICY_EXTERNAL
  GtkPolicyType;
-typedef enum{  GTK_POS_LEFT,  GTK_POS_RIGHT,  GTK_POS_TOP}
- GtkPositionType;
 typedef enum{  GTK_RELIEF_NORMAL,  GTK_RELIEF_HALF,  GTK_RELIEF_NONE
 } GtkReliefStyle;
 typedef enum{  GTK_RESPONSE_NONE = -1
 } GtkResponseType;
 typedef enum{  GTK_WRAP_NONE,  GTK_WRAP_CHAR,  GTK_WRAP_WORD}//,  GTK_WRAP_WORD_CHAR
  GtkWrapMode;
-
+typedef struct _GList GList;
+struct _GList
+{
+  gpointer data;
+  GList *next;
+  GList *prev;
+};
 typedef struct _GtkTextIter {
   gpointer dummy1;
   gpointer dummy2;
@@ -107,6 +112,8 @@ void g_application_add_main_option (GApplication *application, const char *long_
 int g_application_run (GApplication *application,int argc,char **argv);
 void g_free (gpointer mem);
 guint g_idle_add (GSourceFunc function,gpointer data);
+void g_list_free (GList *list);
+#define g_list_next(list) ((list) ? (((GList *)(list))->next) : nullptr)
 void g_object_unref (gpointer object);
 gulong g_signal_connect_data (gpointer instance,const gchar *detailed_signal,GCallback c_handler,gpointer data,GClosureNotify destroy_data,GConnectFlags connect_flags);
 void g_signal_handler_block (gpointer instance, gulong handler_id);
@@ -133,6 +140,7 @@ GType gtk_combo_box_text_get_type (void) __attribute__((__const__));
 GtkWidget* gtk_combo_box_text_new_with_entry (void);
 void gtk_combo_box_text_remove (GtkComboBoxText *combo_box, gint position);
 void gtk_container_add (GtkContainer *container,GtkWidget *widget);
+GList* gtk_container_get_children (GtkContainer *container);
 void gtk_container_set_border_width (GtkContainer *container,guint border_width);
 GtkWidget * gtk_dialog_get_content_area (GtkDialog *dialog);
 GtkWidget* gtk_dialog_new_with_buttons (const gchar *title,  GtkWindow *parent, GtkDialogFlags flags, const gchar *first_button_text, ...) __attribute__((__sentinel__));
@@ -143,6 +151,8 @@ const gchar *gtk_entry_get_text (GtkEntry *entry);
 GtkWidget* gtk_entry_new (void);
 void gtk_entry_set_text (GtkEntry *entry, const gchar *text);
 GtkWidget* gtk_image_new_from_icon_name (const gchar *icon_name, GtkIconSize size);
+GtkWidget *gtk_label_get_mnemonic_widget (GtkLabel *label);
+void gtk_label_set_mnemonic_widget (GtkLabel *label, GtkWidget *widget);
 const gchar* gtk_label_get_text (GtkLabel *label);
 GtkWidget* gtk_label_new (const gchar *str);
 void gtk_list_store_append (GtkListStore *list_store, GtkTreeIter *iter);
@@ -152,18 +162,19 @@ GtkListStore *gtk_list_store_new (gint n_columns, ...);
 gboolean gtk_list_store_remove (GtkListStore *list_store, GtkTreeIter *iter);
 void gtk_list_store_set (GtkListStore *list_store, GtkTreeIter *iter, ...);
 void gtk_list_store_swap (GtkListStore *store, GtkTreeIter *a, GtkTreeIter *b);
+const gchar *gtk_menu_item_get_label (GtkMenuItem *menu_item);
 GtkWidget* gtk_menu_item_new_with_label (const gchar *label);
+void gtk_menu_item_set_submenu (GtkMenuItem *menu_item, GtkWidget *submenu);
 GtkWidget* gtk_menu_new (void);
 void gtk_menu_popup_at_pointer (GtkMenu *menu, const GdkEvent *trigger_event);
 void gtk_menu_shell_append (GtkMenuShell *menu_shell, GtkWidget *child);
 gint gtk_notebook_append_page_menu (GtkNotebook *notebook, GtkWidget *child, GtkWidget *tab_label, GtkWidget *menu_label);
-gint gtk_notebook_get_n_pages (GtkNotebook *notebook);
-GtkWidget *gtk_notebook_get_nth_page (GtkNotebook *notebook, gint page_num);
-const gchar *gtk_notebook_get_menu_label_text (GtkNotebook *notebook, GtkWidget *child);
 GtkWidget * gtk_notebook_new (void);
+gint gtk_notebook_page_num (GtkNotebook *notebook, GtkWidget *child);
 void gtk_notebook_popup_enable (GtkNotebook *notebook);
 void gtk_notebook_remove_page (GtkNotebook *notebook, gint page_num);
-void gtk_notebook_set_tab_pos (GtkNotebook *notebook, GtkPositionType pos);
+void gtk_notebook_set_current_page (GtkNotebook *notebook, gint page_num);
+void gtk_notebook_set_scrollable (GtkNotebook *notebook, gboolean scrollable);
 void gtk_notebook_set_tab_reorderable (GtkNotebook *notebook, GtkWidget *child, gboolean reorderable);
 GtkWidget * gtk_paned_new (GtkOrientation orientation);
 void gtk_paned_pack1 (GtkPaned *paned, GtkWidget *child, gboolean resize, gboolean shrink);
