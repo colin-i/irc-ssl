@@ -435,7 +435,7 @@ static void pars_part(char*c,GtkNotebook*nb){
 			gtk_widget_destroy(menu_item);
 			break;
 		}
-	}while(g_list_next(list)!=nullptr);
+	}while((list=g_list_next(list))!=nullptr);
 	g_list_free(list);
 }
 static gboolean incsafe(gpointer ps){
