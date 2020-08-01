@@ -69,7 +69,7 @@
 #endif
 
 #ifdef HAVE_GTK_GTK_H
-#pragma GCC diagnostic push
+#pragma GCC diagnostic push//there are 2 more ignors in the program
 #pragma GCC diagnostic ignored "-Weverything"
 #include <gtk/gtk.h>
 #pragma GCC diagnostic pop
@@ -78,6 +78,7 @@
 #endif
 
 static GtkTextView *text_view;static GtkTextMark *text_mark_end;static GtkListStore*channels;
+#define text_mark_atend "a"
 static SSL *ssl=nullptr;static int plain_socket=-1;
 static int con_th=-1;//static GThread*con_th=nullptr;
 static int portindex;static int portend;
@@ -108,7 +109,7 @@ enum {
 struct stk_s{
 	const char*args[4];
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
-	char*nick;const char*text;
+	char*nick;const char*text;char*nknnow;
 	int separator;
 	GtkWidget*con_entry;gulong con_entry_act;GtkWidget*sen_entry;gulong sen_entry_act;
 	unsigned int refresh;unsigned int refreshid;
@@ -187,6 +188,7 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int
 			memcpy(nkn,def_n,sizeof(def_n));
 		}
 	}
+	ps->nknnow=nkn;//can be only at this go
 	//
 	const char*ptr=strchr(indata,':');
 	if(ptr!=nullptr)sz=(size_t)(ptr-indata);
@@ -291,7 +293,7 @@ static void chan_join (GtkTreeView *tree){
 	}
 	free(item_text);
 }
-static GtkWidget*container_frame(GtkTextView**text_v,GtkTextMark**text_m,GtkListStore**store,int sep){
+static GtkWidget*container_frame(int sep){
 	  /* Text view is a widget in which can display the text buffer.
 	   * The line wrapping is set to break lines in between words.
 	   */
@@ -300,10 +302,10 @@ static GtkWidget*container_frame(GtkTextView**text_v,GtkTextMark**text_m,GtkList
 	  /* The text buffer represents the text being edited */
 	GtkTextIter text_iter_end;
 	gtk_text_buffer_get_end_iter (text_buffer, &text_iter_end);
-	GtkTextMark*text_m_end = gtk_text_buffer_create_mark (text_buffer,
-	                                             nullptr,
-	                                             &text_iter_end,
-	                                             FALSE);
+	gtk_text_buffer_create_mark (text_buffer,
+	                             text_mark_atend,
+	                             &text_iter_end,
+	                             FALSE);
 	gtk_text_view_set_editable(text, FALSE);
 	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD);
 	  /* Create the scrolled window. Usually nullptr is passed for both parameters so 
@@ -342,8 +344,6 @@ static GtkWidget*container_frame(GtkTextView**text_v,GtkTextMark**text_m,GtkList
 	gtk_paned_pack1((GtkPaned*)pan,scrolled_window,TRUE,TRUE);
 	gtk_paned_pack2((GtkPaned*)pan,scrolled_right,FALSE,TRUE);
 	gtk_widget_set_size_request (scrolled_right, sep, -1);
-	//
-	*text_v=text;*text_m=text_m_end;*store=ls;
 	return pan;
 }
 static void close_channel(GtkLabel*t){
@@ -376,8 +376,7 @@ static BOOL chan_fresh(char*c){
 }
 static void pars_join(char*chan,struct stk_s*ps){
 	if(chan_fresh(chan)){//can be kick and let the channel window
-		GtkTextView*text_v;GtkTextMark*text_m;GtkListStore*store;
-		GtkWidget*pan=container_frame(&text_v,&text_m,&store,ps->separator);
+		GtkWidget*pan=container_frame(ps->separator);
 		gtk_widget_show_all (pan);
 		GtkWidget*t=gtk_label_new (chan);
 		GtkWidget*close=gtk_button_new();
@@ -414,6 +413,17 @@ static void pars_part(char*c,GtkNotebook*nb){
 	}while((list=g_list_next(list))!=nullptr);
 	g_list_free(list);
 }
+static int nick_and_chan(char*a,char*b,const char*bb,char*n,char*c,char*nick){
+	int d=sscanf(a,":%[^!]",n);
+	if(d!=1)return -1;
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+	d=sscanf(b,bb,c);
+	#pragma GCC diagnostic pop
+	if(d!=1)return -1;
+	if(strcmp(nick,n)!=0)return -1;
+	return 0;
+}
 static gboolean incsafe(gpointer ps){
 	addattextview(((struct stk_s*)ps)->dl);
 	#pragma GCC diagnostic push
@@ -427,20 +437,24 @@ static gboolean incsafe(gpointer ps){
 	int c=sscanf(a,"%*s %4s",com);
 	if(c==1){
 		size_t ln=strlen(com);
-		a=strchr(a,' ')+1+ln;if(*a==' ')a++;
-		int d=atoi(com);
-		char channm[channm_sz+1+10];
-		if(d==353){
-			c=sscanf(a,"%*s %*c %63s",channm);
-			if(c==1)pars_join(channm,(struct stk_s*)ps);
+		char*b=strchr(a,' ')+1+ln;if(*b==' ')b++;
+		char channm[channm_sz+1+10];//+ to set the "chan nr" at join on the same string
+		char nicknm[channm_sz];
+		if(strcmp(com,"JOIN")==0){
+			if(nick_and_chan(a,b,":%s",nicknm,channm,((struct stk_s*)ps)->nknnow)==0)
+				pars_join(channm,(struct stk_s*)ps);
 		}else if(strcmp(com,"PART")==0){
-			c=sscanf(a,"%s",channm);
-			if(c==1)pars_part(channm,((struct stk_s*)ps)->notebook);
-		}else if(d==322){
-			unsigned int e;
-			c=sscanf(a,"%*s %63s %u",channm,&e);//if its >nr ,c is not 2
-			if(c==2)pars_chans(channm,e);
-		}else if(d==321)gtk_list_store_clear(channels);
+			if(nick_and_chan(a,b,"%s",nicknm,channm,((struct stk_s*)ps)->nknnow)==0)
+				pars_part(channm,((struct stk_s*)ps)->notebook);
+		}else{
+			int d=atoi(com);
+			if(d==322){
+				unsigned int e;
+				c=sscanf(b,"%*s %63s %u",channm,&e);//if its >nr ,c is not 2
+				if(c==2)pars_chans(channm,e);
+			}else if(d==321)gtk_list_store_clear(channels);
+			//if(d==353){c=sscanf(a,"%*s %*c %63s",channm);
+		}
 	}
 	pthread_kill(threadid,SIGUSR1);
 	return FALSE;
@@ -916,7 +930,11 @@ activate (GtkApplication* app,
 	if(ps->dim[0]!=-1)
 		gtk_window_set_default_size ((GtkWindow*) window, ps->dim[0], ps->dim[1]);
 	//
-	GtkWidget*pan=container_frame(&text_view,&text_mark_end,&channels,ps->separator);
+	GtkWidget*pan=container_frame(ps->separator);
+	text_view=(GtkTextView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child1((GtkPaned*)pan));
+	text_mark_end=gtk_text_buffer_get_mark(gtk_text_view_get_buffer(text_view),text_mark_atend);
+	channels=(GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan)));
+	//
 	ps->notebook = (GtkNotebook*)gtk_notebook_new ();
 	gtk_notebook_set_scrollable(ps->notebook,TRUE);
 	gtk_notebook_popup_enable(ps->notebook);
