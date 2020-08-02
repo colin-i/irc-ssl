@@ -353,9 +353,9 @@ static void close_channel(GtkLabel*t){
 	memcpy(buf+5,a,n);buf[5+n]='\n';
 	send_data(buf,6+n);
 }
-static void chan_popup(GtkBin*menuitem,GtkNotebook*nb){
-	GtkWidget*lab=gtk_bin_get_child (menuitem);
-	GtkWidget*pan=gtk_label_get_mnemonic_widget((GtkLabel*)lab);
+#define get_pan_from_menu(x) gtk_label_get_mnemonic_widget((GtkLabel*)gtk_bin_get_child ((GtkBin*)x))
+static void chan_popup(GtkWidget*menuitem,GtkNotebook*nb){
+	GtkWidget*pan=get_pan_from_menu(menuitem);
 	gtk_notebook_set_current_page(nb,gtk_notebook_page_num(nb,pan));
 }
 static GtkWidget* chan_pan(char*c){
@@ -366,7 +366,7 @@ static GtkWidget* chan_pan(char*c){
 			GtkWidget*menu_item=(GtkWidget*)list->data;
 			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
 			if(strcmp(c,d)==0){
-				pan=gtk_label_get_mnemonic_widget((GtkLabel*)gtk_bin_get_child((GtkBin*)menu_item));
+				pan=get_pan_from_menu(menu_item);
 				break;
 			}
 		}while((list=g_list_next(list))!=nullptr);
@@ -407,8 +407,7 @@ static void pars_part(char*c,GtkNotebook*nb){
 		GtkWidget*menu_item=(GtkWidget*)list->data;
 		const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
 		if(strcmp(c,d)==0){
-			GtkWidget*lab=gtk_bin_get_child ((GtkBin*)menu_item);
-			GtkWidget*pan=gtk_label_get_mnemonic_widget((GtkLabel*)lab);
+			GtkWidget*pan=get_pan_from_menu(menu_item);
 			gtk_notebook_remove_page(nb,gtk_notebook_page_num(nb,pan));
 			gtk_widget_destroy(menu_item);
 			break;
@@ -468,7 +467,7 @@ static GtkWidget*name_to_pan(char*n){
 			GtkWidget*menu_item=(GtkWidget*)list->data;
 			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
 			if(strcmp(d,n)==0)
-				return gtk_label_get_mnemonic_widget((GtkLabel*)gtk_bin_get_child ((GtkBin*)menu_item));
+				return get_pan_from_menu(menu_item);
 		}while((list=g_list_next(list))!=nullptr);
 		g_list_free(list);
 	}
@@ -543,8 +542,7 @@ static gboolean senstartthreadsfunc(gpointer ps){
 	if(list!=nullptr){
 		do{
 			GtkWidget*menu_item=(GtkWidget*)list->data;
-			GtkWidget*lab=gtk_bin_get_child ((GtkBin*)menu_item);
-			GtkWidget*pan=gtk_label_get_mnemonic_widget((GtkLabel*)lab);
+			GtkWidget*pan=get_pan_from_menu(menu_item);
 			gtk_notebook_remove_page(((struct stk_s*)ps)->notebook,gtk_notebook_page_num(((struct stk_s*)ps)->notebook,pan));
 			gtk_widget_destroy(menu_item);
 			list=g_list_next(list);
