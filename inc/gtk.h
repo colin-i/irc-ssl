@@ -212,8 +212,11 @@ void gtk_tree_view_set_headers_visible (GtkTreeView *tree_view, gboolean headers
 void gtk_tree_view_set_model (GtkTreeView *tree_view, GtkTreeModel *model);
 void gtk_widget_destroy (GtkWidget *widget);
 GtkWidget* gtk_widget_get_ancestor (GtkWidget *widget, GType widget_type);
+gboolean gtk_widget_get_has_tooltip (GtkWidget *widget);
 GtkWidget* gtk_widget_get_toplevel (GtkWidget *widget);
+void gtk_widget_set_has_tooltip (GtkWidget *widget, gboolean has_tooltip);
 void gtk_widget_set_size_request (GtkWidget *widget,gint width,gint height);
+void gtk_widget_set_tooltip_text (GtkWidget *widget, const gchar *text);
 void gtk_widget_show (GtkWidget *widget);
 void gtk_widget_show_all (GtkWidget *widget);
 void gtk_window_get_size (GtkWindow *window,gint *width,gint *height);

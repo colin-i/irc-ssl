@@ -358,25 +358,27 @@ static void chan_popup(GtkBin*menuitem,GtkNotebook*nb){
 	GtkWidget*pan=gtk_label_get_mnemonic_widget((GtkLabel*)lab);
 	gtk_notebook_set_current_page(nb,gtk_notebook_page_num(nb,pan));
 }
-static BOOL chan_fresh(char*c){
-	BOOL a=TRUE;
+static GtkWidget* chan_pan(char*c){
+	GtkWidget*pan=nullptr;
 	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
 	if(list!=nullptr){
 		do{
 			GtkWidget*menu_item=(GtkWidget*)list->data;
 			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
 			if(strcmp(c,d)==0){
-				a=FALSE;
+				pan=gtk_label_get_mnemonic_widget((GtkLabel*)gtk_bin_get_child((GtkBin*)menu_item));
 				break;
 			}
 		}while((list=g_list_next(list))!=nullptr);
 		g_list_free(list);
 	}
-	return a;
+	return pan;
 }
 static void pars_join(char*chan,struct stk_s*ps){
-	if(chan_fresh(chan)){//can be kick and let the channel window
-		GtkWidget*pan=container_frame(ps->separator);
+	GtkWidget*pan=chan_pan(chan);
+	if(pan==nullptr){//can be kick and let the channel window
+		pan=container_frame(ps->separator);
+		gtk_widget_set_tooltip_text(pan,chan);//is also a NAMES flag here
 		gtk_widget_show_all (pan);
 		GtkWidget*t=gtk_label_new (chan);
 		GtkWidget*close=gtk_button_new();
@@ -397,6 +399,7 @@ static void pars_join(char*chan,struct stk_s*ps){
 		gtk_label_set_mnemonic_widget((GtkLabel*)lab,pan);
 		gtk_menu_shell_append ((GtkMenuShell*)chan_menu, menu_item);gtk_widget_show(menu_item);
 	}
+	gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,pan));
 }
 static void pars_part(char*c,GtkNotebook*nb){
 	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
@@ -424,6 +427,53 @@ static int nick_and_chan(char*a,char*b,const char*bb,char*n,char*c,char*nick){
 	if(strcmp(nick,n)!=0)return -1;
 	return 0;
 }
+static GtkListStore*contf_get_list(GtkWidget*pan){
+	return (GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan)));
+}
+static void add_name(GtkListStore*lst,char*t){
+	GtkTreeIter it;
+	gboolean valid=gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
+	while(valid){
+		char*text;
+		gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
+		int a=strcmp(t,text);
+		g_free(text);
+		GtkTreeIter i;
+		if(a<0){
+			gtk_list_store_insert_before(lst,&i,&it);
+			gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
+			return;
+		}
+		valid = gtk_tree_model_iter_next( (GtkTreeModel*)lst, &it);
+	}
+	gtk_list_store_append(lst,&it);
+	gtk_list_store_set(lst, &it, LIST_ITEM, t, -1);
+}
+static void pars_names(GtkWidget*pan,char*b,size_t s){
+	GtkListStore*lst=contf_get_list(pan);
+	if(gtk_widget_get_has_tooltip(pan)==FALSE){
+		gtk_list_store_clear(lst);
+		gtk_widget_set_has_tooltip(pan,TRUE);
+	}
+	size_t j=0;
+	for(size_t i=0;i<s;i++){
+		if(b[i]==' '){b[i]=0;add_name(lst,b+j);j=i+1;}
+	}
+	add_name(lst,b+j);
+}
+static GtkWidget*name_to_pan(char*n){
+	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
+	if(list!=nullptr){
+		do{
+			GtkWidget*menu_item=(GtkWidget*)list->data;
+			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
+			if(strcmp(d,n)==0)
+				return gtk_label_get_mnemonic_widget((GtkLabel*)gtk_bin_get_child ((GtkBin*)menu_item));
+		}while((list=g_list_next(list))!=nullptr);
+		g_list_free(list);
+	}
+	return nullptr;
+}
 static gboolean incsafe(gpointer ps){
 	addattextview(((struct stk_s*)ps)->dl);
 	#pragma GCC diagnostic push
@@ -431,7 +481,8 @@ static gboolean incsafe(gpointer ps){
 	char*a=(char*)((struct stk_s*)ps)->dl->data;
 	#pragma GCC diagnostic pop
 	size_t s=((struct stk_s*)ps)->dl->len;
-	a[s-(a[s-2]=='\r'?2:1)]=0;
+	s-=a[s-2]=='\r'?2:1;
+	a[s]=0;
 	//
 	char com[5];
 	int c=sscanf(a,"%*s %4s",com);
@@ -453,7 +504,20 @@ static gboolean incsafe(gpointer ps){
 				c=sscanf(b,"%*s %63s %u",channm,&e);//if its >nr ,c is not 2
 				if(c==2)pars_chans(channm,e);
 			}else if(d==321)gtk_list_store_clear(channels);
-			//if(d==353){c=sscanf(a,"%*s %*c %63s",channm);
+			else if(d==353){
+				c=sscanf(b,"%*s %*c %63s",channm);// :
+				GtkWidget*p=name_to_pan(channm);
+				if(p!=nullptr){
+					b=strchr(b,':');//join #q:w is error
+					if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a));
+				}
+			}else if(d==366){
+				c=sscanf(b,"%*s %s",channm);
+				if(c==1){
+					GtkWidget*p=name_to_pan(channm);
+					if(p!=nullptr)gtk_widget_set_has_tooltip(p,FALSE);
+				}
+			}
 		}
 	}
 	pthread_kill(threadid,SIGUSR1);
@@ -933,7 +997,7 @@ activate (GtkApplication* app,
 	GtkWidget*pan=container_frame(ps->separator);
 	text_view=(GtkTextView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child1((GtkPaned*)pan));
 	text_mark_end=gtk_text_buffer_get_mark(gtk_text_view_get_buffer(text_view),text_mark_atend);
-	channels=(GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan)));
+	channels=contf_get_list(pan);
 	//
 	ps->notebook = (GtkNotebook*)gtk_notebook_new ();
 	gtk_notebook_set_scrollable(ps->notebook,TRUE);
@@ -1026,6 +1090,6 @@ int main (int    argc,
 		g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
 		if(ps.nick!=nullptr)g_free(ps.nick);
 		g_object_unref (app);
+		if(info_path_name!=nullptr)free(info_path_name);
 	}else puts("openssl error");
-	if(info_path_name!=nullptr)free(info_path_name);
 }
