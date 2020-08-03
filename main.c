@@ -374,6 +374,20 @@ static GtkWidget* chan_pan(char*c){
 	}
 	return pan;
 }
+static GtkWidget*name_to_pan(char*n){
+	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
+	if(list!=nullptr){
+		do{
+			GtkWidget*menu_item=(GtkWidget*)list->data;
+			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
+			if(strcmp(d,n)==0)
+				return get_pan_from_menu(menu_item);
+		}while((list=g_list_next(list))!=nullptr);
+		g_list_free(list);
+	}
+	return nullptr;
+}
+#define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan)))
 static void pars_join(char*chan,struct stk_s*ps){
 	GtkWidget*pan=chan_pan(chan);
 	if(pan==nullptr){//can be kick and let the channel window
@@ -401,6 +415,27 @@ static void pars_join(char*chan,struct stk_s*ps){
 	}
 	gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,pan));
 }
+static void pars_join_user(char*channm,char*nicknm){
+	GtkWidget*p=name_to_pan(channm);
+	GtkListStore*lst=contf_get_list(p);
+	GtkTreeIter it;
+	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);//at least one, we already joined
+	gboolean valid;do{
+		char*text;
+		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
+		int a=strcmp(nicknm,text);
+		g_free(text);
+		GtkTreeIter i;
+		if(a<0){
+			gtk_list_store_insert_before(lst,&i,&it);
+			gtk_list_store_set(lst, &i, LIST_ITEM, nicknm, -1);
+			return;
+		}
+		valid=gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it);
+	}while(valid);
+	gtk_list_store_append(lst,&it);
+	gtk_list_store_set(lst, &it, LIST_ITEM, nicknm, -1);
+}
 static void pars_part(char*c,GtkNotebook*nb){
 	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
 	do{
@@ -423,11 +458,8 @@ static int nick_and_chan(char*a,char*b,const char*bb,char*n,char*c,char*nick){
 	d=sscanf(b,bb,c);
 	#pragma GCC diagnostic pop
 	if(d!=1)return -1;
-	if(strcmp(nick,n)!=0)return -1;
+	if(strcmp(nick,n)!=0)return 1;
 	return 0;
-}
-static GtkListStore*contf_get_list(GtkWidget*pan){
-	return (GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan)));
 }
 static void add_name(GtkListStore*lst,char*t){
 	GtkTreeIter it;
@@ -460,19 +492,6 @@ static void pars_names(GtkWidget*pan,char*b,size_t s){
 	}
 	add_name(lst,b+j);
 }
-static GtkWidget*name_to_pan(char*n){
-	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
-	if(list!=nullptr){
-		do{
-			GtkWidget*menu_item=(GtkWidget*)list->data;
-			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
-			if(strcmp(d,n)==0)
-				return get_pan_from_menu(menu_item);
-		}while((list=g_list_next(list))!=nullptr);
-		g_list_free(list);
-	}
-	return nullptr;
-}
 static gboolean incsafe(gpointer ps){
 	addattextview(((struct stk_s*)ps)->dl);
 	#pragma GCC diagnostic push
@@ -491,8 +510,9 @@ static gboolean incsafe(gpointer ps){
 		char channm[channm_sz+1+10];//+ to set the "chan nr" at join on the same string
 		char nicknm[channm_sz];
 		if(strcmp(com,"JOIN")==0){
-			if(nick_and_chan(a,b,":%s",nicknm,channm,((struct stk_s*)ps)->nknnow)==0)
-				pars_join(channm,(struct stk_s*)ps);
+			int resp=nick_and_chan(a,b,":%s",nicknm,channm,((struct stk_s*)ps)->nknnow);
+			if(resp==0)pars_join(channm,(struct stk_s*)ps);
+			else if(resp==1)pars_join_user(channm,nicknm);
 		}else if(strcmp(com,"PART")==0){
 			if(nick_and_chan(a,b,"%s",nicknm,channm,((struct stk_s*)ps)->nknnow)==0)
 				pars_part(channm,((struct stk_s*)ps)->notebook);
