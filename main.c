@@ -450,6 +450,23 @@ static void pars_part(char*c,GtkNotebook*nb){
 	}while((list=g_list_next(list))!=nullptr);
 	g_list_free(list);
 }
+static void pars_part_user(char*channm,char*nicknm){
+	GtkWidget*p=name_to_pan(channm);
+	GtkListStore*lst=contf_get_list(p);
+	GtkTreeIter it;
+	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
+	gboolean valid;do{
+		char*text;
+		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
+		int a=strcmp(nicknm,text);
+		g_free(text);
+		if(a==0){
+			gtk_list_store_remove(lst,&it);
+			return;
+		}
+		valid=gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it);
+	}while(valid);
+}
 static int nick_and_chan(char*a,char*b,const char*bb,char*n,char*c,char*nick){
 	int d=sscanf(a,":%[^!]",n);
 	if(d!=1)return -1;
@@ -514,8 +531,9 @@ static gboolean incsafe(gpointer ps){
 			if(resp==0)pars_join(channm,(struct stk_s*)ps);
 			else if(resp==1)pars_join_user(channm,nicknm);
 		}else if(strcmp(com,"PART")==0){
-			if(nick_and_chan(a,b,"%s",nicknm,channm,((struct stk_s*)ps)->nknnow)==0)
-				pars_part(channm,((struct stk_s*)ps)->notebook);
+			int resp=nick_and_chan(a,b,"%s",nicknm,channm,((struct stk_s*)ps)->nknnow);
+			if(resp==0)pars_part(channm,((struct stk_s*)ps)->notebook);
+			else if(resp==1)pars_part_user(channm,nicknm);
 		}else{
 			int d=atoi(com);
 			if(d==322){
