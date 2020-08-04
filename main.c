@@ -388,26 +388,55 @@ static GtkWidget*name_to_pan(char*n){
 	return nullptr;
 }
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan)))
-static BOOL chan_change_nr(char*chan,unsigned int v){
+static void chan_change_nr_swap(GtkTreeIter*iter,int pos,int val,char*chn,unsigned int nr){
+	val*=-1;
+	pos+=val;
+	int startpos=pos;
+	GtkTreeIter it;
+	for(;;){
+		if(pos<0)break;//gtk warning
+		if(gtk_tree_model_iter_nth_child((GtkTreeModel*)channels,&it,nullptr,pos)==FALSE){
+			gtk_tree_model_iter_nth_child((GtkTreeModel*)channels,&it,nullptr,pos-1);
+			break;//the other way
+		}
+		char*text;
+		char c[channm_sz];
+		unsigned int n;
+		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
+		sscanf(text,"%s %u",c,&n);
+		int a=strcmp(c,chn);
+		g_free(text);
+		if(val<0){if(n>nr||(n==nr&&a<0))break;}
+		else if(nr>n||(nr==n&&a>0))break;
+		pos+=val;
+	}
+	if(pos!=startpos)gtk_list_store_swap (channels, &it, iter);
+}
+static BOOL chan_change_nr(char*chan,int v){
 	GtkTreeIter it;
 	gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, &it);
-	gboolean valid;do{
+	gboolean valid;int pos=0;for(;;){
 		char c[channm_sz+1+10];
 		char*text;
 		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
 		sscanf(text,"%s",c);
 		if(strcmp(chan,c)==0){
-			size_t s=strlen(c);
+			size_t s=strlen(c);size_t ss=s;
 			unsigned int n;
-			c[s]=' ';s++;
-			sscanf(text+s,"%u",&n);
-			s+=(size_t)sprintf(c+s,"%u",n+v);c[s]=0;
+			s++;sscanf(text+s,"%u",&n);
+			n+=(unsigned int)v;
+			chan_change_nr_swap(&it,pos,v,c,n);
+			c[ss]=' ';
+			s+=(size_t)sprintf(c+s,"%u",n);c[s]=0;
 			gtk_list_store_set(channels, &it, LIST_ITEM, c, -1);
-			g_free(text);return TRUE;
+			g_free(text);
+			return TRUE;
 		}
 		g_free(text);
 		valid = gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it);
-	}while(valid);
+		if(valid==FALSE)break;
+		pos++;
+	}
 	return FALSE;
 }
 static void pars_join(char*chan,struct stk_s*ps){
@@ -472,7 +501,7 @@ static void pars_part(char*c,GtkNotebook*nb){
 			GtkWidget*pan=get_pan_from_menu(menu_item);
 			gtk_notebook_remove_page(nb,gtk_notebook_page_num(nb,pan));
 			gtk_widget_destroy(menu_item);
-			chan_change_nr(c,(unsigned int)-1);
+			chan_change_nr(c,-1);
 			break;
 		}
 	}while((list=g_list_next(list))!=nullptr);
@@ -491,7 +520,7 @@ static void pars_part_user(char*channm,char*nicknm){
 		g_free(text);
 		if(a==0){
 			gtk_list_store_remove(lst,&it);
-			chan_change_nr(channm,(unsigned int)-1);
+			chan_change_nr(channm,-1);
 			return;
 		}
 		valid=gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it);
