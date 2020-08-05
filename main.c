@@ -374,7 +374,7 @@ static GtkWidget* chan_pan(char*c){
 	}
 	return pan;
 }
-static GtkWidget*name_to_pan(char*n){
+static GtkWidget*name_to_pan(const char*n){
 	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
 	if(list!=nullptr){
 		do{
@@ -388,6 +388,7 @@ static GtkWidget*name_to_pan(char*n){
 	return nullptr;
 }
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan)))
+#define name_to_list(c) contf_get_list(name_to_pan(c))
 static void chan_change_nr_swap(GtkTreeIter*iter,int pos,int val,char*chn,unsigned int nr){
 	val*=-1;
 	pos+=val;
@@ -412,7 +413,7 @@ static void chan_change_nr_swap(GtkTreeIter*iter,int pos,int val,char*chn,unsign
 	}
 	if(pos!=startpos)gtk_list_store_swap (channels, &it, iter);
 }
-static BOOL chan_change_nr(char*chan,int v){
+static BOOL chan_change_nr(const char*chan,int v){
 	GtkTreeIter it;
 	gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, &it);
 	gboolean valid;int pos=0;for(;;){
@@ -468,9 +469,8 @@ static void pars_join(char*chan,struct stk_s*ps){
 	if(chan_change_nr(chan,1)==FALSE)pars_chan(chan,1);
 }
 static void pars_join_user(char*channm,char*nicknm){
-	GtkWidget*p=name_to_pan(channm);
 	//if(p!=nullptr){
-	GtkListStore*lst=contf_get_list(p);
+	GtkListStore*lst=name_to_list(channm);
 	GtkTreeIter it;
 	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);//at least one, we already joined
 	gboolean valid;do{
@@ -508,9 +508,8 @@ static void pars_part(char*c,GtkNotebook*nb){
 	g_list_free(list);
 }
 static void pars_part_user(char*channm,char*nicknm){
-	GtkWidget*p=name_to_pan(channm);
 	//if(p!=nullptr){
-	GtkListStore*lst=contf_get_list(p);
+	GtkListStore*lst=name_to_list(channm);
 	GtkTreeIter it;
 	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
 	gboolean valid;do{
@@ -527,16 +526,20 @@ static void pars_part_user(char*channm,char*nicknm){
 	}while(valid);
 	//}
 }
+static BOOL nick_extract(char*a,char*n){
+	return sscanf(a,":%[^!]",n)==1;
+}
 static int nick_and_chan(char*a,char*b,const char*bb,char*n,char*c,char*nick){
-	int d=sscanf(a,":%[^!]",n);
-	if(d!=1)return -1;
-	#pragma GCC diagnostic push
-	#pragma GCC diagnostic ignored "-Wformat-nonliteral"
-	d=sscanf(b,bb,c);
-	#pragma GCC diagnostic pop
-	if(d!=1)return -1;
-	if(strcmp(nick,n)!=0)return 1;
-	return 0;
+	if(nick_extract(a,n)){
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+		if(sscanf(b,bb,c)==1){
+		#pragma GCC diagnostic pop
+			if(strcmp(nick,n)!=0)return 1;
+			return 0;
+		}
+	}
+	return -1;
 }
 static void add_name(GtkListStore*lst,char*t){
 	GtkTreeIter it;
@@ -569,6 +572,31 @@ static void pars_names(GtkWidget*pan,char*b,size_t s){
 	}
 	add_name(lst,b+j);
 }
+static void pars_quit(char*nk){
+	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
+	do{
+		GtkWidget*menu_item=(GtkWidget*)list->data;
+		GtkListStore*lst=contf_get_list(get_pan_from_menu(menu_item));
+		//
+		GtkTreeIter it;
+		gboolean vld=gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
+		while(vld){
+			char*txt;
+			gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &txt, -1);
+			int a=strcmp(nk,txt);	
+			g_free(txt);
+			if(a<=0){
+				if(a==0){
+					gtk_list_store_remove(lst,&it);
+					chan_change_nr(gtk_menu_item_get_label((GtkMenuItem*)menu_item),-1);
+				}
+				break;
+			}
+			vld=gtk_tree_model_iter_next( (GtkTreeModel*)lst, &it);
+		}
+	}while((list=g_list_next(list))!=nullptr);
+	g_list_free(list);
+}
 static gboolean incsafe(gpointer ps){
 	addattextview(((struct stk_s*)ps)->dl);
 	#pragma GCC diagnostic push
@@ -597,6 +625,8 @@ static gboolean incsafe(gpointer ps){
 		}else if(strcmp(com,"KICK")==0){
 			c=sscanf(b,"%s %s",channm,nicknm);
 			if(c==2)pars_part_user(channm,nicknm);
+		}else if(strcmp(com,"QUIT")==0){
+			if(nick_extract(a,nicknm))pars_quit(nicknm);
 		}else{
 			int d=atoi(com);
 			if(d==322){
