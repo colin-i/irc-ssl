@@ -299,14 +299,14 @@ static GtkWidget*container_frame(int sep,GCallback click,GtkNotebook*nb){
 	   * when needed. 
 	   */
 	GtkWidget *scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
-	gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window, 
-	                                  GTK_POLICY_AUTOMATIC, 
-	                                  GTK_POLICY_AUTOMATIC); 
+	gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window,
+	                                  GTK_POLICY_AUTOMATIC,
+	                                  GTK_POLICY_AUTOMATIC);
 	  /* The function directly below is used to add children to the scrolled window 
 	   * with scrolling capabilities (e.g text_view), otherwise, 
 	   * gtk_scrolled_window_add_with_viewport() would have been used
 	   */
-	gtk_container_add ((GtkContainer*) scrolled_window, 
+	gtk_container_add ((GtkContainer*) scrolled_window,
 	                                       (GtkWidget*) text);
 	gtk_container_set_border_width ((GtkContainer*)scrolled_window, 5);
 	//
@@ -343,10 +343,10 @@ static GtkWidget*container_frame_name(){
 	gtk_text_view_set_editable(text, FALSE);
 	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD);
 	GtkWidget *scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
-	gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window, 
-	                                  GTK_POLICY_AUTOMATIC, 
-	                                  GTK_POLICY_AUTOMATIC); 
-	gtk_container_add ((GtkContainer*) scrolled_window, 
+	gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window,
+	                                  GTK_POLICY_AUTOMATIC,
+	                                  GTK_POLICY_AUTOMATIC);
+	gtk_container_add ((GtkContainer*) scrolled_window,
 	                                       (GtkWidget*) text);
 	gtk_container_set_border_width ((GtkContainer*)scrolled_window, 5);
 	return scrolled_window;
@@ -630,7 +630,7 @@ static void pars_quit(char*nk){
 		while(vld){
 			char*txt;
 			gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &txt, -1);
-			int a=strcmp(nk,txt);	
+			int a=strcmp(nk,txt);
 			g_free(txt);
 			if(a<=0){
 				if(a==0){
