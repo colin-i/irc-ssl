@@ -594,6 +594,9 @@ static gboolean incsafe(gpointer ps){
 			int resp=nick_and_chan(a,b,"%s",nicknm,channm,((struct stk_s*)ps)->nknnow);
 			if(resp==0)pars_part(channm,((struct stk_s*)ps)->notebook);
 			else if(resp==1)pars_part_user(channm,nicknm);
+		}else if(strcmp(com,"KICK")==0){
+			c=sscanf(b,"%s %s",channm,nicknm);
+			if(c==2)pars_part_user(channm,nicknm);
 		}else{
 			int d=atoi(com);
 			if(d==322){
