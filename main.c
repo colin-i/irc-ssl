@@ -96,6 +96,8 @@ Launch the program with --help argument for more info.\n\
 Connection format is [[nickname:]password@]hostname[:port1[-portn]].\n\
 newNick:abc@127.0.0.1:6665-6669"
 #define channm_sz 64
+#define channame_scan1 "%63"
+#define channame_scan channame_scan1 "s"
 struct data_len{
 	const char*data;size_t len;
 };
@@ -265,7 +267,7 @@ static void pars_chan(char*chan,unsigned int nr){
 		char c[channm_sz];unsigned int n;GtkTreeIter i;
 		char*text;
 		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
-		sscanf(text,"%s %u",c,&n);
+		sscanf(text,channame_scan " %u",c,&n);
 		int a=strcmp(chan,c);
 		g_free(text);
 		if(nr>n||(nr==n&&a<0)){
@@ -468,7 +470,7 @@ static void chan_change_nr_swap(GtkTreeIter*iter,int pos,int val,char*chn,unsign
 		char c[channm_sz];
 		unsigned int n;
 		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
-		sscanf(text,"%s %u",c,&n);
+		sscanf(text,channame_scan " %u",c,&n);
 		int a=strcmp(c,chn);
 		g_free(text);
 		if(val<0){if(n>nr||(n==nr&&a<0))break;}
@@ -484,7 +486,7 @@ static BOOL chan_change_nr(const char*chan,int v){
 		char c[channm_sz+1+10];
 		char*text;
 		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
-		sscanf(text,"%s",c);
+		sscanf(text,channame_scan,c);
 		if(strcmp(chan,c)==0){
 			size_t s=strlen(c);size_t ss=s;
 			unsigned int n;
@@ -574,7 +576,7 @@ static void pars_part_user(char*channm,char*nicknm){
 	//}
 }
 static BOOL nick_extract(char*a,char*n){
-	return sscanf(a,":%[^!]",n)==1;
+	return sscanf(a,":" channame_scan1 "[^!]",n)==1;
 }
 static int nick_and_chan(char*a,char*b,const char*bb,char*n,char*c,char*nick){
 	if(nick_extract(a,n)){
@@ -662,15 +664,15 @@ static gboolean incsafe(gpointer ps){
 		char channm[channm_sz+1+10];//+ to set the "chan nr" at join on the same string
 		char nicknm[channm_sz];
 		if(strcmp(com,"JOIN")==0){
-			int resp=nick_and_chan(a,b,":%s",nicknm,channm,((struct stk_s*)ps)->nknnow);
+			int resp=nick_and_chan(a,b,":" channame_scan,nicknm,channm,((struct stk_s*)ps)->nknnow);
 			if(resp==0)pars_join(channm,(struct stk_s*)ps);
 			else if(resp==1)pars_join_user(channm,nicknm);
 		}else if(strcmp(com,"PART")==0){
-			int resp=nick_and_chan(a,b,"%s",nicknm,channm,((struct stk_s*)ps)->nknnow);
+			int resp=nick_and_chan(a,b,channame_scan,nicknm,channm,((struct stk_s*)ps)->nknnow);
 			if(resp==0)pars_part(channm,((struct stk_s*)ps)->notebook);
 			else if(resp==1)pars_part_user(channm,nicknm);
 		}else if(strcmp(com,"KICK")==0){
-			c=sscanf(b,"%s %s",channm,nicknm);
+			c=sscanf(b,channame_scan " " channame_scan,channm,nicknm);
 			if(c==2)pars_part_user(channm,nicknm);
 		}else if(strcmp(com,"QUIT")==0){
 			if(nick_extract(a,nicknm))pars_quit(nicknm);
@@ -689,7 +691,7 @@ static gboolean incsafe(gpointer ps){
 					if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a));
 				}
 			}else if(d==366){
-				c=sscanf(b,"%*s %s",channm);
+				c=sscanf(b,"%*s " channame_scan,channm);
 				if(c==1){
 					GtkWidget*p=name_to_pan(channm);
 					if(p!=nullptr)gtk_widget_set_has_tooltip(p,FALSE);
