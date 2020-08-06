@@ -527,8 +527,8 @@ static void pars_join_user(char*channm,char*nicknm){
 		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
 		int a=strcmp(nicknm,text);
 		g_free(text);
-		GtkTreeIter i;
 		if(a<0){
+			GtkTreeIter i;
 			gtk_list_store_insert_before(lst,&i,&it);
 			gtk_list_store_set(lst, &i, LIST_ITEM, nicknm, -1);
 			chan_change_nr(channm,1);
@@ -646,6 +646,47 @@ static void pars_quit(char*nk){
 	}while((list=g_list_next(list))!=nullptr);
 	g_list_free(list);
 }
+static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
+	for(size_t i=1;m[i]!='\0';i++){
+		if(m[i]=='o'){
+			GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
+			do{
+				GtkWidget*menu_item=(GtkWidget*)list->data;
+				const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
+				if(strcmp(c,d)==0){
+					GtkListStore*lst=contf_get_list(get_pan_from_menu(menu_item));
+					GtkTreeIter it;
+					gtk_tree_model_get_iter_first (lst, &it);
+					gboolean valid;do{
+						char*text;
+						gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
+						int a=strcmp(n,plus?text:text+1);
+						g_free(text);
+						if(a==0){
+							if(plus){
+								char buf[channm_sz+1];*buf='@';
+								strcpy(buf+1,text);
+								gtk_list_store_set(lst, &it, LIST_ITEM, buf, -1);
+							}else{
+								for(size_t j=0;text[j]!='\0';j++)text[j]=text[j+1];
+								gtk_list_store_set(lst, &it, LIST_ITEM, text, -1);
+							}
+							break;
+						}
+						valid=gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it);
+					}while(valid);
+					break;
+				}
+			}while((list=g_list_next(list))!=nullptr);
+			g_list_free(list);
+			return;
+		}
+	}
+}
+static void pars_mod(char*c,char*m,char*n){
+	if(*m=='+')pars_mod_sens(TRUE,c,m,n);
+	else if(*m=='-')pars_mod_sens(FALSE,c,m,n);
+}
 static gboolean incsafe(gpointer ps){
 	addattextview(((struct stk_s*)ps)->dl);
 	#pragma GCC diagnostic push
@@ -676,6 +717,10 @@ static gboolean incsafe(gpointer ps){
 			if(c==2)pars_part_user(channm,nicknm);
 		}else if(strcmp(com,"QUIT")==0){
 			if(nick_extract(a,nicknm))pars_quit(nicknm);
+		}else if(strcmp(com,"MODE")==0){
+			char mod[1+8+1];
+			c=sscanf(b,channame_scan " %9s " channame_scan,channm,mod,nicknm);
+			if(c==3)pars_mod(channm,mod,nicknm);
 		}else{
 			int d=atoi(com);
 			if(d==322){
