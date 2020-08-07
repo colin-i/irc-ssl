@@ -736,7 +736,7 @@ static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
 				if(strcmp(c,d)==0){
 					GtkListStore*lst=contf_get_list(get_pan_from_menu(menu_item));
 					GtkTreeIter it;
-					gtk_tree_model_get_iter_first (lst, &it);
+					gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
 					gboolean valid;do{
 						char*text;
 						gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
