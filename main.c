@@ -521,22 +521,23 @@ static void pars_join_user(char*channm,char*nicknm){
 	//if(p!=nullptr){
 	GtkListStore*lst=name_to_list(channm);
 	GtkTreeIter it;
-	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);//at least one, we already joined
-	gboolean valid;do{
+	gtk_tree_model_iter_nth_child((GtkTreeModel*)lst, &it, nullptr, gtk_tree_model_iter_n_children((GtkTreeModel*)lst,nullptr)-1);//at least one, we already joined
+	for(;;){
 		char*text;
 		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
-		int a=strcmp(nicknm,text);
-		g_free(text);
-		if(a<0){
+		if(strcmp(nicknm,text)>0){
+			g_free(text);
 			GtkTreeIter i;
-			gtk_list_store_insert_before(lst,&i,&it);
+			gtk_list_store_insert_after(lst,&i,&it);
 			gtk_list_store_set(lst, &i, LIST_ITEM, nicknm, -1);
 			chan_change_nr(channm,1);
 			return;
 		}
-		valid=gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it);
-	}while(valid);
-	gtk_list_store_append(lst,&it);
+		if(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it)==FALSE
+			||*text=='@'){g_free(text);break;}
+		g_free(text);
+	}
+	gtk_list_store_prepend(lst,&it);
 	gtk_list_store_set(lst, &it, LIST_ITEM, nicknm, -1);
 	chan_change_nr(channm,1);
 	//}
