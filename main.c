@@ -556,23 +556,43 @@ static void pars_part(char*c,GtkNotebook*nb){
 	}while((list=g_list_next(list))!=nullptr);
 	g_list_free(list);
 }
+static void pars_part_quit(char*nk,const char*cn,GtkListStore*lst){
+	GtkTreeIter it;
+	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
+	do{
+		char*txt;
+		gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &txt, -1);
+		if(*txt!='@'){
+			for(;;){
+				int a=strcmp(nk,txt);
+				g_free(txt);
+				if(a<=0){
+					if(a==0){
+						gtk_list_store_remove(lst,&it);
+						chan_change_nr(cn,-1);
+					}
+					break;
+				}
+				if(gtk_tree_model_iter_next( (GtkTreeModel*)lst, &it)==FALSE)break;
+				gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &txt, -1);
+			}
+			break;
+		}
+		int a=strcmp(nk,txt+1);
+		g_free(txt);
+		if(a<=0){
+			if(a==0){
+				gtk_list_store_remove(lst,&it);
+				chan_change_nr(cn,-1);
+			}
+			break;
+		}
+	}while(gtk_tree_model_iter_next( (GtkTreeModel*)lst, &it));
+}
 static void pars_part_user(char*channm,char*nicknm){
 	//if(p!=nullptr){
 	GtkListStore*lst=name_to_list(channm);
-	GtkTreeIter it;
-	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
-	gboolean valid;do{
-		char*text;
-		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
-		int a=strcmp(nicknm,*text=='@'?text+1:text);
-		g_free(text);
-		if(a==0){
-			gtk_list_store_remove(lst,&it);
-			chan_change_nr(channm,-1);
-			return;
-		}
-		valid=gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it);
-	}while(valid);
+	pars_part_quit(nicknm,channm,lst);
 	//}
 }
 static BOOL nick_extract(char*a,char*n){
@@ -626,23 +646,7 @@ static void pars_quit(char*nk){
 	do{
 		GtkWidget*menu_item=(GtkWidget*)list->data;
 		GtkListStore*lst=contf_get_list(get_pan_from_menu(menu_item));
-		//
-		GtkTreeIter it;
-		gboolean vld=gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
-		while(vld){
-			char*txt;
-			gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &txt, -1);
-			int a=strcmp(nk,*txt=='@'?txt+1:txt);
-			g_free(txt);
-			if(a<=0){
-				if(a==0){
-					gtk_list_store_remove(lst,&it);
-					chan_change_nr(gtk_menu_item_get_label((GtkMenuItem*)menu_item),-1);
-				}
-				break;
-			}
-			vld=gtk_tree_model_iter_next( (GtkTreeModel*)lst, &it);
-		}
+		pars_part_quit(nk,gtk_menu_item_get_label((GtkMenuItem*)menu_item),lst);
 	}while((list=g_list_next(list))!=nullptr);
 	g_list_free(list);
 }
