@@ -525,7 +525,7 @@ static void pars_join_user(char*channm,char*nicknm){
 	for(;;){
 		char*text;
 		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
-		if(strcmp(nicknm,text)>0){
+		if(strcmp(nicknm,text)>0||*text=='@'){
 			g_free(text);
 			GtkTreeIter i;
 			gtk_list_store_insert_after(lst,&i,&it);
@@ -533,9 +533,8 @@ static void pars_join_user(char*channm,char*nicknm){
 			chan_change_nr(channm,1);
 			return;
 		}
-		if(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it)==FALSE
-			||*text=='@'){g_free(text);break;}
 		g_free(text);
+		if(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it)==FALSE)break;
 	}
 	gtk_list_store_prepend(lst,&it);
 	gtk_list_store_set(lst, &it, LIST_ITEM, nicknm, -1);
