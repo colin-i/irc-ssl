@@ -158,6 +158,8 @@ GtkWidget* gtk_label_new (const gchar *str);
 void gtk_list_store_append (GtkListStore *list_store, GtkTreeIter *iter);
 void gtk_list_store_clear (GtkListStore *list_store);
 void gtk_list_store_insert_before (GtkListStore *list_store, GtkTreeIter *iter, GtkTreeIter *sibling);
+void gtk_list_store_move_after (GtkListStore *store, GtkTreeIter *iter, GtkTreeIter *position);
+void gtk_list_store_move_before (GtkListStore *store, GtkTreeIter *iter, GtkTreeIter *position);
 GtkListStore *gtk_list_store_new (gint n_columns, ...);
 gboolean gtk_list_store_remove (GtkListStore *list_store, GtkTreeIter *iter);
 void gtk_list_store_set (GtkListStore *list_store, GtkTreeIter *iter, ...);

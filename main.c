@@ -564,7 +564,7 @@ static void pars_part_user(char*channm,char*nicknm){
 	gboolean valid;do{
 		char*text;
 		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
-		int a=strcmp(nicknm,text);
+		int a=strcmp(nicknm,*text=='@'?text+1:text);
 		g_free(text);
 		if(a==0){
 			gtk_list_store_remove(lst,&it);
@@ -632,7 +632,7 @@ static void pars_quit(char*nk){
 		while(vld){
 			char*txt;
 			gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &txt, -1);
-			int a=strcmp(nk,txt);
+			int a=strcmp(nk,*txt=='@'?txt+1:txt);
 			g_free(txt);
 			if(a<=0){
 				if(a==0){
@@ -645,6 +645,86 @@ static void pars_quit(char*nk){
 		}
 	}while((list=g_list_next(list))!=nullptr);
 	g_list_free(list);
+}
+static void pars_mod_sens_plus(GtkListStore*lst,char*n){
+	int c=gtk_tree_model_iter_n_children ((GtkTreeModel*)lst,nullptr);
+	GtkTreeIter it;
+	gtk_tree_model_iter_nth_child((GtkTreeModel*)lst,&it,nullptr,c-1);
+	for(;;){
+		char*text;
+		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
+		if(strcmp(n,text)==0){
+			g_free(text);
+			char buf[channm_sz+1];*buf='@';
+			strcpy(buf+1,n);
+			gtk_list_store_set(lst, &it, LIST_ITEM, buf, -1);
+			GtkTreeIter i=it;
+			if(gtk_tree_model_iter_previous( (GtkTreeModel*)lst,&i)){
+				do{
+					gtk_tree_model_get ((GtkTreeModel*)lst, &i, LIST_ITEM, &text, -1);
+					if(*text=='@'){
+						for(;;){
+							if(strcmp(n,text+1)>0){
+								g_free(text);
+								gtk_list_store_move_after(lst,&it,&i);
+								return;
+							}
+							g_free(text);
+							if(gtk_tree_model_iter_previous( (GtkTreeModel*)lst,&i)==FALSE){
+								gtk_list_store_move_after(lst,&it,nullptr);
+								return;
+							}
+							gtk_tree_model_get ((GtkTreeModel*)lst, &i, LIST_ITEM, &text, -1);
+						}
+					}
+					g_free(text);
+				}while(gtk_tree_model_iter_previous( (GtkTreeModel*)lst,&i));
+				gtk_list_store_move_after(lst,&it,nullptr);
+			}
+			return;
+		}
+		g_free(text);
+		if(gtk_tree_model_iter_previous( (GtkTreeModel*)lst,&it)==FALSE/*||*text=='@'*/){/*g_free(text);*/return;}//guard only loop
+	}
+}
+static void pars_mod_sens_minus(GtkListStore*lst,char*n){
+	GtkTreeIter it;
+	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
+	for(;;){
+		char*text;
+		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
+		if(strcmp(n,text+1)==0){
+			for(size_t j=0;text[j]!='\0';j++)text[j]=text[j+1];
+			gtk_list_store_set(lst, &it, LIST_ITEM, text, -1);
+			g_free(text);
+			GtkTreeIter i=it;
+			if(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&i)){
+				do{
+					gtk_tree_model_get ((GtkTreeModel*)lst, &i, LIST_ITEM, &text, -1);
+					if(*text!='@'){
+						for(;;){
+							if(strcmp(n,text)<0){
+								g_free(text);
+								gtk_list_store_move_before(lst,&it,&i);
+								return;
+							}
+							g_free(text);
+							if(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&i)==FALSE){
+								gtk_list_store_move_before(lst,&it,nullptr);
+								return;
+							}
+							gtk_tree_model_get ((GtkTreeModel*)lst, &i, LIST_ITEM, &text, -1);
+						}
+					}
+					g_free(text);
+				}while(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&i));
+				gtk_list_store_move_before(lst,&it,nullptr);
+			}
+			return;
+		}
+		g_free(text);
+		if(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it)==FALSE/*||*text!='@'*/){/*g_free(text);*/break;}//guard only loop
+	}
 }
 static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
 	for(size_t i=1;m[i]!='\0';i++){
@@ -663,14 +743,8 @@ static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
 						int a=strcmp(n,plus?text:text+1);
 						g_free(text);
 						if(a==0){
-							if(plus){
-								char buf[channm_sz+1];*buf='@';
-								strcpy(buf+1,text);
-								gtk_list_store_set(lst, &it, LIST_ITEM, buf, -1);
-							}else{
-								for(size_t j=0;text[j]!='\0';j++)text[j]=text[j+1];
-								gtk_list_store_set(lst, &it, LIST_ITEM, text, -1);
-							}
+							if(plus)pars_mod_sens_plus(lst,n);
+							else pars_mod_sens_minus(lst,n);
 							break;
 						}
 						valid=gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it);
