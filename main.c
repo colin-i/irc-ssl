@@ -94,9 +94,10 @@ static char*info_path_name=nullptr;
 Launch the program with --help argument for more info.\n\
 \n\
 Connection format is [[nickname:]password@]hostname[:port1[-portn]].\n\
-newNick:abc@127.0.0.1:6665-6669"
-#define channm_sz 64
-#define channame_scan1 "%63"
+e.g. newNick:abc@127.0.0.1:6665-6669"
+#define channm_sz 201
+//"up to 200 characters"
+#define channame_scan1 "%200"
 #define channame_scan channame_scan1 "s"
 struct data_len{
 	const char*data;size_t len;
@@ -806,11 +807,11 @@ static gboolean incsafe(gpointer ps){
 			int d=atoi(com);
 			if(d==322){
 				unsigned int e;
-				c=sscanf(b,"%*s %63s %u",channm,&e);//if its >nr ,c is not 2
+				c=sscanf(b,"%*s " channame_scan " %u",channm,&e);//if its >nr ,c is not 2
 				if(c==2)pars_chan(channm,e);
 			}else if(d==321)gtk_list_store_clear(channels);
 			else if(d==353){
-				c=sscanf(b,"%*s %*c %63s",channm);// :
+				c=sscanf(b,"%*s %*c " channame_scan,channm);// :
 				GtkWidget*p=name_to_pan(channm);
 				if(p!=nullptr){
 					b=strchr(b,':');//join #q:w is error
