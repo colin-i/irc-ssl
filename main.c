@@ -144,12 +144,7 @@ static void addattextv(GtkTextView*v,char*n,char*msg){
 	gtk_text_buffer_insert(text_buffer,&it,"\n",1);
 	gtk_text_view_scroll_to_mark (v, textv_get_atend(v), 0., FALSE, 0., 0.);
 }
-static void addatchans(char*n,char*msg,GtkWidget*p){
-	addattextv(contf_get_textv(p),n,msg);
-}
-static void addatnames(char*n,char*msg,GtkWidget*p){
-	addattextv((GtkTextView*)gtk_bin_get_child(p),n,msg);
-}
+#define addatnames(n,msg,p) addattextv((GtkTextView*)gtk_bin_get_child((GtkBin*)p),n,msg)
 static gboolean textviewthreadsfunc(gpointer b){
 	addattextview((struct data_len*)b);
 	pthread_kill( threadid, SIGUSR1);
@@ -800,7 +795,7 @@ static void pars_pmsg(char*n,char*c,char*msg,GtkNotebook*nb){
 			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
 			if(strcmp(c,d)==0){
 				GtkWidget*pan=get_pan_from_menu(menu_item);
-				addatchans(n,msg,pan);
+				addattextv(contf_get_textv(pan),n,msg);
 				break;
 			}
 		}while((list=g_list_next(list))!=nullptr);
