@@ -104,6 +104,9 @@ struct data_len{
 static long threadid;static sigset_t threadset;
 static GtkWidget*chan_menu;
 static GtkWidget*name_menu;
+#define send_prv1 "PRIVMSG "
+#define send_prv2 " :"
+#define home_string "^Home"
 
 enum {
   LIST_ITEM = 0,
@@ -1274,17 +1277,33 @@ static void help_popup(GtkWindow*top){
 	gtk_box_pack_start((GtkBox*)box, scrolled_window, TRUE, TRUE, 0);
 	gtk_widget_show_all (dialog);
 }
-static void send_activate(GtkEntry*entry){
+static void send_activate(GtkEntry*entry,GtkNotebook*nb){
 	GtkEntryBuffer*t=gtk_entry_get_buffer(entry);
 	const char*text=gtk_entry_buffer_get_text(t);
 	size_t sz=strlen(text);
-	char*b=(char*)malloc(sz+1);
-	if(b!=nullptr){
-		memcpy(b,text,sz);b[sz]='\n';
-		send_data(b,sz+1);
-		free(b);
-		gtk_entry_buffer_delete_text(t,0,-1);
+	//
+	GtkWidget*pg=gtk_notebook_get_nth_page(nb,gtk_notebook_get_current_page(nb));
+	const char*a=gtk_notebook_get_menu_label_text(nb,pg);
+	char*b;
+	BOOL priv=*a!=*home_string;
+	if(priv){
+		size_t len=sizeof(send_prv1)-1;size_t wid=sizeof(send_prv2)-1;
+		size_t dim=strlen(a);
+		b=(char*)malloc(len+dim+wid+sz+1);
+		if(b==nullptr)return;
+		memcpy(b,send_prv1,len);
+		memcpy(b+len,a,dim);size_t spc=len+dim;
+		memcpy(b+spc,send_prv2,wid);spc+=wid;
+		memcpy(b+spc,text,sz);sz+=spc;
+	}else{
+		b=(char*)malloc(sz+1);
+		if(b==nullptr)return;
+		memcpy(b,text,sz);
 	}
+	b[sz]='\n';
+	send_data(b,sz+1);
+	free(b);
+	gtk_entry_buffer_delete_text(t,0,-1);
 }
 static void
 activate (GtkApplication* app,
@@ -1304,7 +1323,7 @@ activate (GtkApplication* app,
 	ps->notebook = (GtkNotebook*)gtk_notebook_new ();
 	gtk_notebook_set_scrollable(ps->notebook,TRUE);
 	gtk_notebook_popup_enable(ps->notebook);
-	gtk_notebook_append_page_menu (ps->notebook, pan, gtk_label_new ("@Home"), gtk_label_new ("@Home"));//i dont like the display (at 2,3..) without the last parameter
+	gtk_notebook_append_page_menu (ps->notebook, pan, gtk_label_new (home_string), gtk_label_new (home_string));//i dont like the display (at 2,3..) without the last parameter
 	gtk_notebook_set_tab_reorderable(ps->notebook, pan, TRUE);
 	//
 	sigemptyset(&threadset);
@@ -1336,7 +1355,7 @@ activate (GtkApplication* app,
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	//
 	ps->sen_entry=gtk_entry_new();
-	ps->sen_entry_act=g_signal_connect_data(ps->sen_entry,"activate",G_CALLBACK(send_activate),nullptr,nullptr,(GConnectFlags)0);
+	ps->sen_entry_act=g_signal_connect_data(ps->sen_entry,"activate",G_CALLBACK(send_activate),ps->notebook,nullptr,(GConnectFlags)0);
 	g_signal_handler_block(ps->sen_entry,ps->sen_entry_act);
 	//
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
