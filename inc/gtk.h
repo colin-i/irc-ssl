@@ -47,11 +47,6 @@ typedef void GtkWindow;
 typedef void (*GCallback)(void);
 typedef void *GClosureNotify;
 typedef gboolean(*GSourceFunc)(gpointer user_data);
-#define G_CALLBACK(f) ((GCallback)(f))
-#define G_TYPE_FUNDAMENTAL_SHIFT (2)
-#define G_TYPE_MAKE_FUNDAMENTAL(x) ((GType) ((x) << G_TYPE_FUNDAMENTAL_SHIFT))
-#define G_TYPE_STRING G_TYPE_MAKE_FUNDAMENTAL (16)
-#define G_VARIANT_TYPE_STRING ((const GVariantType *) "s")
 typedef enum{G_APPLICATION_FLAGS_NONE}
  GApplicationFlags;
 typedef enum{G_CONNECT_SWAPPED = 1 << 1}
@@ -63,14 +58,16 @@ typedef enum{G_OPTION_FLAG_IN_MAIN = 1 << 1}//  G_OPTION_FLAG_NONE = 0,  G_OPTIO
 typedef enum{GTK_ORIENTATION_HORIZONTAL,GTK_ORIENTATION_VERTICAL} GtkOrientation;
 typedef enum{  GTK_DIALOG_MODAL = 1 << 0, GTK_DIALOG_DESTROY_WITH_PARENT = 1 << 1}//, GTK_DIALOG_USE_HEADER_BAR = 1 << 2
  GtkDialogFlags;
-typedef enum{  GTK_ICON_SIZE_INVALID,  GTK_ICON_SIZE_MENU
-} GtkIconSize;
+typedef enum{  GTK_ICON_SIZE_INVALID,  GTK_ICON_SIZE_MENU}
+ GtkIconSize;
+typedef enum{  GTK_PACK_START,  GTK_PACK_END}
+ GtkPackType;
 typedef enum{  GTK_POLICY_ALWAYS,  GTK_POLICY_AUTOMATIC}//,  GTK_POLICY_NEVER,  GTK_POLICY_EXTERNAL
  GtkPolicyType;
-typedef enum{  GTK_RELIEF_NORMAL,  GTK_RELIEF_HALF,  GTK_RELIEF_NONE
-} GtkReliefStyle;
-typedef enum{  GTK_RESPONSE_NONE = -1
-} GtkResponseType;
+typedef enum{  GTK_RELIEF_NORMAL,  GTK_RELIEF_HALF,  GTK_RELIEF_NONE}
+ GtkReliefStyle;
+typedef enum{  GTK_RESPONSE_NONE = -1}
+ GtkResponseType;
 typedef enum{  GTK_WRAP_NONE,  GTK_WRAP_CHAR,  GTK_WRAP_WORD}//,  GTK_WRAP_WORD_CHAR
  GtkWrapMode;
 typedef struct _GList GList;
@@ -103,6 +100,20 @@ typedef struct _GtkTreeIter
   gpointer user_data2;
   gpointer user_data3;
 }GtkTreeIter;
+typedef struct{
+  GType g_type;
+} GTypeClass;
+typedef struct{
+  GTypeClass *g_class;
+} GTypeInstance;
+
+#define G_CALLBACK(f) ((GCallback)(f))
+#define G_TYPE_FROM_CLASS(g_class) (((GTypeClass*) (g_class))->g_type)
+#define G_TYPE_FROM_INSTANCE(instance) (G_TYPE_FROM_CLASS (((GTypeInstance*) (instance))->g_class))
+#define G_TYPE_FUNDAMENTAL_SHIFT (2)
+#define G_TYPE_MAKE_FUNDAMENTAL(x) ((GType) ((x) << G_TYPE_FUNDAMENTAL_SHIFT))
+#define G_TYPE_STRING G_TYPE_MAKE_FUNDAMENTAL (16)
+#define G_VARIANT_TYPE_STRING ((const GVariantType *) "s")
 
 #ifdef __cplusplus
 extern "C" {
@@ -127,6 +138,7 @@ GtkApplication * gtk_application_new (const gchar *application_id, GApplicationF
 GtkWidget * gtk_application_window_new (GtkApplication *application);
 GtkWidget *gtk_bin_get_child (GtkBin *bin);
 GtkWidget* gtk_box_new (GtkOrientation orientation,gint spacing);
+void gtk_box_pack_end (GtkBox *box, GtkWidget *child, gboolean expand, gboolean fill, guint padding);
 void gtk_box_pack_start (GtkBox *box,GtkWidget *child,gboolean expand,gboolean fill,guint padding);
 GtkWidget* gtk_button_new (void);
 GtkWidget* gtk_button_new_with_label (const gchar *label);
@@ -139,7 +151,7 @@ void gtk_combo_box_text_append_text (GtkComboBoxText *combo_box, const gchar *te
 GType gtk_combo_box_text_get_type (void) __attribute__((__const__));
 GtkWidget* gtk_combo_box_text_new_with_entry (void);
 void gtk_combo_box_text_remove (GtkComboBoxText *combo_box, gint position);
-void gtk_container_add (GtkContainer *container,GtkWidget *widget);
+void gtk_container_add (GtkContainer *container, GtkWidget *widget);
 GList* gtk_container_get_children (GtkContainer *container);
 void gtk_container_set_border_width (GtkContainer *container,guint border_width);
 GtkWidget * gtk_dialog_get_content_area (GtkDialog *dialog);
@@ -150,6 +162,7 @@ GtkEntryBuffer *gtk_entry_get_buffer (GtkEntry *entry);
 const gchar *gtk_entry_get_text (GtkEntry *entry);
 GtkWidget* gtk_entry_new (void);
 void gtk_entry_set_text (GtkEntry *entry, const gchar *text);
+GType gtk_image_get_type (void) __attribute__((__const__));
 GtkWidget* gtk_image_new_from_icon_name (const gchar *icon_name, GtkIconSize size);
 GtkWidget *gtk_label_get_mnemonic_widget (GtkLabel *label);
 void gtk_label_set_mnemonic_widget (GtkLabel *label, GtkWidget *widget);
@@ -173,13 +186,16 @@ GtkWidget* gtk_menu_new (void);
 void gtk_menu_popup_at_pointer (GtkMenu *menu, const GdkEvent *trigger_event);
 void gtk_menu_shell_append (GtkMenuShell *menu_shell, GtkWidget *child);
 gint gtk_notebook_append_page_menu (GtkNotebook *notebook, GtkWidget *child, GtkWidget *tab_label, GtkWidget *menu_label);
+GtkWidget* gtk_notebook_get_action_widget (GtkNotebook *notebook, GtkPackType pack_type);
 gint gtk_notebook_get_current_page (GtkNotebook *notebook);
 const gchar *gtk_notebook_get_menu_label_text (GtkNotebook *notebook, GtkWidget *child);
 GtkWidget* gtk_notebook_get_nth_page (GtkNotebook *notebook, gint page_num);
+GtkWidget * gtk_notebook_get_tab_label (GtkNotebook *notebook, GtkWidget *child);
 GtkWidget * gtk_notebook_new (void);
 gint gtk_notebook_page_num (GtkNotebook *notebook, GtkWidget *child);
 void gtk_notebook_popup_enable (GtkNotebook *notebook);
 void gtk_notebook_remove_page (GtkNotebook *notebook, gint page_num);
+void gtk_notebook_set_action_widget (GtkNotebook *notebook, GtkWidget *widget, GtkPackType pack_type);
 void gtk_notebook_set_current_page (GtkNotebook *notebook, gint page_num);
 void gtk_notebook_set_scrollable (GtkNotebook *notebook, gboolean scrollable);
 void gtk_notebook_set_tab_reorderable (GtkNotebook *notebook, GtkWidget *child, gboolean reorderable);

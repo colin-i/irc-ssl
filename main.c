@@ -392,8 +392,8 @@ static GtkWidget*add_new_tab(GtkWidget*frame,char*title,GtkWidget**cls,GtkNotebo
 	GtkWidget*closeimg=gtk_image_new_from_icon_name ("window-close",GTK_ICON_SIZE_MENU);
 	gtk_button_set_image((GtkButton*)close,closeimg);
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
-	gtk_box_pack_start((GtkBox*)box,t,TRUE,TRUE,0);
-	gtk_box_pack_start((GtkBox*)box,close,FALSE,FALSE,0);
+	gtk_box_pack_end((GtkBox*)box,t,TRUE,TRUE,0);
+	gtk_box_pack_end((GtkBox*)box,close,FALSE,FALSE,0);
 	gtk_widget_show_all(box);
 	gtk_notebook_append_page_menu (notebook, frame, box, gtk_label_new (title));
 	gtk_notebook_set_tab_reorderable(notebook, frame, TRUE);
@@ -553,7 +553,7 @@ static BOOL chan_change_nr(const char*chan,int v){
 static void pars_join(char*chan,struct stk_s*ps){
 	GtkWidget*pan=chan_pan(chan);
 	if(pan==nullptr){//can be kick and let the channel window
-		pan=container_frame(ps->separator,G_CALLBACK(name_join),ps);
+		pan=container_frame(ps->separator,G_CALLBACK(name_join),ps->notebook);
 		gtk_widget_set_tooltip_text(pan,chan);//is also a NAMES flag here
 		GtkWidget*close;GtkWidget*lb=add_new_tab(pan,chan,&close,ps->notebook,chan_menu,FALSE);
 		g_signal_connect_data (close, "clicked",G_CALLBACK (close_channel),lb,nullptr,G_CONNECT_SWAPPED);
@@ -822,6 +822,15 @@ static void pars_pmsg(char*n,char*c,char*msg,GtkNotebook*nb){
 			if(strcmp(c,d)==0){
 				GtkWidget*pan=get_pan_from_menu(menu_item);
 				addattextv(contf_get_textv(pan),n,msg);
+				GtkWidget*box=gtk_notebook_get_tab_label(nb,pan);
+				GList*l=gtk_container_get_children((GtkContainer*)box);
+				GtkWidget*last=(GtkWidget*)l->data;
+				g_list_free(l);
+				if(G_TYPE_FROM_INSTANCE(last)!=gtk_image_get_type()){
+					GtkWidget*info=gtk_image_new_from_icon_name ("dialog-information",GTK_ICON_SIZE_MENU);
+					gtk_box_pack_start((GtkBox*)box,info,FALSE,FALSE,0);
+					gtk_widget_show(info);
+				}
 				break;
 			}
 		}while((list=g_list_next(list))!=nullptr);
@@ -866,7 +875,10 @@ static gboolean incsafe(gpointer ps){
 		if(strcmp(com,"PRIVMSG")==0){
 			if(nick_extract(a,nicknm)){
 				c=sscanf(b,channame_scan " %c",channm,(char*)&c);
-				if(c==2)pars_pmsg(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
+				if(c==2){
+					pars_pmsg(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
+					gtk_widget_show(gtk_notebook_get_action_widget(((struct stk_s*)ps)->notebook,GTK_PACK_END));
+				}
 			}
 		}else if(strcmp(com,"JOIN")==0){
 			int resp=nick_and_chan(a,b,":" channame_scan,nicknm,channm,((struct stk_s*)ps)->nknnow);
@@ -1450,6 +1462,9 @@ activate (GtkApplication* app,
 	gtk_box_pack_start((GtkBox*)box,ps->sen_entry,FALSE,FALSE,0);
 	gtk_container_add ((GtkContainer*)window, box);
 	gtk_widget_show_all (window);
+	//
+	GtkWidget*info=gtk_image_new_from_icon_name ("dialog-information",GTK_ICON_SIZE_MENU);
+	gtk_notebook_set_action_widget(ps->notebook,info,GTK_PACK_END);
 }
 static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	gchar*result;
