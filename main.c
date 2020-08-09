@@ -296,7 +296,7 @@ static void pars_chan(char*chan,unsigned int nr){
 	gtk_list_store_append(channels,&it);
 	pars_chan_end(&it,chan,nr);
 }
-static GtkWidget*container_frame(int sep,GCallback click,GtkNotebook*nb){
+static GtkWidget*container_frame(int sep,GCallback click,gpointer ps){
 	  /* Text view is a widget in which can display the text buffer.
 	   * The line wrapping is set to break lines in between words.
 	   */
@@ -338,7 +338,7 @@ static GtkWidget*container_frame(int sep,GCallback click,GtkNotebook*nb){
 	gtk_tree_view_set_model((GtkTreeView*)tree, (GtkTreeModel*)ls);
 	g_object_unref(ls);
 	//
-	g_signal_connect_data(tree,"button-release-event",click,nb,nullptr,(GConnectFlags)0);
+	g_signal_connect_data(tree,"button-release-event",click,ps,nullptr,(GConnectFlags)0);
 	//
 	GtkWidget*scrolled_right = gtk_scrolled_window_new (nullptr, nullptr);
 	gtk_container_add((GtkContainer*)scrolled_right,tree);
@@ -553,7 +553,7 @@ static BOOL chan_change_nr(const char*chan,int v){
 static void pars_join(char*chan,struct stk_s*ps){
 	GtkWidget*pan=chan_pan(chan);
 	if(pan==nullptr){//can be kick and let the channel window
-		pan=container_frame(ps->separator,G_CALLBACK(name_join),ps->notebook);
+		pan=container_frame(ps->separator,G_CALLBACK(name_join),ps);
 		gtk_widget_set_tooltip_text(pan,chan);//is also a NAMES flag here
 		GtkWidget*close;GtkWidget*lb=add_new_tab(pan,chan,&close,ps->notebook,chan_menu,FALSE);
 		g_signal_connect_data (close, "clicked",G_CALLBACK (close_channel),lb,nullptr,G_CONNECT_SWAPPED);
