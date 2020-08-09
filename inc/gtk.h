@@ -221,6 +221,7 @@ void gtk_widget_destroy (GtkWidget *widget);
 GtkWidget* gtk_widget_get_ancestor (GtkWidget *widget, GType widget_type);
 gboolean gtk_widget_get_has_tooltip (GtkWidget *widget);
 GtkWidget* gtk_widget_get_toplevel (GtkWidget *widget);
+void gtk_widget_grab_focus (GtkWidget *widget);
 void gtk_widget_set_has_tooltip (GtkWidget *widget, gboolean has_tooltip);
 void gtk_widget_set_size_request (GtkWidget *widget,gint width,gint height);
 void gtk_widget_set_tooltip_text (GtkWidget *widget, const gchar *text);

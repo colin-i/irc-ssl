@@ -77,7 +77,8 @@
 #include "inc/gtk.h"
 #endif
 
-static GtkTextView *text_view;static GtkTextMark *text_mark_end;static GtkListStore*channels;
+static GtkTextView *text_view;static GtkTextMark *text_mark_end;
+static GtkWidget*home_page;static GtkListStore*channels;
 #define text_mark_atend "a"
 static SSL *ssl=nullptr;static int plain_socket=-1;
 static int con_th=-1;//static GThread*con_th=nullptr;
@@ -424,20 +425,45 @@ static gboolean chan_join (GtkTreeView *tree){
 	}
 	return FALSE;//not care about other events
 }
+static BOOL name_join_isnew(struct stk_s*ps,char*n){
+	if(strcmp(ps->nknnow,n)==0){
+		gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,home_page));
+		return FALSE;
+	}
+	GList*list=gtk_container_get_children((GtkContainer*)name_menu);
+	if(list!=nullptr){
+		GList*lst=list;
+		do{
+			GtkWidget*menu_item=(GtkWidget*)list->data;
+			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
+			if(strcmp(n,d)==0){
+				g_list_free(lst);
+				gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,get_pan_from_menu(menu_item)));
+				return FALSE;
+			}
+		}while((list=g_list_next(list))!=nullptr);
+		g_list_free(lst);
+	}
+	return TRUE;
+}
 static GtkWidget* name_join_nb(char*t,GtkNotebook*nb){
 	GtkWidget*scrl=container_frame_name();
 	GtkWidget*close;GtkWidget*mn=add_new_tab(scrl,t,&close,nb,name_menu,TRUE);
 	g_signal_connect_data (close, "clicked",G_CALLBACK (close_name),mn,(GClosureNotify)gtk_widget_destroy,G_CONNECT_SWAPPED);
 	return scrl;
 }
-static gboolean name_join(GtkTreeView*tree,GdkEvent*ignored,GtkNotebook*nb){
+static gboolean name_join(GtkTreeView*tree,GdkEvent*ignored,struct stk_s*ps){
 	(void)ignored;
 	GtkTreeSelection *sel=gtk_tree_view_get_selection(tree);
 	GtkTreeIter iterator;
 	gtk_tree_selection_get_selected (sel,nullptr,&iterator);
 	char*item_text;
 	gtk_tree_model_get (gtk_tree_view_get_model(tree), &iterator, LIST_ITEM, &item_text, -1);
-	name_join_nb(item_text,nb);
+	char*a=*item_text!='@'?item_text:item_text+1;
+	if(name_join_isnew(ps,a)){
+		gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,name_join_nb(a,ps->notebook)));
+		gtk_widget_grab_focus(ps->sen_entry);
+	}
 	free(item_text);
 	return FALSE;//not care about other events
 }
@@ -527,7 +553,7 @@ static BOOL chan_change_nr(const char*chan,int v){
 static void pars_join(char*chan,struct stk_s*ps){
 	GtkWidget*pan=chan_pan(chan);
 	if(pan==nullptr){//can be kick and let the channel window
-		pan=container_frame(ps->separator,G_CALLBACK(name_join),ps->notebook);
+		pan=container_frame(ps->separator,G_CALLBACK(name_join),ps);
 		gtk_widget_set_tooltip_text(pan,chan);//is also a NAMES flag here
 		GtkWidget*close;GtkWidget*lb=add_new_tab(pan,chan,&close,ps->notebook,chan_menu,FALSE);
 		g_signal_connect_data (close, "clicked",G_CALLBACK (close_channel),lb,nullptr,G_CONNECT_SWAPPED);
@@ -1372,16 +1398,16 @@ activate (GtkApplication* app,
 	if(ps->dim[0]!=-1)
 		gtk_window_set_default_size ((GtkWindow*) window, ps->dim[0], ps->dim[1]);
 	//
-	GtkWidget*pan=container_frame(ps->separator,G_CALLBACK(chan_join),nullptr);
-	text_view=contf_get_textv(pan);
+	home_page=container_frame(ps->separator,G_CALLBACK(chan_join),nullptr);
+	text_view=contf_get_textv(home_page);
 	text_mark_end=textv_get_atend(text_view);
-	channels=contf_get_list(pan);
+	channels=contf_get_list(home_page);
 	//
 	ps->notebook = (GtkNotebook*)gtk_notebook_new ();
 	gtk_notebook_set_scrollable(ps->notebook,TRUE);
 	gtk_notebook_popup_enable(ps->notebook);
-	gtk_notebook_append_page_menu (ps->notebook, pan, gtk_label_new (home_string), gtk_label_new (home_string));//i dont like the display (at 2,3..) without the last parameter
-	gtk_notebook_set_tab_reorderable(ps->notebook, pan, TRUE);
+	gtk_notebook_append_page_menu (ps->notebook, home_page, gtk_label_new (home_string), gtk_label_new (home_string));//i dont like the display (at 2,3..) without the last parameter
+	gtk_notebook_set_tab_reorderable(ps->notebook, home_page, TRUE);
 	//
 	sigemptyset(&threadset);
 	sigaddset(&threadset, SIGUSR1);
