@@ -815,6 +815,18 @@ static void pars_mod(char*c,char*m,char*n){
 	if(*m=='+')pars_mod_sens(TRUE,c,m,n);
 	else if(*m=='-')pars_mod_sens(FALSE,c,m,n);
 }
+static void alert(GtkNotebook*nb,GtkWidget*child){
+	GtkWidget*box=gtk_notebook_get_tab_label(nb,child);
+	GList*l=gtk_container_get_children((GtkContainer*)box);
+	GtkWidget*last=(GtkWidget*)l->data;
+	g_list_free(l);
+	if(G_TYPE_FROM_INSTANCE(last)!=gtk_image_get_type()){
+		GtkWidget*info=gtk_image_new_from_icon_name ("dialog-information",GTK_ICON_SIZE_MENU);
+		gtk_box_pack_start((GtkBox*)box,info,FALSE,FALSE,0);
+		gtk_widget_show(info);
+		gtk_widget_show(gtk_notebook_get_action_widget(nb,GTK_PACK_END));
+	}
+}
 #define is_channel(c) *c=='#'||*c=='&'
 static void pars_pmsg(char*n,char*c,char*msg,GtkNotebook*nb){
 	if(is_channel(c)){
@@ -826,15 +838,7 @@ static void pars_pmsg(char*n,char*c,char*msg,GtkNotebook*nb){
 			if(strcmp(c,d)==0){
 				GtkWidget*pan=get_pan_from_menu(menu_item);
 				addatchans(n,msg,pan);
-				GtkWidget*box=gtk_notebook_get_tab_label(nb,pan);
-				GList*l=gtk_container_get_children((GtkContainer*)box);
-				GtkWidget*last=(GtkWidget*)l->data;
-				g_list_free(l);
-				if(G_TYPE_FROM_INSTANCE(last)!=gtk_image_get_type()){
-					GtkWidget*info=gtk_image_new_from_icon_name ("dialog-information",GTK_ICON_SIZE_MENU);
-					gtk_box_pack_start((GtkBox*)box,info,FALSE,FALSE,0);
-					gtk_widget_show(info);
-				}
+				alert(nb,pan);
 				break;
 			}
 		}while((list=g_list_next(list))!=nullptr);
@@ -851,13 +855,14 @@ static void pars_pmsg(char*n,char*c,char*msg,GtkNotebook*nb){
 			if(strcmp(n,d)==0){
 				GtkWidget*scrl=get_pan_from_menu(menu_item);
 				addatnames(c,msg,scrl);
+				alert(nb,scrl);
 				novel=FALSE;
 				break;
 			}
 		}while((list=g_list_next(list))!=nullptr);
 		g_list_free(lst);
 	}
-	if(novel){GtkWidget*scrl=name_join_nb(n,nb);addatnames(c,msg,scrl);}
+	if(novel){GtkWidget*scrl=name_join_nb(n,nb);addatnames(c,msg,scrl);alert(nb,scrl);}
 }
 static gboolean incsafe(gpointer ps){
 	addattextview(((struct stk_s*)ps)->dl);
@@ -879,10 +884,7 @@ static gboolean incsafe(gpointer ps){
 		if(strcmp(com,"PRIVMSG")==0){
 			if(nick_extract(a,nicknm)){
 				c=sscanf(b,channame_scan " %c",channm,(char*)&c);
-				if(c==2){
-					pars_pmsg(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
-					gtk_widget_show(gtk_notebook_get_action_widget(((struct stk_s*)ps)->notebook,GTK_PACK_END));
-				}
+				if(c==2)pars_pmsg(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
 			}
 		}else if(strcmp(com,"JOIN")==0){
 			int resp=nick_and_chan(a,b,":" channame_scan,nicknm,channm,((struct stk_s*)ps)->nknnow);
