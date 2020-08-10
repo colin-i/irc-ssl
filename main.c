@@ -87,10 +87,12 @@ static int portindex;static int portend;
 #define ssl_con_no "Trying unencrypted.\n"
 #define irc_bsz 64
 //"510"
+#define irc_term "\r\n"
+#define irc_term_sz sizeof(irc_term)-1
 #define hostname_sz 505
 #define password_sz 505
-#define password_con "PASS %s\n"
-#define nickname_con "NICK %s\n"
+#define password_con "PASS %s" irc_term
+#define nickname_con "NICK %s" irc_term
 static char*info_path_name=nullptr;
 #define help_text "Most of the parameters are set at start.\n\
 Launch the program with --help argument for more info.\n\
@@ -165,7 +167,7 @@ static void send_data(const char*str,size_t sz){
 	if(ssl!=nullptr)SSL_write(ssl,str,(int)sz);
 	else write(plain_socket,str,sz);
 }
-#define sendlist "LIST\n"
+#define sendlist "LIST" irc_term
 static gboolean sendthreadsfunc(gpointer b){
 	send_data(((struct data_len*)b)->data,((struct data_len*)b)->len);
 	pthread_kill( threadid, SIGUSR1);
@@ -375,11 +377,11 @@ static void chan_popup(GtkWidget*menuitem,GtkNotebook*nb){
 	gtk_notebook_set_current_page(nb,gtk_notebook_page_num(nb,pan));
 }
 static void close_channel(GtkLabel*t){
-	char buf[5+channm_sz]="PART ";
+	char buf[4+channm_sz+irc_term_sz]="PART ";
 	const char*a=gtk_label_get_text(t);
 	size_t n=strlen(a);
-	memcpy(buf+5,a,n);buf[5+n]='\n';
-	send_data(buf,6+n);
+	memcpy(buf+5,a,n);memcpy(&buf[5+n],irc_term,irc_term_sz);
+	send_data(buf,5+irc_term_sz+n);
 }
 static void close_name(GtkWidget*mn){
 	gtk_widget_destroy(get_pan_from_menu(mn));
@@ -392,8 +394,8 @@ static GtkWidget*add_new_tab(GtkWidget*frame,char*title,GtkWidget**cls,GtkNotebo
 	GtkWidget*closeimg=gtk_image_new_from_icon_name ("window-close",GTK_ICON_SIZE_MENU);
 	gtk_button_set_image((GtkButton*)close,closeimg);
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
-	gtk_box_pack_end((GtkBox*)box,t,TRUE,TRUE,0);
 	gtk_box_pack_end((GtkBox*)box,close,FALSE,FALSE,0);
+	gtk_box_pack_end((GtkBox*)box,t,TRUE,TRUE,0);
 	gtk_widget_show_all(box);
 	gtk_notebook_append_page_menu (notebook, frame, box, gtk_label_new (title));
 	gtk_notebook_set_tab_reorderable(notebook, frame, TRUE);
@@ -411,13 +413,13 @@ static gboolean chan_join (GtkTreeView *tree){
 	GtkTreeSelection *sel=gtk_tree_view_get_selection(tree);
 	GtkTreeIter iterator;
 	if(gtk_tree_selection_get_selected (sel,nullptr,&iterator)){
-		char buf[5+channm_sz]="JOIN ";char*item_text;
+		char buf[4+channm_sz+irc_term_sz]="JOIN ";char*item_text;
 		gtk_tree_model_get ((GtkTreeModel*)channels, &iterator, LIST_ITEM, &item_text, -1);
 		for(size_t i=0;;i++){
 			if(item_text[i]==' '){
-				item_text[i]='\n';
-				memcpy(buf+5,item_text,i+1);
-				send_data(buf,6+i);
+				memcpy(buf+5,item_text,i);
+				memcpy(buf+5+i,irc_term,irc_term_sz);
+				send_data(buf,5+irc_term_sz+i);
 				break;
 			}
 		}
@@ -967,7 +969,7 @@ static gboolean senstopthreadsfunc(gpointer ps){
 static void irc_start(char*psw,char*nkn,struct stk_s*ps){
 	g_idle_add(senstartthreadsfunc,ps);
 	int out;sigwait(&threadset,&out);
-	const char format[]="USER guest tolmoon tolsun :Ronnie Reagan\n";
+	const char format[]="USER guest tolmoon tolsun :Ronnie Reagan" irc_term;
 	size_t fln=sizeof(format)-1;
 	size_t nln=(size_t)snprintf(nullptr,0,nickname_con,nkn);
 	size_t pln=*psw=='\0'?0:(size_t)snprintf(nullptr,0,password_con,psw);
@@ -1384,19 +1386,19 @@ static void send_activate(GtkEntry*entry,GtkNotebook*nb){
 	if(priv){
 		size_t len=sizeof(send_prv1)-1;size_t wid=sizeof(send_prv2)-1;
 		size_t dim=strlen(a);
-		b=(char*)malloc(len+dim+wid+sz+1);
+		b=(char*)malloc(len+dim+wid+sz+irc_term_sz);
 		if(b==nullptr)return;
 		memcpy(b,send_prv1,len);
 		memcpy(b+len,a,dim);size_t spc=len+dim;
 		memcpy(b+spc,send_prv2,wid);spc+=wid;
 		memcpy(b+spc,text,sz);sz+=spc;
 	}else{
-		b=(char*)malloc(sz+1);
+		b=(char*)malloc(sz+irc_term_sz);
 		if(b==nullptr)return;
 		memcpy(b,text,sz);
 	}
-	b[sz]='\n';
-	send_data(b,sz+1);
+	memcpy(b+sz,irc_term,irc_term_sz);
+	send_data(b,sz+irc_term_sz);
 	free(b);
 	gtk_entry_buffer_delete_text(t,0,-1);
 }
