@@ -138,7 +138,7 @@ static void addattextview(struct data_len*b){
 	/* now scroll to the end using marker */
 	gtk_text_view_scroll_to_mark (text_view, text_mark_end, 0., FALSE, 0., 0.);
 }
-static void addattextv(GtkTextView*v,char*n,char*msg){
+static void addattextv(GtkTextView*v,char*n,const char*msg){
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (v);
 	GtkTextIter it;gtk_text_buffer_get_end_iter(text_buffer,&it);
 	gtk_text_buffer_insert(text_buffer,&it,n,-1);
@@ -147,6 +147,7 @@ static void addattextv(GtkTextView*v,char*n,char*msg){
 	gtk_text_buffer_insert(text_buffer,&it,"\n",1);
 	gtk_text_view_scroll_to_mark (v, textv_get_atend(v), 0., FALSE, 0., 0.);
 }
+#define addatchans(n,msg,p) addattextv(contf_get_textv(p),n,msg)
 #define addatnames(n,msg,p) addattextv((GtkTextView*)gtk_bin_get_child((GtkBin*)p),n,msg)
 static gboolean textviewthreadsfunc(gpointer b){
 	addattextview((struct data_len*)b);
@@ -814,8 +815,9 @@ static void pars_mod(char*c,char*m,char*n){
 	if(*m=='+')pars_mod_sens(TRUE,c,m,n);
 	else if(*m=='-')pars_mod_sens(FALSE,c,m,n);
 }
+#define is_channel(c) *c=='#'||*c=='&'
 static void pars_pmsg(char*n,char*c,char*msg,GtkNotebook*nb){
-	if(*c=='#'||*c=='&'){
+	if(is_channel(c)){
 		GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
 		GList*lst=list;
 		do{
@@ -823,7 +825,7 @@ static void pars_pmsg(char*n,char*c,char*msg,GtkNotebook*nb){
 			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
 			if(strcmp(c,d)==0){
 				GtkWidget*pan=get_pan_from_menu(menu_item);
-				addattextv(contf_get_textv(pan),n,msg);
+				addatchans(n,msg,pan);
 				GtkWidget*box=gtk_notebook_get_tab_label(nb,pan);
 				GList*l=gtk_container_get_children((GtkContainer*)box);
 				GtkWidget*last=(GtkWidget*)l->data;
@@ -896,8 +898,8 @@ static gboolean incsafe(gpointer ps){
 		}else if(strcmp(com,"QUIT")==0){
 			if(nick_extract(a,nicknm))pars_quit(nicknm);
 		}else if(strcmp(com,"MODE")==0){
-			char mod[1+15+1];//"command parameters (of which there may be up to 15)"
-			c=sscanf(b,channame_scan " %9s " channame_scan,channm,mod,nicknm);
+			char mod[1+3+1];//"limit of three (3) changes per command for modes that take a parameter."
+			c=sscanf(b,channame_scan " %4s " channame_scan,channm,mod,nicknm);
 			if(c==3)pars_mod(channm,mod,nicknm);
 		}else{
 			int d=atoi(com);
@@ -1374,13 +1376,13 @@ static void help_popup(GtkWindow*top){
 	gtk_box_pack_start((GtkBox*)box, scrolled_window, TRUE, TRUE, 0);
 	gtk_widget_show_all (dialog);
 }
-static void send_activate(GtkEntry*entry,GtkNotebook*nb){
+static void send_activate(GtkEntry*entry,struct stk_s*ps){
 	GtkEntryBuffer*t=gtk_entry_get_buffer(entry);
 	const char*text=gtk_entry_buffer_get_text(t);
 	size_t sz=strlen(text);
 	//
-	GtkWidget*pg=gtk_notebook_get_nth_page(nb,gtk_notebook_get_current_page(nb));
-	const char*a=gtk_notebook_get_menu_label_text(nb,pg);
+	GtkWidget*pg=gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook));
+	const char*a=gtk_notebook_get_menu_label_text(ps->notebook,pg);
 	char*b;
 	BOOL priv=*a!=*home_string;
 	if(priv){
@@ -1392,6 +1394,8 @@ static void send_activate(GtkEntry*entry,GtkNotebook*nb){
 		memcpy(b+len,a,dim);size_t spc=len+dim;
 		memcpy(b+spc,send_prv2,wid);spc+=wid;
 		memcpy(b+spc,text,sz);sz+=spc;
+		if(is_channel(a))addatchans(ps->nknnow,text,pg);
+		else addatnames(ps->nknnow,text,pg);
 	}else{
 		b=(char*)malloc(sz+irc_term_sz);
 		if(b==nullptr)return;
@@ -1452,7 +1456,7 @@ activate (GtkApplication* app,
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	//
 	ps->sen_entry=gtk_entry_new();
-	ps->sen_entry_act=g_signal_connect_data(ps->sen_entry,"activate",G_CALLBACK(send_activate),ps->notebook,nullptr,(GConnectFlags)0);
+	ps->sen_entry_act=g_signal_connect_data(ps->sen_entry,"activate",G_CALLBACK(send_activate),ps,nullptr,(GConnectFlags)0);
 	g_signal_handler_block(ps->sen_entry,ps->sen_entry_act);
 	//
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
