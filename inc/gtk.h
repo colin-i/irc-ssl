@@ -234,6 +234,7 @@ GtkWidget *gtk_tree_view_new (void);
 void gtk_tree_view_set_headers_visible (GtkTreeView *tree_view, gboolean headers_visible);
 void gtk_tree_view_set_model (GtkTreeView *tree_view, GtkTreeModel *model);
 void gtk_widget_destroy (GtkWidget *widget);
+void gtk_widget_hide (GtkWidget *widget);
 GtkWidget* gtk_widget_get_ancestor (GtkWidget *widget, GType widget_type);
 gboolean gtk_widget_get_has_tooltip (GtkWidget *widget);
 GtkWidget* gtk_widget_get_toplevel (GtkWidget *widget);

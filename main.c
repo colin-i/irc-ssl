@@ -386,6 +386,7 @@ static void close_channel(GtkLabel*t){
 }
 static void close_name(GtkWidget*mn){
 	gtk_widget_destroy(get_pan_from_menu(mn));
+	gtk_widget_destroy(mn);
 }
 static GtkWidget*add_new_tab(GtkWidget*frame,char*title,GtkWidget**cls,GtkNotebook*notebook,GtkWidget*menu,BOOL is_name){
 	gtk_widget_show_all (frame);
@@ -452,7 +453,7 @@ static BOOL name_join_isnew(struct stk_s*ps,char*n){
 static GtkWidget* name_join_nb(char*t,GtkNotebook*nb){
 	GtkWidget*scrl=container_frame_name();
 	GtkWidget*close;GtkWidget*mn=add_new_tab(scrl,t,&close,nb,name_menu,TRUE);
-	g_signal_connect_data (close, "clicked",G_CALLBACK (close_name),mn,(GClosureNotify)gtk_widget_destroy,G_CONNECT_SWAPPED);
+	g_signal_connect_data (close, "clicked",G_CALLBACK (close_name),mn,nullptr,G_CONNECT_SWAPPED);//not "(GClosureNotify)gtk_widget_destroy" because at restart clear will be trouble
 	return scrl;
 }
 static gboolean name_join(GtkTreeView*tree,GdkEvent*ignored,struct stk_s*ps){
@@ -940,23 +941,30 @@ static gboolean refresh_callback( gpointer ignored){
 	send_data(sendlist,sizeof(sendlist)-1);
 	return TRUE;
 }
-static gboolean senstartthreadsfunc(gpointer ps){
-	g_signal_handler_unblock(((struct stk_s*)ps)->sen_entry,((struct stk_s*)ps)->sen_entry_act);
-	//
-	if(((struct stk_s*)ps)->refresh>0)
-		((struct stk_s*)ps)->refreshid=g_timeout_add(1000*((struct stk_s*)ps)->refresh,refresh_callback,nullptr);
-	//
-	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
+static int start_old_clear(GtkWidget*w,GtkNotebook*nb){
+	GList*list=gtk_container_get_children((GtkContainer*)w);
 	if(list!=nullptr){
 		GList*lst=list;
 		do{
 			GtkWidget*menu_item=(GtkWidget*)list->data;
 			GtkWidget*pan=get_pan_from_menu(menu_item);
-			gtk_notebook_remove_page(((struct stk_s*)ps)->notebook,gtk_notebook_page_num(((struct stk_s*)ps)->notebook,pan));
+			gtk_notebook_remove_page(nb,gtk_notebook_page_num(nb,pan));
 			gtk_widget_destroy(menu_item);
 		}while((list=g_list_next(list))!=nullptr);
 		g_list_free(lst);
+		return 1;
 	}
+	return 0;
+}
+static gboolean senstartthreadsfunc(gpointer ps){
+	GtkNotebook*nb=((struct stk_s*)ps)->notebook;
+	g_signal_handler_unblock(((struct stk_s*)ps)->sen_entry,((struct stk_s*)ps)->sen_entry_act);
+	//
+	if(((struct stk_s*)ps)->refresh>0)
+		((struct stk_s*)ps)->refreshid=g_timeout_add(1000*((struct stk_s*)ps)->refresh,refresh_callback,nullptr);
+	//
+	if(start_old_clear(chan_menu,nb)+start_old_clear(name_menu,nb)>0)
+		gtk_widget_hide(gtk_notebook_get_action_widget(nb,GTK_PACK_END));
 	//
 	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
