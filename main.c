@@ -884,6 +884,7 @@ static gboolean incsafe(gpointer ps){
 		char nicknm[namenul_sz];
 		if(strcmp(com,"PRIVMSG")==0){
 			if(nick_extract(a,nicknm)){
+				int c;
 				if(is_channel(b)){
 					if(sscanf(b,channame_scan " %c",channm,(char*)&c)==2)pars_pmsg_chan(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
 				}else if(sscanf(b,name_scan " %c",channm,(char*)&c)==2)pars_pmsg_name(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
