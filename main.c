@@ -114,7 +114,7 @@ static GtkWidget*name_menu;
 #define send_prv1 "PRIVMSG "
 #define send_prv2 " :"
 #define home_string "^Home"
-static unsigned int alert_counter;
+static unsigned int alert_counter=0;
 
 enum {
   LIST_ITEM = 0,
@@ -992,8 +992,10 @@ static gboolean senstartthreadsfunc(gpointer ps){
 	if(((struct stk_s*)ps)->refresh>0)
 		((struct stk_s*)ps)->refreshid=g_timeout_add(1000*((struct stk_s*)ps)->refresh,refresh_callback,nullptr);
 	//
-	if(start_old_clear(chan_menu,nb)+start_old_clear(name_menu,nb)>0)
+	if(start_old_clear(chan_menu,nb)+start_old_clear(name_menu,nb)>0){
 		gtk_widget_hide(gtk_notebook_get_action_widget(nb,GTK_PACK_END));
+		alert_counter=0;
+	}
 	//
 	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
