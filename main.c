@@ -101,10 +101,10 @@ Connection format is [[nickname:]password@]hostname[:port1[-portn]].\n\
 e.g. newNick:abc@127.0.0.1:6665-6669"
 #define channm_sz 201
 //"up to 200 characters"
-#define channame_scan1 "%200"
-#define channame_scan channame_scan1 "s"
+#define channame_scan "%200s"
 #define namenul_sz 10//9 char
-#define name_scan "%9s"
+#define name_scan1 "%9"
+#define name_scan name_scan1 "s"
 struct data_len{
 	const char*data;size_t len;
 };
@@ -647,7 +647,7 @@ static void pars_part_user(char*channm,char*nicknm){
 	//}
 }
 static BOOL nick_extract(char*a,char*n){
-	return sscanf(a,":" name_scan "[^!]",n)==1;
+	return sscanf(a,":" name_scan1 "[^!]",n)==1;
 }
 static int nick_and_chan(char*a,char*b,const char*bb,char*n,char*c,char*nick){
 	if(nick_extract(a,n)){
@@ -818,16 +818,19 @@ static void pars_mod(char*c,char*m,char*n){
 	if(*m=='+')pars_mod_sens(TRUE,c,m,n);
 	else if(*m=='-')pars_mod_sens(FALSE,c,m,n);
 }
-static void alert(GtkNotebook*nb,GtkWidget*child){
-	GtkWidget*box=gtk_notebook_get_tab_label(nb,child);
-	GList*l=gtk_container_get_children((GtkContainer*)box);
-	GtkWidget*last=(GtkWidget*)l->data;
-	g_list_free(l);
-	if(G_TYPE_FROM_INSTANCE(last)!=gtk_image_get_type()){
-		GtkWidget*info=gtk_image_new_from_icon_name ("dialog-information",GTK_ICON_SIZE_MENU);
-		gtk_box_pack_start((GtkBox*)box,info,FALSE,FALSE,0);
-		gtk_widget_show(info);
-		gtk_widget_show(gtk_notebook_get_action_widget(nb,GTK_PACK_END));
+static void alert(GtkWidget*box,GtkNotebook*nb){
+	GtkWidget*info=gtk_image_new_from_icon_name ("dialog-information",GTK_ICON_SIZE_MENU);
+	gtk_box_pack_start((GtkBox*)box,info,FALSE,FALSE,0);
+	gtk_widget_show(info);
+	gtk_widget_show(gtk_notebook_get_action_widget(nb,GTK_PACK_END));
+}
+static void prealert(GtkNotebook*nb,GtkWidget*child){
+	if(gtk_notebook_get_current_page(nb)!=gtk_notebook_page_num(nb,child)){
+		GtkWidget*box=gtk_notebook_get_tab_label(nb,child);
+		GList*l=gtk_container_get_children((GtkContainer*)box);
+		GtkWidget*last=(GtkWidget*)l->data;
+		g_list_free(l);
+		if(G_TYPE_FROM_INSTANCE(last)!=gtk_image_get_type())alert(box,nb);
 	}
 }
 #define is_channel(c) *c=='#'||*c=='&'
@@ -840,7 +843,7 @@ static void pars_pmsg_chan(char*n,char*c,char*msg,GtkNotebook*nb){
 		if(strcmp(c,d)==0){
 			GtkWidget*pan=get_pan_from_menu(menu_item);
 			addatchans(n,msg,pan);
-			alert(nb,pan);
+			prealert(nb,pan);
 			break;
 		}
 	}while((list=g_list_next(list))!=nullptr);
@@ -857,14 +860,17 @@ static void pars_pmsg_name(char*n,char*c,char*msg,GtkNotebook*nb){
 			if(strcmp(n,d)==0){
 				GtkWidget*scrl=get_pan_from_menu(menu_item);
 				addatnames(c,msg,scrl);
-				alert(nb,scrl);
+				prealert(nb,scrl);
 				novel=FALSE;
 				break;
 			}
 		}while((list=g_list_next(list))!=nullptr);
 		g_list_free(lst);
 	}
-	if(novel){GtkWidget*scrl=name_join_nb(n,nb);addatnames(c,msg,scrl);alert(nb,scrl);}
+	if(novel){
+		GtkWidget*scrl=name_join_nb(n,nb);addatnames(c,msg,scrl);
+		alert(gtk_notebook_get_tab_label(nb,scrl),nb);
+	}
 }
 static gboolean incsafe(gpointer ps){
 	addattextview(((struct stk_s*)ps)->dl);
