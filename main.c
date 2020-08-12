@@ -114,6 +114,7 @@ static GtkWidget*name_menu;
 #define send_prv1 "PRIVMSG "
 #define send_prv2 " :"
 #define home_string "^Home"
+static unsigned int alert_counter;
 
 enum {
   LIST_ITEM = 0,
@@ -591,6 +592,22 @@ static void pars_join_user(char*channm,char*nicknm){
 	chan_change_nr(channm,1);
 	//}
 }
+static GtkWidget*alert_widget(GtkWidget*box){
+	GList*l=gtk_container_get_children((GtkContainer*)box);
+	GtkWidget*img=(GtkWidget*)l->data;
+	g_list_free(l);
+	if(G_TYPE_FROM_INSTANCE(img)!=gtk_image_get_type())return nullptr;
+	return img;
+}
+static void unalert(GtkNotebook*notebook,GtkWidget*box){
+	GtkWidget*a=alert_widget(box);
+	if(a!=nullptr){
+		gtk_widget_destroy(a);
+		alert_counter--;
+		if(alert_counter==0)
+			gtk_widget_hide(gtk_notebook_get_action_widget(notebook,GTK_PACK_END));		
+	}
+}
 static void pars_part(char*c,GtkNotebook*nb){
 	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
 	GList*lst=list;
@@ -599,6 +616,7 @@ static void pars_part(char*c,GtkNotebook*nb){
 		const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
 		if(strcmp(c,d)==0){
 			GtkWidget*pan=get_pan_from_menu(menu_item);
+			unalert(nb,gtk_notebook_get_tab_label(nb,pan));
 			gtk_notebook_remove_page(nb,gtk_notebook_page_num(nb,pan));
 			gtk_widget_destroy(menu_item);
 			chan_change_nr(c,-1);
@@ -818,19 +836,21 @@ static void pars_mod(char*c,char*m,char*n){
 	if(*m=='+')pars_mod_sens(TRUE,c,m,n);
 	else if(*m=='-')pars_mod_sens(FALSE,c,m,n);
 }
+static void nb_switch_page(GtkNotebook *notebook,GtkWidget *page){//,guint page_num,gpointer user_data){
+	GtkWidget*box=gtk_notebook_get_tab_label(notebook,page);
+	if(G_TYPE_FROM_INSTANCE(box)==gtk_box_get_type())unalert(notebook,box);
+}
 static void alert(GtkWidget*box,GtkNotebook*nb){
 	GtkWidget*info=gtk_image_new_from_icon_name ("dialog-information",GTK_ICON_SIZE_MENU);
 	gtk_box_pack_start((GtkBox*)box,info,FALSE,FALSE,0);
 	gtk_widget_show(info);
 	gtk_widget_show(gtk_notebook_get_action_widget(nb,GTK_PACK_END));
+	alert_counter++;
 }
 static void prealert(GtkNotebook*nb,GtkWidget*child){
 	if(gtk_notebook_get_current_page(nb)!=gtk_notebook_page_num(nb,child)){
 		GtkWidget*box=gtk_notebook_get_tab_label(nb,child);
-		GList*l=gtk_container_get_children((GtkContainer*)box);
-		GtkWidget*last=(GtkWidget*)l->data;
-		g_list_free(l);
-		if(G_TYPE_FROM_INSTANCE(last)!=gtk_image_get_type())alert(box,nb);
+		if(alert_widget(box)==nullptr)alert(box,nb);
 	}
 }
 #define is_channel(c) *c=='#'||*c=='&'
@@ -1490,6 +1510,7 @@ activate (GtkApplication* app,
 	//
 	GtkWidget*info=gtk_image_new_from_icon_name ("dialog-information",GTK_ICON_SIZE_MENU);
 	gtk_notebook_set_action_widget(ps->notebook,info,GTK_PACK_END);
+	g_signal_connect_data (ps->notebook, "switch-page",G_CALLBACK (nb_switch_page),nullptr,nullptr,(GConnectFlags)0);//this,before show,was critical
 }
 static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	gchar*result;

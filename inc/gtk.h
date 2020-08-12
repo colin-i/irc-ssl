@@ -137,6 +137,7 @@ gchar * g_variant_dup_string (GVariant *value, gsize *length);
 GtkApplication * gtk_application_new (const gchar *application_id, GApplicationFlags flags);
 GtkWidget * gtk_application_window_new (GtkApplication *application);
 GtkWidget *gtk_bin_get_child (GtkBin *bin);
+GType gtk_box_get_type (void) __attribute__((__const__));
 GtkWidget* gtk_box_new (GtkOrientation orientation,gint spacing);
 void gtk_box_pack_end (GtkBox *box, GtkWidget *child, gboolean expand, gboolean fill, guint padding);
 void gtk_box_pack_start (GtkBox *box,GtkWidget *child,gboolean expand,gboolean fill,guint padding);
