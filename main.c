@@ -877,8 +877,7 @@ static gboolean incsafe(gpointer ps){
 	a[s]='\0';
 	//
 	char com[5];
-	int c=sscanf(a,"%*s %7s",com);
-	if(c==1){
+	if(sscanf(a,"%*s %7s",com)==1){
 		size_t ln=strlen(com);
 		char*b=strchr(a,' ')+1+ln;if(*b==' ')b++;
 		char channm[channm_sz+1+10];//+ to set the "chan nr" at join on the same string
@@ -898,31 +897,32 @@ static gboolean incsafe(gpointer ps){
 			if(resp==0)pars_part(channm,((struct stk_s*)ps)->notebook);
 			else if(resp==1)pars_part_user(channm,nicknm);
 		}else if(strcmp(com,"KICK")==0){
-			c=sscanf(b,channame_scan " " name_scan,channm,nicknm);
-			if(c==2)pars_part_user(channm,nicknm);
+			if(sscanf(b,channame_scan " " name_scan,channm,nicknm)==2)
+				pars_part_user(channm,nicknm);
 		}else if(strcmp(com,"QUIT")==0){
 			if(nick_extract(a,nicknm))pars_quit(nicknm);
 		}else if(strcmp(com,"MODE")==0){
 			char mod[1+3+1];//"limit of three (3) changes per command for modes that take a parameter."
-			c=sscanf(b,channame_scan " %4s " name_scan,channm,mod,nicknm);
-			if(c==3)pars_mod(channm,mod,nicknm);
+			if(sscanf(b,channame_scan " %4s " name_scan,channm,mod,nicknm)==3)
+				pars_mod(channm,mod,nicknm);
 		}else{
 			int d=atoi(com);
 			if(d==322){//list
 				unsigned int e;
-				c=sscanf(b,"%*s " channame_scan " %u",channm,&e);//if its >nr ,c is not 2
-				if(c==2)pars_chan(channm,e);
+				//if its >nr ,c is not 2
+				if(sscanf(b,"%*s " channame_scan " %u",channm,&e)==2)
+					pars_chan(channm,e);
 			}else if(d==321)gtk_list_store_clear(channels);//list start
 			else if(d==353){//names
-				c=sscanf(b,"%*s %*c " channame_scan,channm);// :
-				GtkWidget*p=name_to_pan(channm);
-				if(p!=nullptr){
-					b=strchr(b,':');//join #q:w is error
-					if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a));
+				if(sscanf(b,"%*s %*c " channame_scan,channm)==1){
+					GtkWidget*p=name_to_pan(channm);
+					if(p!=nullptr){
+						b=strchr(b,':');//join #q:w is error
+						if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a));
+					}
 				}
 			}else if(d==366){//names end
-				c=sscanf(b,"%*s " channame_scan,channm);
-				if(c==1){
+				if(sscanf(b,"%*s " channame_scan,channm)==1){
 					GtkWidget*p=name_to_pan(channm);
 					if(p!=nullptr)gtk_widget_set_has_tooltip(p,FALSE);
 				}
