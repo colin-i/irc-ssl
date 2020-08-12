@@ -89,8 +89,8 @@ static int portindex;static int portend;
 //"510"
 #define irc_term "\r\n"
 #define irc_term_sz sizeof(irc_term)-1
-#define hostname_sz 505
-#define password_sz 505
+#define hostname_sz 512//arranging
+#define password_sz 506//fitting
 #define password_con "PASS %s" irc_term
 #define nickname_con "NICK %s" irc_term
 static char*info_path_name=nullptr;
@@ -103,6 +103,8 @@ e.g. newNick:abc@127.0.0.1:6665-6669"
 //"up to 200 characters"
 #define channame_scan1 "%200"
 #define channame_scan channame_scan1 "s"
+#define namenul_sz 10//9 char
+#define name_scan "%9s"
 struct data_len{
 	const char*data;size_t len;
 };
@@ -190,7 +192,7 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int
 		while(i>0){
 			i--;
 			if(indata[i]==':'){
-				if(i>=password_sz)return FALSE;
+				if(i>=namenul_sz)return FALSE;
 				if(i>0){
 					memcpy(nkn,indata,i);nkn[i]='\0';nonick=FALSE;
 				}
@@ -645,7 +647,7 @@ static void pars_part_user(char*channm,char*nicknm){
 	//}
 }
 static BOOL nick_extract(char*a,char*n){
-	return sscanf(a,":" channame_scan1 "[^!]",n)==1;
+	return sscanf(a,":" name_scan "[^!]",n)==1;
 }
 static int nick_and_chan(char*a,char*b,const char*bb,char*n,char*c,char*nick){
 	if(nick_extract(a,n)){
@@ -709,7 +711,7 @@ static void pars_mod_sens_plus(GtkListStore*lst,char*n){
 		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
 		if(strcmp(n,text)==0){
 			g_free(text);
-			char buf[channm_sz+1];*buf='@';
+			char buf[namenul_sz+1];*buf='@';
 			strcpy(buf+1,n);
 			gtk_list_store_set(lst, &it, LIST_ITEM, buf, -1);
 			GtkTreeIter i=it;
@@ -829,23 +831,22 @@ static void alert(GtkNotebook*nb,GtkWidget*child){
 	}
 }
 #define is_channel(c) *c=='#'||*c=='&'
-static void pars_pmsg(char*n,char*c,char*msg,GtkNotebook*nb){
-	if(is_channel(c)){
-		GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
-		GList*lst=list;
-		do{
-			GtkWidget*menu_item=(GtkWidget*)list->data;
-			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
-			if(strcmp(c,d)==0){
-				GtkWidget*pan=get_pan_from_menu(menu_item);
-				addatchans(n,msg,pan);
-				alert(nb,pan);
-				break;
-			}
-		}while((list=g_list_next(list))!=nullptr);
-		g_list_free(lst);
-		return;
-	}
+static void pars_pmsg_chan(char*n,char*c,char*msg,GtkNotebook*nb){
+	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
+	GList*lst=list;
+	do{
+		GtkWidget*menu_item=(GtkWidget*)list->data;
+		const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
+		if(strcmp(c,d)==0){
+			GtkWidget*pan=get_pan_from_menu(menu_item);
+			addatchans(n,msg,pan);
+			alert(nb,pan);
+			break;
+		}
+	}while((list=g_list_next(list))!=nullptr);
+	g_list_free(lst);
+}
+static void pars_pmsg_name(char*n,char*c,char*msg,GtkNotebook*nb){
 	BOOL novel=TRUE;
 	GList*list=gtk_container_get_children((GtkContainer*)name_menu);
 	if(list!=nullptr){
@@ -881,11 +882,12 @@ static gboolean incsafe(gpointer ps){
 		size_t ln=strlen(com);
 		char*b=strchr(a,' ')+1+ln;if(*b==' ')b++;
 		char channm[channm_sz+1+10];//+ to set the "chan nr" at join on the same string
-		char nicknm[channm_sz];
+		char nicknm[namenul_sz];
 		if(strcmp(com,"PRIVMSG")==0){
 			if(nick_extract(a,nicknm)){
-				c=sscanf(b,channame_scan " %c",channm,(char*)&c);
-				if(c==2)pars_pmsg(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
+				if(is_channel(b)){
+					if(sscanf(b,channame_scan " %c",channm,(char*)&c)==2)pars_pmsg_chan(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
+				}else if(sscanf(b,name_scan " %c",channm,(char*)&c)==2)pars_pmsg_name(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
 			}
 		}else if(strcmp(com,"JOIN")==0){
 			int resp=nick_and_chan(a,b,":" channame_scan,nicknm,channm,((struct stk_s*)ps)->nknnow);
@@ -896,29 +898,29 @@ static gboolean incsafe(gpointer ps){
 			if(resp==0)pars_part(channm,((struct stk_s*)ps)->notebook);
 			else if(resp==1)pars_part_user(channm,nicknm);
 		}else if(strcmp(com,"KICK")==0){
-			c=sscanf(b,channame_scan " " channame_scan,channm,nicknm);
+			c=sscanf(b,channame_scan " " name_scan,channm,nicknm);
 			if(c==2)pars_part_user(channm,nicknm);
 		}else if(strcmp(com,"QUIT")==0){
 			if(nick_extract(a,nicknm))pars_quit(nicknm);
 		}else if(strcmp(com,"MODE")==0){
 			char mod[1+3+1];//"limit of three (3) changes per command for modes that take a parameter."
-			c=sscanf(b,channame_scan " %4s " channame_scan,channm,mod,nicknm);
+			c=sscanf(b,channame_scan " %4s " name_scan,channm,mod,nicknm);
 			if(c==3)pars_mod(channm,mod,nicknm);
 		}else{
 			int d=atoi(com);
-			if(d==322){
+			if(d==322){//list
 				unsigned int e;
 				c=sscanf(b,"%*s " channame_scan " %u",channm,&e);//if its >nr ,c is not 2
 				if(c==2)pars_chan(channm,e);
-			}else if(d==321)gtk_list_store_clear(channels);
-			else if(d==353){
+			}else if(d==321)gtk_list_store_clear(channels);//list start
+			else if(d==353){//names
 				c=sscanf(b,"%*s %*c " channame_scan,channm);// :
 				GtkWidget*p=name_to_pan(channm);
 				if(p!=nullptr){
 					b=strchr(b,':');//join #q:w is error
 					if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a));
 				}
-			}else if(d==366){
+			}else if(d==366){//names end
 				c=sscanf(b,"%*s " channame_scan,channm);
 				if(c==1){
 					GtkWidget*p=name_to_pan(channm);
@@ -1056,7 +1058,7 @@ static void proced(struct stk_s*ps){
 		SSL*withssl = SSL_new(ctx);
 		if(withssl!=nullptr){
 			char hostname[hostname_sz];
-			int sens;char psw[password_sz];char nkn[password_sz];
+			int sens;char psw[password_sz];char nkn[namenul_sz];
 			if(parse_host_str(ps->text,hostname,psw,nkn,&sens,ps)) {
 				for(;;){
 					ssl=withssl;				
