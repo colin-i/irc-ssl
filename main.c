@@ -90,7 +90,7 @@ static int portindex;static int portend;
 #define irc_term "\r\n"
 #define irc_term_sz sizeof(irc_term)-1
 #define hostname_sz 512//arranging
-#define password_sz 506//fitting
+#define password_sz 505+1//fitting
 #define password_con "PASS %s" irc_term
 #define nickname_con "NICK %s" irc_term
 static char*info_path_name=nullptr;
