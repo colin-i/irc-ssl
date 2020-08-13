@@ -400,7 +400,7 @@ static void unalert(GtkNotebook*notebook,GtkWidget*box){
 		gtk_widget_destroy(a);
 		alert_counter--;
 		if(alert_counter==0)
-			gtk_widget_hide(gtk_notebook_get_action_widget(notebook,GTK_PACK_END));		
+			gtk_widget_hide(gtk_notebook_get_action_widget(notebook,GTK_PACK_END));
 	}
 }
 static void close_name(GtkWidget*mn){
