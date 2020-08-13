@@ -192,6 +192,7 @@ gint gtk_notebook_get_current_page (GtkNotebook *notebook);
 const gchar *gtk_notebook_get_menu_label_text (GtkNotebook *notebook, GtkWidget *child);
 GtkWidget* gtk_notebook_get_nth_page (GtkNotebook *notebook, gint page_num);
 GtkWidget * gtk_notebook_get_tab_label (GtkNotebook *notebook, GtkWidget *child);
+GType gtk_notebook_get_type (void) __attribute__((__const__));
 GtkWidget * gtk_notebook_new (void);
 gint gtk_notebook_page_num (GtkNotebook *notebook, GtkWidget *child);
 void gtk_notebook_popup_enable (GtkNotebook *notebook);
