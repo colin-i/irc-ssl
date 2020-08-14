@@ -113,7 +113,7 @@ static GtkWidget*chan_menu;
 static GtkWidget*name_menu;
 #define send_prv1 "PRIVMSG "
 #define send_prv2 " :"
-#define home_string "^Home"
+#define home_string "*Home"
 static unsigned int alert_counter=0;
 
 enum {
@@ -493,9 +493,9 @@ static gboolean name_join(GtkTreeView*tree,GdkEvent*ignored,struct stk_s*ps){
 	free(item_text);
 	return FALSE;//not care about other events
 }
-static GtkWidget* chan_pan(char*c){
+static GtkWidget* page_from_str(char*c,GtkWidget*men){
 	GtkWidget*pan=nullptr;
-	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
+	GList*list=gtk_container_get_children((GtkContainer*)men);
 	if(list!=nullptr){
 		GList*lst=list;
 		do{
@@ -510,49 +510,52 @@ static GtkWidget* chan_pan(char*c){
 	}
 	return pan;
 }
-static GtkWidget*name_to_pan(const char*n){
-	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
-	if(list!=nullptr){
-		GList*lst=list;
-		do{
-			GtkWidget*menu_item=(GtkWidget*)list->data;
-			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
-			if(strcmp(d,n)==0)
-				return get_pan_from_menu(menu_item);
-		}while((list=g_list_next(list))!=nullptr);
-		g_list_free(lst);
-	}
-	return nullptr;
-}
-#define name_to_list(c) contf_get_list(name_to_pan(c))
-static void chan_change_nr_swap(GtkTreeIter*iter,int pos,int val,char*chn,unsigned int nr){
-	val*=-1;
-	pos+=val;
-	int startpos=pos;
-	GtkTreeIter it;
+#define chan_pan(c) page_from_str(c,chan_menu)
+#define name_to_list(c) contf_get_list(chan_pan(c))
+static void chan_change_nr_gain(GtkTreeIter*iter,char*chn,unsigned int nr){
+	GtkTreeIter it=*iter;
+	if(gtk_tree_model_iter_previous( (GtkTreeModel*)channels, &it)==FALSE)return;
 	for(;;){
-		if(pos<0)break;//gtk warning
-		if(gtk_tree_model_iter_nth_child((GtkTreeModel*)channels,&it,nullptr,pos)==FALSE){
-			gtk_tree_model_iter_nth_child((GtkTreeModel*)channels,&it,nullptr,pos-1);
-			break;//the other way
-		}
 		char*text;
 		char c[channm_sz];
 		unsigned int n;
 		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
 		sscanf(text,channame_scan " %u",c,&n);
+		if(n>nr)break;
 		int a=strcmp(c,chn);
 		g_free(text);
-		if(val<0){if(n>nr||(n==nr&&a<0))break;}
-		else if(nr>n||(nr==n&&a>0))break;
-		pos+=val;
+		if(n==nr&&a<0)break;
+		if(gtk_tree_model_iter_previous((GtkTreeModel*)channels, &it)==FALSE){
+			gtk_list_store_move_after(channels,iter,nullptr);
+			return;
+		}
 	}
-	if(pos!=startpos)gtk_list_store_swap (channels, &it, iter);
+	gtk_list_store_move_after(channels,iter,&it);
+}
+static void chan_change_nr_loss(GtkTreeIter*iter,char*chn,unsigned int nr){
+	GtkTreeIter it=*iter;
+	if(gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it)==FALSE)return;
+	for(;;){
+		char*text;
+		char c[channm_sz];
+		unsigned int n;
+		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
+		sscanf(text,channame_scan " %u",c,&n);
+		if(nr>n)break;
+		int a=strcmp(c,chn);
+		g_free(text);
+		if(nr==n&&a>0)break;
+		if(gtk_tree_model_iter_next((GtkTreeModel*)channels, &it)==FALSE){
+			gtk_list_store_move_before(channels,iter,nullptr);
+			return;
+		}
+	}
+	gtk_list_store_move_before(channels,iter,&it);
 }
 static BOOL chan_change_nr(const char*chan,int v){
 	GtkTreeIter it;
 	gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, &it);
-	gboolean valid;int pos=0;for(;;){
+	for(;;){
 		char c[channm_sz+1+10];
 		char*text;
 		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
@@ -562,7 +565,8 @@ static BOOL chan_change_nr(const char*chan,int v){
 			unsigned int n;
 			s++;sscanf(text+s,"%u",&n);
 			n+=(unsigned int)v;
-			chan_change_nr_swap(&it,pos,v,c,n);
+			if(v>0)chan_change_nr_gain(&it,c,n);
+			else chan_change_nr_loss(&it,c,n);
 			c[ss]=' ';
 			s+=(size_t)sprintf(c+s,"%u",n);c[s]=0;
 			gtk_list_store_set(channels, &it, LIST_ITEM, c, -1);
@@ -570,11 +574,9 @@ static BOOL chan_change_nr(const char*chan,int v){
 			return TRUE;
 		}
 		g_free(text);
-		valid = gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it);
-		if(valid==FALSE)break;
-		pos++;
+		if(gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it)==FALSE)
+			return FALSE;
 	}
-	return FALSE;
 }
 static void pars_join(char*chan,struct stk_s*ps){
 	GtkWidget*pan=chan_pan(chan);
@@ -945,7 +947,7 @@ static gboolean incsafe(gpointer ps){
 			}else if(d==321)gtk_list_store_clear(channels);//list start
 			else if(d==353){//names
 				if(sscanf(b,"%*s %*c " channame_scan,channm)==1){
-					GtkWidget*p=name_to_pan(channm);
+					GtkWidget*p=chan_pan(channm);
 					if(p!=nullptr){
 						b=strchr(b,':');//join #q:w is error
 						if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a));
@@ -953,7 +955,7 @@ static gboolean incsafe(gpointer ps){
 				}
 			}else if(d==366){//names end
 				if(sscanf(b,"%*s " channame_scan,channm)==1){
-					GtkWidget*p=name_to_pan(channm);
+					GtkWidget*p=chan_pan(channm);
 					if(p!=nullptr)gtk_widget_set_has_tooltip(p,FALSE);
 				}
 			}
