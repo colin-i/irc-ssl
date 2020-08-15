@@ -407,7 +407,7 @@ static void close_name(GtkWidget*mn){
 	GtkWidget*page=get_pan_from_menu(mn);
 	GtkNotebook*nb=(GtkNotebook*)gtk_widget_get_ancestor(page,gtk_notebook_get_type());
 	unalert(nb,gtk_notebook_get_tab_label(nb,page));
-	gtk_widget_destroy(page);
+	gtk_notebook_remove_page(nb,gtk_notebook_page_num(nb,page));
 	gtk_widget_destroy(mn);
 }
 static GtkWidget*add_new_tab(GtkWidget*frame,char*title,GtkWidget**cls,GtkNotebook*notebook,GtkWidget*menu,BOOL is_name){
@@ -875,7 +875,7 @@ static void pars_pmsg_chan(char*n,char*c,char*msg,GtkNotebook*nb){
 	}while((list=g_list_next(list))!=nullptr);
 	g_list_free(lst);
 }
-static void pars_pmsg_name(char*n,char*c,char*msg,GtkNotebook*nb){
+static void pars_pmsg_name(char*n,char*msg,GtkNotebook*nb){
 	BOOL novel=TRUE;
 	GList*list=gtk_container_get_children((GtkContainer*)name_menu);
 	if(list!=nullptr){
@@ -885,7 +885,7 @@ static void pars_pmsg_name(char*n,char*c,char*msg,GtkNotebook*nb){
 			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
 			if(strcmp(n,d)==0){
 				GtkWidget*scrl=get_pan_from_menu(menu_item);
-				addatnames(c,msg,scrl);
+				addatnames(n,msg,scrl);
 				prealert(nb,scrl);
 				novel=FALSE;
 				break;
@@ -894,7 +894,7 @@ static void pars_pmsg_name(char*n,char*c,char*msg,GtkNotebook*nb){
 		g_list_free(lst);
 	}
 	if(novel){
-		GtkWidget*scrl=name_join_nb(n,nb);addatnames(c,msg,scrl);
+		GtkWidget*scrl=name_join_nb(n,nb);addatnames(n,msg,scrl);
 		alert(gtk_notebook_get_tab_label(nb,scrl),nb);
 	}
 }
@@ -929,7 +929,7 @@ static gboolean incsafe(gpointer ps){
 			if(nick_extract(a,nicknm)){
 				if(is_channel(b)){
 					if(sscanf(b,channame_scan " %c",channm,&c)==2)pars_pmsg_chan(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
-				}else if(sscanf(b,name_scan " %c",channm,&c)==2)pars_pmsg_name(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
+				}else if(sscanf(b,name_scan " %c",channm,&c)==2)pars_pmsg_name(nicknm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
 			}
 		}else if(strcmp(com,"JOIN")==0){
 			int resp=nick_and_chan(a,b,":" channame_scan,nicknm,channm,((struct stk_s*)ps)->nknnow);
@@ -1439,34 +1439,38 @@ static void help_popup(GtkWindow*top){
 	gtk_box_pack_start((GtkBox*)box, scrolled_window, TRUE, TRUE, 0);
 	gtk_widget_show_all (dialog);
 }
-static void send_activate(GtkEntry*entry,struct stk_s*ps){
-	GtkEntryBuffer*t=gtk_entry_get_buffer(entry);
-	const char*text=gtk_entry_buffer_get_text(t);
-	size_t sz=strlen(text);
-	//
-	GtkWidget*pg=gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook));
-	const char*a=gtk_notebook_get_menu_label_text(ps->notebook,pg);
-	char*b;
-	BOOL priv=*a!=*home_string;
-	if(priv){
-		size_t len=sizeof(send_prv1)-1;size_t wid=sizeof(send_prv2)-1;
-		size_t dim=strlen(a);
-		b=(char*)malloc(len+dim+wid+sz+irc_term_sz);
-		if(b==nullptr)return;
-		memcpy(b,send_prv1,len);
-		memcpy(b+len,a,dim);size_t spc=len+dim;
-		memcpy(b+spc,send_prv2,wid);spc+=wid;
-		memcpy(b+spc,text,sz);sz+=spc;
-		if(is_channel(a))addatchans(ps->nknnow,text,pg);
-		else addatnames(ps->nknnow,text,pg);
-	}else{
-		b=(char*)malloc(sz+irc_term_sz);
-		if(b==nullptr)return;
-		memcpy(b,text,sz);
-	}
+static void send_msg(char*usednick,const char*a,const char*text,GtkWidget*pg){
+	size_t len=sizeof(send_prv1)-1;size_t wid=sizeof(send_prv2)-1;
+	size_t dim=strlen(a);size_t sz=strlen(text);
+	char*b=(char*)malloc(len+dim+wid+sz+irc_term_sz);
+	if(b==nullptr)return;
+	memcpy(b,send_prv1,len);
+	memcpy(b+len,a,dim);size_t spc=len+dim;
+	memcpy(b+spc,send_prv2,wid);spc+=wid;
+	memcpy(b+spc,text,sz);sz+=spc;
+	if(is_channel(a))addatchans(usednick,text,pg);
+	else addatnames(usednick,text,pg);
 	memcpy(b+sz,irc_term,irc_term_sz);
 	send_data(b,sz+irc_term_sz);
 	free(b);
+}
+static void send_activate(GtkEntry*entry,struct stk_s*ps){
+	GtkEntryBuffer*t=gtk_entry_get_buffer(entry);
+	const char*text=gtk_entry_buffer_get_text(t);
+	//
+	GtkWidget*pg=gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook));
+	const char*a=gtk_notebook_get_menu_label_text(ps->notebook,pg);
+	BOOL priv=*a!=*home_string;
+	if(priv)send_msg(ps->nknnow,a,text,pg);
+	else{
+		size_t sz=strlen(text);
+		char*b=(char*)malloc(sz+irc_term_sz);
+		if(b==nullptr)return;
+		memcpy(b,text,sz);
+		memcpy(b+sz,irc_term,irc_term_sz);
+		send_data(b,sz+irc_term_sz);
+		free(b);
+	}
 	gtk_entry_buffer_delete_text(t,0,-1);
 }
 static void
