@@ -115,6 +115,7 @@ static GtkWidget*name_menu;
 #define send_prv2 " :"
 #define home_string "*Home"
 static unsigned int alert_counter=0;
+static GtkCheckMenuItem*show_time;
 
 enum {
   LIST_ITEM = 0,
@@ -135,9 +136,21 @@ struct stk_s{
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan)))
 #define contf_get_textv(pan) (GtkTextView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child1((GtkPaned*)pan))
 #define textv_get_atend(tv) gtk_text_buffer_get_mark(gtk_text_view_get_buffer(tv),text_mark_atend)
+static void addtimestamp(GtkTextBuffer*text_buffer,GtkTextIter*it){
+	if(gtk_check_menu_item_get_active(show_time)){
+		GDateTime*time_new_now=g_date_time_new_now_local();
+		if(time_new_now!=nullptr){
+			char tm[8];
+			sprintf(tm,"<%u:%u>",g_date_time_get_minute(time_new_now),g_date_time_get_second(time_new_now));
+			gtk_text_buffer_insert(text_buffer,it,tm,-1);
+			g_date_time_unref(time_new_now);
+		}
+	}
+}
 static void addattextview(struct data_len*b){
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
 	GtkTextIter it;gtk_text_buffer_get_end_iter(text_buffer,&it);
+	addtimestamp(text_buffer,&it);
 	gtk_text_buffer_insert(text_buffer,&it,b->data,(int)b->len);
 	/* now scroll to the end using marker */
 	gtk_text_view_scroll_to_mark (text_view, text_mark_end, 0., FALSE, 0., 0.);
@@ -146,7 +159,8 @@ static void addattextv(GtkTextView*v,const char*n,const char*msg){
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (v);
 	GtkTextIter it;gtk_text_buffer_get_end_iter(text_buffer,&it);
 	gtk_text_buffer_insert(text_buffer,&it,n,-1);
-	gtk_text_buffer_insert(text_buffer,&it,"> ",2);
+	addtimestamp(text_buffer,&it);
+	gtk_text_buffer_insert(text_buffer,&it,": ",2);
 	gtk_text_buffer_insert(text_buffer,&it,msg,-1);
 	gtk_text_buffer_insert(text_buffer,&it,"\n",1);
 	gtk_text_view_scroll_to_mark (v, textv_get_atend(v), 0., FALSE, 0., 0.);
@@ -1097,8 +1111,7 @@ static void irc_start(char*psw,char*nkn,struct stk_s*ps){
 						}else if(*b==':')incomings(b,s,ps);
 						b=n+1;sz-=s;
 						continue;
-					}
-					main_text(b,(size_t)sz);
+					}else if(sz>0)main_text(b,(size_t)sz);
 					break;
 				}
 			}
@@ -1529,6 +1542,9 @@ activate (GtkApplication* app,
 	name_menu = gtk_menu_new ();
 	gtk_menu_item_set_submenu((GtkMenuItem*)menu_item,name_menu);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
+	//
+	show_time=gtk_check_menu_item_new_with_label("Show Message Timestamp");
+	gtk_menu_shell_append ((GtkMenuShell*)menu, show_time);gtk_widget_show(show_time);
 	//
 	ps->sen_entry=gtk_entry_new();
 	ps->sen_entry_act=g_signal_connect_data(ps->sen_entry,"activate",G_CALLBACK(send_activate),ps,nullptr,(GConnectFlags)0);
