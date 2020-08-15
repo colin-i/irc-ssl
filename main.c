@@ -121,7 +121,7 @@ enum {
   N_COLUMNS
 };//connections org,channels
 struct stk_s{
-	const char*args[4];
+	const char*args[5];
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;char*nknnow;
 	int separator;
@@ -129,6 +129,7 @@ struct stk_s{
 	unsigned int refresh;unsigned int refreshid;
 	GtkNotebook*notebook;
 	struct data_len*dl;
+	char*welcome;
 };
 
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan)))
@@ -860,6 +861,21 @@ static void prealert(GtkNotebook*nb,GtkWidget*child){
 	}
 }
 #define is_channel(c) *c=='#'||*c=='&'
+static void send_msg(char*usednick,const char*a,const char*text,GtkWidget*pg){
+	size_t len=sizeof(send_prv1)-1;size_t wid=sizeof(send_prv2)-1;
+	size_t dim=strlen(a);size_t sz=strlen(text);
+	char*b=(char*)malloc(len+dim+wid+sz+irc_term_sz);
+	if(b==nullptr)return;
+	memcpy(b,send_prv1,len);
+	memcpy(b+len,a,dim);size_t spc=len+dim;
+	memcpy(b+spc,send_prv2,wid);spc+=wid;
+	memcpy(b+spc,text,sz);sz+=spc;
+	if(is_channel(a))addatchans(usednick,text,pg);
+	else addatnames(usednick,text,pg);
+	memcpy(b+sz,irc_term,irc_term_sz);
+	send_data(b,sz+irc_term_sz);
+	free(b);
+}
 static void pars_pmsg_chan(char*n,char*c,char*msg,GtkNotebook*nb){
 	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
 	GList*lst=list;
@@ -875,8 +891,9 @@ static void pars_pmsg_chan(char*n,char*c,char*msg,GtkNotebook*nb){
 	}while((list=g_list_next(list))!=nullptr);
 	g_list_free(lst);
 }
-static void pars_pmsg_name(char*n,char*msg,GtkNotebook*nb){
+static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps){
 	BOOL novel=TRUE;
+	GtkNotebook*nb=ps->notebook;
 	GList*list=gtk_container_get_children((GtkContainer*)name_menu);
 	if(list!=nullptr){
 		GList*lst=list;
@@ -896,6 +913,7 @@ static void pars_pmsg_name(char*n,char*msg,GtkNotebook*nb){
 	if(novel){
 		GtkWidget*scrl=name_join_nb(n,nb);addatnames(n,msg,scrl);
 		alert(gtk_notebook_get_tab_label(nb,scrl),nb);
+		if(ps->welcome!=nullptr)send_msg(ps->nknnow,n,ps->welcome,scrl);
 	}
 }
 static void pars_err(char*str,char*msg){
@@ -929,7 +947,7 @@ static gboolean incsafe(gpointer ps){
 			if(nick_extract(a,nicknm)){
 				if(is_channel(b)){
 					if(sscanf(b,channame_scan " %c",channm,&c)==2)pars_pmsg_chan(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
-				}else if(sscanf(b,name_scan " %c",channm,&c)==2)pars_pmsg_name(nicknm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
+				}else if(sscanf(b,name_scan " %c",channm,&c)==2)pars_pmsg_name(nicknm,b+strlen(channm)+2,(struct stk_s*)ps);
 			}
 		}else if(strcmp(com,"JOIN")==0){
 			int resp=nick_and_chan(a,b,":" channame_scan,nicknm,channm,((struct stk_s*)ps)->nknnow);
@@ -1439,21 +1457,6 @@ static void help_popup(GtkWindow*top){
 	gtk_box_pack_start((GtkBox*)box, scrolled_window, TRUE, TRUE, 0);
 	gtk_widget_show_all (dialog);
 }
-static void send_msg(char*usednick,const char*a,const char*text,GtkWidget*pg){
-	size_t len=sizeof(send_prv1)-1;size_t wid=sizeof(send_prv2)-1;
-	size_t dim=strlen(a);size_t sz=strlen(text);
-	char*b=(char*)malloc(len+dim+wid+sz+irc_term_sz);
-	if(b==nullptr)return;
-	memcpy(b,send_prv1,len);
-	memcpy(b+len,a,dim);size_t spc=len+dim;
-	memcpy(b+spc,send_prv2,wid);spc+=wid;
-	memcpy(b+spc,text,sz);sz+=spc;
-	if(is_channel(a))addatchans(usednick,text,pg);
-	else addatnames(usednick,text,pg);
-	memcpy(b+sz,irc_term,irc_term_sz);
-	send_data(b,sz+irc_term_sz);
-	free(b);
-}
 static void send_activate(GtkEntry*entry,struct stk_s*ps){
 	GtkEntryBuffer*t=gtk_entry_get_buffer(entry);
 	const char*text=gtk_entry_buffer_get_text(t);
@@ -1551,7 +1554,7 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	}else ps->dim[0]=-1;//this is default at gtk
 	GVariant*v=g_variant_dict_lookup_value(options,ps->args[1],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr){
-		ps->nick=g_variant_dup_string(v,nullptr);//get is not the same pointer as argv[2],is always utf-8
+		ps->nick=g_variant_dup_string(v,nullptr);//get is not the same pointer as argv[n],is always utf-8
 	}else ps->nick=nullptr;
 	if (g_variant_dict_lookup (options,ps->args[2], "s", &result)){
 		ps->separator=atoi(result);
@@ -1561,6 +1564,9 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		ps->refresh=(unsigned int)atoi(result);
 		g_free(result);
 	}else ps->refresh=60;
+	v=g_variant_dict_lookup_value(options,ps->args[4],G_VARIANT_TYPE_STRING);
+	if(v!=nullptr)ps->welcome=g_variant_dup_string(v,nullptr);
+	else ps->welcome=nullptr;
 	return -1;
 }
 int main (int    argc,
@@ -1582,12 +1588,15 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Right pane size, default 150","WIDTH");
 		ps.args[3]="refresh";
 		g_application_add_main_option((GApplication*)app,ps.args[3],'f',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Refresh channels interval in seconds. Default 60. 0 for no refresh.","SECONDS");
+		ps.args[4]="welcome";
+		g_application_add_main_option((GApplication*)app,ps.args[4],'w',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
 		ps.path=argv[0];
 		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
 		//  if(han>0)
 		g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
 		if(ps.nick!=nullptr)g_free(ps.nick);
+		if(ps.welcome!=nullptr)g_free(ps.welcome);
 		g_object_unref (app);
 		if(info_path_name!=nullptr)free(info_path_name);
 	}else puts("openssl error");
