@@ -122,7 +122,7 @@ enum {
   N_COLUMNS
 };//connections org,channels
 struct stk_s{
-	const char*args[5];
+	const char*args[6];
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;char*nknnow;
 	int separator;
@@ -130,7 +130,7 @@ struct stk_s{
 	unsigned int refresh;unsigned int refreshid;
 	GtkNotebook*notebook;
 	struct data_len*dl;
-	char*welcome;
+	char*welcome;gboolean timestamp;
 };
 
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan)))
@@ -1543,8 +1543,9 @@ activate (GtkApplication* app,
 	gtk_menu_item_set_submenu((GtkMenuItem*)menu_item,name_menu);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	//
-	show_time=gtk_check_menu_item_new_with_label("Show Message Timestamp");
-	gtk_menu_shell_append ((GtkMenuShell*)menu, show_time);gtk_widget_show(show_time);
+	show_time=(GtkCheckMenuItem*)gtk_check_menu_item_new_with_label("Show Message Timestamp");
+	if(ps->timestamp)gtk_check_menu_item_set_active(show_time,TRUE);
+	gtk_menu_shell_append ((GtkMenuShell*)menu,(GtkWidget*)show_time);gtk_widget_show((GtkWidget*)show_time);
 	//
 	ps->sen_entry=gtk_entry_new();
 	ps->sen_entry_act=g_signal_connect_data(ps->sen_entry,"activate",G_CALLBACK(send_activate),ps,nullptr,(GConnectFlags)0);
@@ -1588,6 +1589,7 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	v=g_variant_dict_lookup_value(options,ps->args[4],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr)ps->welcome=g_variant_dup_string(v,nullptr);
 	else ps->welcome=nullptr;
+	ps->timestamp=g_variant_dict_contains(options,ps->args[5]);
 	return -1;
 }
 int main (int    argc,
@@ -1611,6 +1613,8 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[3],'f',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Refresh channels interval in seconds. Default 60. 0 for no refresh.","SECONDS");
 		ps.args[4]="welcome";
 		g_application_add_main_option((GApplication*)app,ps.args[4],'w',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
+		ps.args[5]="timestamp";
+		g_application_add_main_option((GApplication*)app,ps.args[5],'t',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Show message timestamp.",nullptr);
 		ps.path=argv[0];
 		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
