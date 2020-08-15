@@ -487,10 +487,8 @@ static gboolean name_join(GtkTreeView*tree,GdkEvent*ignored,struct stk_s*ps){
 	char*item_text;
 	gtk_tree_model_get (gtk_tree_view_get_model(tree), &iterator, LIST_ITEM, &item_text, -1);
 	char*a=*item_text!='@'?item_text:item_text+1;
-	if(name_join_isnew(ps,a)){
+	if(name_join_isnew(ps,a))
 		gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,name_join_nb(a,ps->notebook)));
-		gtk_widget_grab_focus(ps->sen_entry);
-	}
 	free(item_text);
 	return FALSE;//not care about other events
 }
@@ -843,9 +841,16 @@ static void pars_mod(char*c,char*m,char*n){
 	if(*m=='+')pars_mod_sens(TRUE,c,m,n);
 	else if(*m=='-')pars_mod_sens(FALSE,c,m,n);
 }
-static void nb_switch_page(GtkNotebook *notebook,GtkWidget *page){//,guint page_num,gpointer user_data){
+static gboolean force_focus(gpointer e){
+	gtk_widget_grab_focus((GtkWidget*)e);
+	return FALSE;
+}
+static void nb_switch_page(GtkNotebook *notebook,GtkWidget *page,guint ignored,GtkEntry*e){
+//swapped is not a,b,c,d->d,a,b,c it is d,b,c,a
+(void)ignored;
 	GtkWidget*box=gtk_notebook_get_tab_label(notebook,page);
 	if(G_TYPE_FROM_INSTANCE(box)==gtk_box_get_type())unalert(notebook,box);
+	g_idle_add(force_focus,e);
 }
 static void alert(GtkWidget*box,GtkNotebook*nb){
 	GtkWidget*info=gtk_image_new_from_icon_name ("dialog-information",GTK_ICON_SIZE_MENU);
@@ -1541,7 +1546,7 @@ activate (GtkApplication* app,
 	//
 	GtkWidget*info=gtk_image_new_from_icon_name ("dialog-information",GTK_ICON_SIZE_MENU);
 	gtk_notebook_set_action_widget(ps->notebook,info,GTK_PACK_END);
-	g_signal_connect_data (ps->notebook, "switch-page",G_CALLBACK (nb_switch_page),nullptr,nullptr,(GConnectFlags)0);//this,before show,was critical
+	g_signal_connect_data (ps->notebook, "switch-page",G_CALLBACK (nb_switch_page),ps->sen_entry,nullptr,(GConnectFlags)0);//this,before show,was critical;
 }
 static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	gchar*result;
