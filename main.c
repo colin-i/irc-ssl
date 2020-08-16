@@ -69,7 +69,7 @@
 #endif
 
 #ifdef HAVE_GTK_GTK_H
-#pragma GCC diagnostic push//there are 2 more ignors in the program
+#pragma GCC diagnostic push//there are 4 more ignors in the program
 #pragma GCC diagnostic ignored "-Weverything"
 #include <gtk/gtk.h>
 #pragma GCC diagnostic pop
@@ -116,13 +116,15 @@ static GtkWidget*name_on_menu;static GtkWidget*name_off_menu;
 #define home_string "*Home"
 static unsigned int alert_counter=0;
 static GtkCheckMenuItem*show_time;
-
+#define user_message "USER guest tolmoon tolsun :Ronnie Reagan"
 enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };//connections org,channels
+#pragma GCC diagnostic push//is from BOOL+3=4
+#pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
-	const char*args[6];
+	const char*args[7];
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;char*nknnow;
 	int separator;
@@ -131,7 +133,9 @@ struct stk_s{
 	GtkNotebook*notebook;
 	struct data_len*dl;
 	char*welcome;gboolean timestamp;
+	const char*user_irc;BOOL user_irc_free;
 };
+#pragma GCC diagnostic pop
 
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan)))
 #define contf_get_textv(pan) (GtkTextView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child1((GtkPaned*)pan))
@@ -1088,16 +1092,16 @@ static gboolean senstopthreadsfunc(gpointer ps){
 static void irc_start(char*psw,char*nkn,struct stk_s*ps){
 	g_idle_add(senstartthreadsfunc,ps);
 	int out;sigwait(&threadset,&out);
-	const char format[]="USER guest tolmoon tolsun :Ronnie Reagan" irc_term;
-	size_t fln=sizeof(format)-1;
+	size_t fln=strlen(ps->user_irc);
 	size_t nln=(size_t)snprintf(nullptr,0,nickname_con,nkn);
 	size_t pln=*psw=='\0'?0:(size_t)snprintf(nullptr,0,password_con,psw);
-	char*i1=(char*)malloc(pln+nln+fln);
+	char*i1=(char*)malloc(pln+nln+fln+irc_term_sz);
 	if(i1!=nullptr){
 		if(*psw!='\0')sprintf(i1,password_con,psw);
 		sprintf(i1+pln,nickname_con,nkn);
-		memcpy(i1+pln+nln,format,fln);
-		send_safe(i1,pln+nln+fln);
+		memcpy(i1+pln+nln,ps->user_irc,fln);
+		memcpy(i1+pln+nln+fln,irc_term,irc_term_sz);
+		send_safe(i1,pln+nln+fln+irc_term_sz);
 		send_safe(sendlist,sizeof(sendlist)-1);
 		//
 		char*buf=(char*)malloc(irc_bsz);int bsz=irc_bsz;
@@ -1612,6 +1616,12 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	if(v!=nullptr)ps->welcome=g_variant_dup_string(v,nullptr);
 	else ps->welcome=nullptr;
 	ps->timestamp=g_variant_dict_contains(options,ps->args[5]);
+	v=g_variant_dict_lookup_value(options,ps->args[6],G_VARIANT_TYPE_STRING);
+	if(v!=nullptr){
+		ps->user_irc=g_variant_dup_string(v,nullptr);
+		ps->user_irc_free=TRUE;
+	}
+	else{ps->user_irc=user_message;ps->user_irc_free=FALSE;}
 	return -1;
 }
 int main (int    argc,
@@ -1629,14 +1639,16 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[0],'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
 		ps.args[1]="nick";
 		g_application_add_main_option((GApplication*)app,ps.args[1],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
-		ps.args[2]="right";
-		g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Right pane size, default 150","WIDTH");
 		ps.args[3]="refresh";
 		g_application_add_main_option((GApplication*)app,ps.args[3],'f',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Refresh channels interval in seconds. Default 60. 0 for no refresh.","SECONDS");
-		ps.args[4]="welcome";
-		g_application_add_main_option((GApplication*)app,ps.args[4],'w',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
+		ps.args[2]="right";
+		g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Right pane size, default 150","WIDTH");
 		ps.args[5]="timestamp";
 		g_application_add_main_option((GApplication*)app,ps.args[5],'t',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Show message timestamp.",nullptr);
+		ps.args[6]="user";
+		g_application_add_main_option((GApplication*)app,ps.args[6],'u',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"User message. Default \"" user_message "\"","STRING");
+		ps.args[4]="welcome";
+		g_application_add_main_option((GApplication*)app,ps.args[4],'w',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
 		ps.path=argv[0];
 		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
@@ -1644,6 +1656,10 @@ int main (int    argc,
 		g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
 		if(ps.nick!=nullptr)g_free(ps.nick);
 		if(ps.welcome!=nullptr)g_free(ps.welcome);
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic ignored "-Wcast-qual"		
+		if(ps.user_irc_free)g_free((gpointer)ps.user_irc);
+		#pragma GCC diagnostic pop
 		g_object_unref (app);
 		if(info_path_name!=nullptr)free(info_path_name);
 	}else puts("openssl error");
