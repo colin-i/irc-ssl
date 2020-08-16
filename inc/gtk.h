@@ -131,6 +131,7 @@ void g_free (gpointer mem);
 guint g_idle_add (GSourceFunc function,gpointer data);
 void g_list_free (GList *list);
 #define g_list_next(list) ((list) ? (((GList *)(list))->next) : nullptr)
+gpointer g_object_ref (gpointer object);
 void g_object_unref (gpointer object);
 gulong g_signal_connect_data (gpointer instance,const gchar *detailed_signal,GCallback c_handler,gpointer data,GClosureNotify destroy_data,GConnectFlags connect_flags);
 void g_signal_handler_block (gpointer instance, gulong handler_id);
@@ -164,6 +165,7 @@ GtkWidget* gtk_combo_box_text_new_with_entry (void);
 void gtk_combo_box_text_remove (GtkComboBoxText *combo_box, gint position);
 void gtk_container_add (GtkContainer *container, GtkWidget *widget);
 GList* gtk_container_get_children (GtkContainer *container);
+void gtk_container_remove (GtkContainer *container, GtkWidget *widget);
 void gtk_container_set_border_width (GtkContainer *container,guint border_width);
 GtkWidget * gtk_dialog_get_content_area (GtkDialog *dialog);
 GtkWidget* gtk_dialog_new_with_buttons (const gchar *title,  GtkWindow *parent, GtkDialogFlags flags, const gchar *first_button_text, ...) __attribute__((__sentinel__));

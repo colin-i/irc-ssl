@@ -110,7 +110,7 @@ struct data_len{
 };
 static long threadid;static sigset_t threadset;
 static GtkWidget*chan_menu;
-static GtkWidget*name_menu;
+static GtkWidget*name_on_menu;static GtkWidget*name_off_menu;
 #define send_prv1 "PRIVMSG "
 #define send_prv2 " :"
 #define home_string "*Home"
@@ -471,7 +471,7 @@ static BOOL name_join_isnew(struct stk_s*ps,char*n){
 		gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,home_page));
 		return FALSE;
 	}
-	GList*list=gtk_container_get_children((GtkContainer*)name_menu);
+	GList*list=gtk_container_get_children((GtkContainer*)name_on_menu);
 	if(list!=nullptr){
 		GList*lst=list;
 		do{
@@ -489,7 +489,7 @@ static BOOL name_join_isnew(struct stk_s*ps,char*n){
 }
 static GtkWidget* name_join_nb(char*t,GtkNotebook*nb){
 	GtkWidget*scrl=container_frame_name();
-	GtkWidget*close;GtkWidget*mn=add_new_tab(scrl,t,&close,nb,name_menu,TRUE);
+	GtkWidget*close;GtkWidget*mn=add_new_tab(scrl,t,&close,nb,name_on_menu,TRUE);
 	g_signal_connect_data (close, "clicked",G_CALLBACK (close_name),mn,nullptr,G_CONNECT_SWAPPED);//not "(GClosureNotify)gtk_widget_destroy" because at restart clear will be trouble
 	return scrl;
 }
@@ -524,7 +524,7 @@ static GtkWidget* page_from_str(char*c,GtkWidget*men){
 	return pan;
 }
 #define chan_pan(c) page_from_str(c,chan_menu)
-#define name_pan(c) page_from_str(c,name_menu)
+#define name_off_pan(c) page_from_str(c,name_off_menu)
 #define name_to_list(c) contf_get_list(chan_pan(c))
 static void chan_change_nr_gain(GtkTreeIter*iter,char*chn,unsigned int nr){
 	GtkTreeIter it=*iter;
@@ -644,6 +644,7 @@ static void pars_part(char*c,GtkNotebook*nb){
 	}while((list=g_list_next(list))!=nullptr);
 	g_list_free(lst);
 }
+#define pars_part_quit_item(lst,it,cn){gtk_list_store_remove(lst,it);chan_change_nr(cn,-1);}
 static void pars_part_quit(char*nk,const char*cn,GtkListStore*lst){
 	GtkTreeIter it;
 	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
@@ -655,10 +656,7 @@ static void pars_part_quit(char*nk,const char*cn,GtkListStore*lst){
 				int a=strcmp(nk,txt);
 				g_free(txt);
 				if(a<=0){
-					if(a==0){
-						gtk_list_store_remove(lst,&it);
-						chan_change_nr(cn,-1);
-					}
+					if(a==0)pars_part_quit_item(lst,&it,cn)
 					break;
 				}
 				if(gtk_tree_model_iter_next( (GtkTreeModel*)lst, &it)==FALSE)break;
@@ -669,10 +667,7 @@ static void pars_part_quit(char*nk,const char*cn,GtkListStore*lst){
 		int a=strcmp(nk,txt+1);
 		g_free(txt);
 		if(a<=0){
-			if(a==0){
-				gtk_list_store_remove(lst,&it);
-				chan_change_nr(cn,-1);
-			}
+			if(a==0)pars_part_quit_item(lst,&it,cn)
 			break;
 		}
 	}while(gtk_tree_model_iter_next( (GtkTreeModel*)lst, &it));
@@ -913,7 +908,7 @@ static void pars_pmsg_chan(char*n,char*c,char*msg,GtkNotebook*nb){
 static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps){
 	BOOL novel=TRUE;
 	GtkNotebook*nb=ps->notebook;
-	GList*list=gtk_container_get_children((GtkContainer*)name_menu);
+	GList*list=gtk_container_get_children((GtkContainer*)name_on_menu);
 	if(list!=nullptr){
 		GList*lst=list;
 		do{
@@ -938,12 +933,31 @@ static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps){
 static void pars_err(char*str,char*msg){
 	const char*er="*Error";
 	GtkWidget*pg=chan_pan(str);
-	if(pg!=nullptr){
+	if(pg!=nullptr){//e.g. ERR_CHANNELISFULL
 		addatchans(er,msg,pg);
 		return;
 	}
-	pg=name_pan(str);
+	pg=name_off_pan(str);
 	if(pg!=nullptr)addatnames(er,msg,pg);
+}
+static void line_switch(char*n,GtkWidget*from,GtkWidget*to,const char*msg){
+	GList*list=gtk_container_get_children((GtkContainer*)from);
+	if(list!=nullptr){
+		GList*lst=list;
+		do{
+			GtkWidget*menu_item=(GtkWidget*)list->data;
+			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
+			if(strcmp(n,d)==0){//there is a conv with this channel nick
+				g_object_ref(menu_item);
+				gtk_container_remove((GtkContainer*)from, menu_item);
+				gtk_container_add((GtkContainer*)to, menu_item);
+				g_object_unref(menu_item);//to 1
+				addatnames("^Info",msg,get_pan_from_menu(menu_item));
+				break;
+			}
+		}while((list=g_list_next(list))!=nullptr);
+		g_list_free(lst);
+	}
 }
 static gboolean incsafe(gpointer ps){
 	addattextview(((struct stk_s*)ps)->dl);
@@ -971,7 +985,7 @@ static gboolean incsafe(gpointer ps){
 		}else if(strcmp(com,"JOIN")==0){
 			int resp=nick_and_chan(a,b,":" channame_scan,nicknm,channm,((struct stk_s*)ps)->nknnow);
 			if(resp==0)pars_join(channm,(struct stk_s*)ps);
-			else if(resp==1)pars_join_user(channm,nicknm);
+			else if(resp==1){pars_join_user(channm,nicknm);line_switch(nicknm,name_off_menu,name_on_menu,"User is online.");}
 		}else if(strcmp(com,"PART")==0){
 			int resp=nick_and_chan(a,b,channame_scan,nicknm,channm,((struct stk_s*)ps)->nknnow);
 			if(resp==0)pars_part(channm,((struct stk_s*)ps)->notebook);
@@ -980,7 +994,10 @@ static gboolean incsafe(gpointer ps){
 			if(sscanf(b,channame_scan " " name_scan,channm,nicknm)==2)
 				pars_part_user(channm,nicknm);
 		}else if(strcmp(com,"QUIT")==0){
-			if(nick_extract(a,nicknm))pars_quit(nicknm);
+			if(nick_extract(a,nicknm)){
+				pars_quit(nicknm);
+				line_switch(nicknm,name_on_menu,name_off_menu,"User quit.");
+			}
 		}else if(strcmp(com,"MODE")==0){
 			char mod[1+3+1];//"limit of three (3) changes per command for modes that take a parameter."
 			if(sscanf(b,channame_scan " %4s " name_scan,channm,mod,nicknm)==3)
@@ -1051,7 +1068,7 @@ static gboolean senstartthreadsfunc(gpointer ps){
 	if(((struct stk_s*)ps)->refresh>0)
 		((struct stk_s*)ps)->refreshid=g_timeout_add(1000*((struct stk_s*)ps)->refresh,refresh_callback,nullptr);
 	//
-	if(start_old_clear(chan_menu,nb)+start_old_clear(name_menu,nb)>0){
+	if(start_old_clear(chan_menu,nb)+start_old_clear(name_on_menu,nb)+start_old_clear(name_off_menu,nb)>0){
 		gtk_widget_hide(gtk_notebook_get_action_widget(nb,GTK_PACK_END));
 		alert_counter=0;
 	}
@@ -1538,9 +1555,14 @@ activate (GtkApplication* app,
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	g_signal_connect_data (org, "button-press-event",G_CALLBACK (prog_menu_popup),menu,nullptr,G_CONNECT_SWAPPED);
 	//
-	menu_item = gtk_menu_item_new_with_label ("Names");
-	name_menu = gtk_menu_new ();
-	gtk_menu_item_set_submenu((GtkMenuItem*)menu_item,name_menu);
+	menu_item = gtk_menu_item_new_with_label ("Names Online");
+	name_on_menu = gtk_menu_new ();
+	gtk_menu_item_set_submenu((GtkMenuItem*)menu_item,name_on_menu);
+	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
+	//
+	menu_item = gtk_menu_item_new_with_label ("Names Offline");
+	name_off_menu = gtk_menu_new ();
+	gtk_menu_item_set_submenu((GtkMenuItem*)menu_item,name_off_menu);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	//
 	show_time=(GtkCheckMenuItem*)gtk_check_menu_item_new_with_label("Show Message Timestamp");
