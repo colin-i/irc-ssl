@@ -77,9 +77,7 @@
 #include "inc/gtk.h"
 #endif
 
-static GtkTextView *text_view;static GtkTextMark *text_mark_end;
-static GtkWidget*home_page;static GtkListStore*channels;
-#define text_mark_atend "a"
+static GtkTextView *text_view;static GtkWidget*home_page;static GtkListStore*channels;
 static SSL *ssl=nullptr;static int plain_socket=-1;
 static int con_th=-1;//static GThread*con_th=nullptr;
 static int portindex;static int portend;
@@ -139,7 +137,6 @@ struct stk_s{
 
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan)))
 #define contf_get_textv(pan) (GtkTextView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child1((GtkPaned*)pan))
-#define textv_get_atend(tv) gtk_text_buffer_get_mark(gtk_text_view_get_buffer(tv),text_mark_atend)
 static void addtimestamp(GtkTextBuffer*text_buffer,GtkTextIter*it){
 	if(gtk_check_menu_item_get_active(show_time)){
 		GDateTime*time_new_now=g_date_time_new_now_local();
@@ -152,48 +149,55 @@ static void addtimestamp(GtkTextBuffer*text_buffer,GtkTextIter*it){
 	}
 }
 static gboolean wait_iter_wrap(gpointer b){
-	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
+	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer ((GtkTextView*)b);
 	GtkTextIter it;
 	gtk_text_buffer_get_end_iter(text_buffer,&it);
 	GdkRectangle rect;
 	GdkRectangle r2;
-	gtk_text_view_get_visible_rect(text_view,&rect);
-	gtk_text_view_get_iter_location(text_view,&it,&r2);
+	gtk_text_view_get_visible_rect((GtkTextView*)b,&rect);
+	gtk_text_view_get_iter_location((GtkTextView*)b,&it,&r2);
 	int y=r2.y-rect.height;
 	if(y>0){
-		GtkAdjustment*a=gtk_scrolled_window_get_vadjustment(gtk_widget_get_parent(text_view));
+		GtkAdjustment*a=gtk_scrolled_window_get_vadjustment((GtkScrolledWindow*)gtk_widget_get_parent((GtkWidget*)b));
 		gtk_adjustment_set_value(a,y);
 	}
 	return FALSE;
 }
-static void addattextview(struct data_len*b){
-	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
-	GtkTextIter it;
-	gtk_text_buffer_get_end_iter(text_buffer,&it);
+static BOOL addattextview_isbottom(GtkTextView*tv,GtkTextBuffer*text_buffer,GtkTextIter*it){
+	gtk_text_buffer_get_end_iter(text_buffer,it);
 	GdkRectangle rect;
 	GdkRectangle r2;
-	gtk_text_view_get_visible_rect(text_view,&rect);
-	gtk_text_view_get_iter_location(text_view,&it,&r2);
-	BOOL scroll=rect.y+rect.height >= r2.y;
+	gtk_text_view_get_visible_rect(tv,&rect);
+	gtk_text_view_get_iter_location(tv,it,&r2);
+	return rect.y+rect.height >= r2.y;
+}
+//iter location is not wraped now
+#define addattextview_scroll(scroll,tv) if(scroll)g_idle_add(wait_iter_wrap,tv)
+static void addattextmain(struct data_len*s){
+	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
+	GtkTextIter it;
+	BOOL b=addattextview_isbottom(text_view,text_buffer,&it);
 	addtimestamp(text_buffer,&it);
-	gtk_text_buffer_insert(text_buffer,&it,b->data,(int)b->len);
-	if(scroll)//iter location is not wraped now
-		g_idle_add(wait_iter_wrap,nullptr);
+	gtk_text_buffer_insert(text_buffer,&it,s->data,(int)s->len);
+	addattextview_scroll(b,text_view);
 }
 static void addattextv(GtkTextView*v,const char*n,const char*msg){
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (v);
-	GtkTextIter it;gtk_text_buffer_get_end_iter(text_buffer,&it);
+	GtkTextIter it;
+	BOOL b=addattextview_isbottom(v,text_buffer,&it);
+	//
 	gtk_text_buffer_insert(text_buffer,&it,n,-1);
 	addtimestamp(text_buffer,&it);
 	gtk_text_buffer_insert(text_buffer,&it,": ",2);
 	gtk_text_buffer_insert(text_buffer,&it,msg,-1);
 	gtk_text_buffer_insert(text_buffer,&it,"\n",1);
-	gtk_text_view_scroll_to_mark (v, textv_get_atend(v), 0., FALSE, 0., 0.);
+	//
+	addattextview_scroll(b,v);
 }
 #define addatchans(n,msg,p) addattextv(contf_get_textv(p),n,msg)
 #define addatnames(n,msg,p) addattextv((GtkTextView*)gtk_bin_get_child((GtkBin*)p),n,msg)
 static gboolean textviewthreadsfunc(gpointer b){
-	addattextview((struct data_len*)b);
+	addattextmain((struct data_len*)b);
 	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
 }
@@ -347,14 +351,6 @@ static GtkWidget*container_frame(int sep,GCallback click,gpointer ps){
 	   * The line wrapping is set to break lines in between words.
 	   */
 	GtkTextView*text = (GtkTextView*)gtk_text_view_new ();
-	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text);
-	  /* The text buffer represents the text being edited */
-	GtkTextIter text_iter_end;
-	gtk_text_buffer_get_end_iter (text_buffer, &text_iter_end);
-	gtk_text_buffer_create_mark (text_buffer,
-	                             text_mark_atend,
-	                             &text_iter_end,
-	                             FALSE);
 	gtk_text_view_set_editable(text, FALSE);
 	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD);
 	  /* Create the scrolled window. Usually nullptr is passed for both parameters so 
@@ -397,13 +393,6 @@ static GtkWidget*container_frame(int sep,GCallback click,gpointer ps){
 }
 static GtkWidget*container_frame_name(){
 	GtkTextView*text = (GtkTextView*)gtk_text_view_new ();
-	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text);
-	GtkTextIter text_iter_end;
-	gtk_text_buffer_get_end_iter (text_buffer, &text_iter_end);
-	gtk_text_buffer_create_mark (text_buffer,
-	                             text_mark_atend,
-	                             &text_iter_end,
-	                             FALSE);
 	gtk_text_view_set_editable(text, FALSE);
 	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD);
 	GtkWidget *scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
@@ -985,7 +974,7 @@ static void line_switch(char*n,GtkWidget*from,GtkWidget*to,const char*msg){
 	}
 }
 static gboolean incsafe(gpointer ps){
-	addattextview(((struct stk_s*)ps)->dl);
+	addattextmain(((struct stk_s*)ps)->dl);
 	#pragma GCC diagnostic push
 	#pragma GCC diagnostic ignored "-Wcast-qual"
 	char*a=(char*)((struct stk_s*)ps)->dl->data;
@@ -1548,7 +1537,6 @@ activate (GtkApplication* app,
 	//
 	home_page=container_frame(ps->separator,G_CALLBACK(chan_join),nullptr);
 	text_view=contf_get_textv(home_page);
-	text_mark_end=textv_get_atend(text_view);
 	channels=contf_get_list(home_page);
 	//
 	ps->notebook = (GtkNotebook*)gtk_notebook_new ();
