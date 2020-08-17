@@ -151,31 +151,34 @@ static void addtimestamp(GtkTextBuffer*text_buffer,GtkTextIter*it){
 		}
 	}
 }
-static BOOL insert_and_scroll(){
+static gboolean wait_iter_wrap(gpointer b){
+	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
+	GtkTextIter it;
+	gtk_text_buffer_get_end_iter(text_buffer,&it);
 	GdkRectangle rect;
 	GdkRectangle r2;
-	GtkTextIter it;
-	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
-	gtk_text_buffer_get_iter_at_mark(text_buffer,&it,text_mark_end);
 	gtk_text_view_get_visible_rect(text_view,&rect);
 	gtk_text_view_get_iter_location(text_view,&it,&r2);
-	return rect.y+rect.height >= r2.y;
+	int y=r2.y-rect.height;
+	if(y>0){
+		GtkAdjustment*a=gtk_scrolled_window_get_vadjustment(gtk_widget_get_parent(text_view));
+		gtk_adjustment_set_value(a,y);
+	}
+	return FALSE;
 }
 static void addattextview(struct data_len*b){
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
 	GtkTextIter it;
 	gtk_text_buffer_get_end_iter(text_buffer,&it);
-	BOOL toforce=
-	insert_and_scroll();
+	GdkRectangle rect;
+	GdkRectangle r2;
+	gtk_text_view_get_visible_rect(text_view,&rect);
+	gtk_text_view_get_iter_location(text_view,&it,&r2);
+	BOOL scroll=rect.y+rect.height >= r2.y;
 	addtimestamp(text_buffer,&it);
 	gtk_text_buffer_insert(text_buffer,&it,b->data,(int)b->len);
-	//if(toforce)
-	//do{
-	//gtk_text_view_get_iter_at_position (GtkTextView *text_view,&iter,nullptr,0,0
-		gtk_text_view_scroll_mark_onscreen(text_view, text_mark_end);
-		GtkAdjustment*a=gtk_scrolled_window_get_vadjustment(gtk_widget_get_parent(text_view));
-	gtk_adjustment_set_value(a,0);
-	//}while(insert_and_scroll()==FALSE);
+	if(scroll)//iter location is not wraped now
+		g_idle_add(wait_iter_wrap,nullptr);
 }
 static void addattextv(GtkTextView*v,const char*n,const char*msg){
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (v);
