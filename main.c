@@ -136,8 +136,11 @@ struct stk_s{
 };
 #pragma GCC diagnostic pop
 #define con_nr_1 "SSL or Unencrypted"
-#define con_nr_2 "SSL"
-#define con_nr_3 "Unencrypted"
+#define con_nr_2 "Unencrypted or SSL"
+#define con_nr_3 "SSL"
+#define con_nr_4 "Unencrypted"
+#define con_nr_nrs "1-4"
+#define con_nr_max 4
 static GSList*con_group;
 
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan)))
@@ -1083,59 +1086,64 @@ static gboolean senstopthreadsfunc(gpointer ps){
 	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
 }
-static void irc_start(char*psw,char*nkn,struct stk_s*ps){
+static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 	g_idle_add(senstartthreadsfunc,ps);
 	int out;sigwait(&threadset,&out);
 	size_t fln=strlen(ps->user_irc);
 	size_t nln=(size_t)snprintf(nullptr,0,nickname_con,nkn);
 	size_t pln=*psw=='\0'?0:(size_t)snprintf(nullptr,0,password_con,psw);
 	char*i1=(char*)malloc(pln+nln+fln+irc_term_sz);
+	BOOL out_v=TRUE;
 	if(i1!=nullptr){
 		if(*psw!='\0')sprintf(i1,password_con,psw);
 		sprintf(i1+pln,nickname_con,nkn);
 		memcpy(i1+pln+nln,ps->user_irc,fln);
 		memcpy(i1+pln+nln+fln,irc_term,irc_term_sz);
 		send_safe(i1,pln+nln+fln+irc_term_sz);
+		free(i1);
 		send_safe(sendlist,sizeof(sendlist)-1);
 		//
 		char*buf=(char*)malloc(irc_bsz);int bsz=irc_bsz;
 		if(buf!=nullptr){
-			for(;;){
-				int sz=recv_data(buf,bsz);
-				if(sz==bsz&&buf[sz-1]!='\n'){
-					void*re;
-					do{
-						re=realloc(buf,(size_t)bsz+irc_bsz);
-						if(re==nullptr)break;
-						buf=(char*)re;
-						sz+=recv_data(buf+bsz,irc_bsz);
-						bsz+=irc_bsz;
-					}while(sz==bsz&&buf[sz-1]!='\n');
-					if(re==nullptr)break;
-				}
-				if(sz<=0)break;
-				char*b=buf;
+			int sz=recv_data(buf,bsz);
+			if(sz>-1){
 				for(;;){
-					char*n=(char*)memchr(b,'\n',(size_t)sz);
-					if(n!=nullptr){
-						size_t s=(size_t)(n+1-b);
-						if(s>4&&memcmp(b,"PING",4)==0){
-							main_text(b,s);
-							b[1]='O';
-							send_safe(b,s);
-						}else if(*b==':')incomings(b,s,ps);
-						b=n+1;sz-=s;
-						continue;
-					}else if(sz>0)main_text(b,(size_t)sz);
-					break;
+					if(sz==bsz&&buf[sz-1]!='\n'){
+						void*re;
+						do{
+							re=realloc(buf,(size_t)bsz+irc_bsz);
+							if(re==nullptr)break;
+							buf=(char*)re;
+							sz+=recv_data(buf+bsz,irc_bsz);
+							bsz+=irc_bsz;
+						}while(sz==bsz&&buf[sz-1]!='\n');
+						if(re==nullptr)break;
+					}
+					if(sz<=0)break;
+					char*b=buf;
+					for(;;){
+						char*n=(char*)memchr(b,'\n',(size_t)sz);
+						if(n!=nullptr){
+							size_t s=(size_t)(n+1-b);
+							if(s>4&&memcmp(b,"PING",4)==0){
+								main_text(b,s);
+								b[1]='O';
+								send_safe(b,s);
+							}else if(*b==':')incomings(b,s,ps);
+							b=n+1;sz-=s;
+							continue;
+						}else if(sz>0)main_text(b,(size_t)sz);
+						break;
+					}
+					sz=recv_data(buf,bsz);
 				}
-			}
+			}else out_v=FALSE;
 			free(buf);
 		}
-		free(i1);
 	}
 	g_idle_add(senstopthreadsfunc,ps);
 	sigwait(&threadset,&out);
+	return out_v;
 }
 static BOOL con_ssl(int server,char*psw,char*nkn,struct stk_s*ps){
 	const SSL_METHOD *method;
@@ -1152,8 +1160,7 @@ static BOOL con_ssl(int server,char*psw,char*nkn,struct stk_s*ps){
 				//is waiting until timeout if not SSL// || printf("No SSL")||1
 				if ( SSL_connect(ssl) == 1){
 					main_text_s("Successfully enabled SSL/TLS session.\n");
-					irc_start(psw,nkn,ps);
-					r=TRUE;
+					r=irc_start(psw,nkn,ps);
 				}else r=FALSE;
 			}else{main_text_s("Error: SSL_set_fd failed.\n");r=FALSE;}
 			SSL_free(ssl);ssl=nullptr;
@@ -1162,17 +1169,18 @@ static BOOL con_ssl(int server,char*psw,char*nkn,struct stk_s*ps){
 	}else return FALSE;
 	return r;
 }
-static void con_plain(int server,char*psw,char*nkn,struct stk_s*ps){
+static BOOL con_plain(int server,char*psw,char*nkn,struct stk_s*ps){
 	main_text_s(ssl_con_plain);
 	plain_socket=server;
-	irc_start(psw,nkn,ps);
+	BOOL b=irc_start(psw,nkn,ps);
 	plain_socket=-1;
+	return b;
 }
 static void proced(struct stk_s*ps){
 	char hostname[hostname_sz];
 	int sens;char psw[password_sz];char nkn[namenul_sz];
 	if(parse_host_str(ps->text,hostname,psw,nkn,&sens,ps)) {
-		GSList*lst=con_group;unsigned char n=3;
+		GSList*lst=con_group;unsigned char n=con_nr_max;
 		for(;;){
 			if(gtk_check_menu_item_get_active((GtkCheckMenuItem*)lst->data))break;
 			lst=lst->next;n--;
@@ -1186,16 +1194,20 @@ static void proced(struct stk_s*ps){
 					if(r==FALSE){
 						close(server);
 						server = create_socket(hostname,portindex);
-						if(server != -1){
-							con_plain(server,psw,nkn,ps);r=TRUE;
-						}
+						if(server != -1)
+							r=con_plain(server,psw,nkn,ps);
 					}
-				}else if(n==2)r=con_ssl(server,psw,nkn,ps);
-				else{//3
-					con_plain(server,psw,nkn,ps);
-					r=TRUE;
-					//if ssl is recv=0 after first send,in irc_start
-				}
+				}else if(n==2){
+					r=con_plain(server,psw,nkn,ps);
+					if(r==FALSE){
+						close(server);
+						server = create_socket(hostname,portindex);
+						if(server != -1)
+							r=con_ssl(server,psw,nkn,ps);
+					}
+				}else if(n==3)r=con_ssl(server,psw,nkn,ps);
+				else
+					r=con_plain(server,psw,nkn,ps);
 				close(server);
 				if(r)break;
 			}
@@ -1562,6 +1574,7 @@ activate (GtkApplication* app,
 	menu_con_add_item(1,con_nr_1,menu_item,con_group,menucon,ps);//0x31
 	menu_con_add_item(2,con_nr_2,menu_item,con_group,menucon,ps);
 	menu_con_add_item(3,con_nr_3,menu_item,con_group,menucon,ps);
+	menu_con_add_item(con_nr_max,con_nr_4,menu_item,con_group,menucon,ps);
 	gtk_menu_item_set_submenu((GtkMenuItem*)menu_con,(GtkWidget*)menucon);
 	gtk_menu_shell_append ((GtkMenuShell*)menu,menu_con);
 	gtk_widget_show_all(menu_con);
@@ -1589,8 +1602,8 @@ activate (GtkApplication* app,
 static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	gchar*result;int nr;
 	if (g_variant_dict_lookup (options,ps->args[7], "i", &nr)){//if 0 this is false here
-		if(nr<1||nr>3){
-			printf("%s must be from 1-3 interval, \"%i\" given.\n",ps->args[7],nr);
+		if(nr<1||nr>con_nr_max){
+			printf("%s must be from " con_nr_nrs " interval, \"%i\" given.\n",ps->args[7],nr);
 			return 0;
 		}
 		ps->con_type=(unsigned char)nr;
@@ -1643,7 +1656,7 @@ int main (int    argc,
 		ps.args[0]="dimensions";
 		g_application_add_main_option((GApplication*)app,ps.args[0],'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
 		ps.args[7]="connection_number";
-		g_application_add_main_option((GApplication*)app,ps.args[7],'c',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ". Default value is 1.","1-3");
+		g_application_add_main_option((GApplication*)app,ps.args[7],'c',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ", 4=" con_nr_4 ". Default value is 1.",con_nr_nrs);
 		ps.args[1]="nick";
 		g_application_add_main_option((GApplication*)app,ps.args[1],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
 		ps.args[3]="refresh";
