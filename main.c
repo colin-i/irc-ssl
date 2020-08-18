@@ -82,7 +82,7 @@ static SSL *ssl=nullptr;static int plain_socket=-1;
 static int con_th=-1;//static GThread*con_th=nullptr;
 static int portindex;static int portend;
 #define ssl_con_try "Trying with SSL.\n"
-#define ssl_con_no "Trying unencrypted.\n"
+#define ssl_con_plain "Trying unencrypted.\n"
 #define irc_bsz 64
 //"510"
 #define irc_term "\r\n"
@@ -119,10 +119,10 @@ enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };//connections org,channels
-#pragma GCC diagnostic push//is from BOOL+3=4
+#pragma GCC diagnostic push//is from BOOL+char+2=4
 #pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
-	const char*args[7];
+	const char*args[8];
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;char*nknnow;
 	int separator;
@@ -132,8 +132,13 @@ struct stk_s{
 	struct data_len*dl;
 	char*welcome;gboolean timestamp;
 	const char*user_irc;BOOL user_irc_free;
+	unsigned char con_type;
 };
 #pragma GCC diagnostic pop
+#define con_nr_1 "SSL or Unencrypted"
+#define con_nr_2 "SSL"
+#define con_nr_3 "Unencrypted"
+static GSList*con_group;
 
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan)))
 #define contf_get_textv(pan) (GtkTextView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child1((GtkPaned*)pan))
@@ -1132,88 +1137,70 @@ static void irc_start(char*psw,char*nkn,struct stk_s*ps){
 	g_idle_add(senstopthreadsfunc,ps);
 	sigwait(&threadset,&out);
 }
-static void proced(struct stk_s*ps){
+static BOOL con_ssl(int server,char*psw,char*nkn,struct stk_s*ps){
 	const SSL_METHOD *method;
 	SSL_CTX *ctx;
-	int server;
-	  /* ---------------------------------------------------------- *
-	   * Set SSLv2 client hello, also announce SSLv3 and TLSv1      *
-	   * ---------------------------------------------------------- */
-	method = SSLv23_client_method();
-	  /* ---------------------------------------------------------- *
-	   * Try to create a new SSL context                            *
-	   * ---------------------------------------------------------- */
+	BOOL r;
+	main_text_s(ssl_con_try);
+	method = SSLv23_client_method();//Set SSLv2 client hello, also announce SSLv3 and TLSv1
 	ctx = SSL_CTX_new(method);
 	if ( ctx != nullptr){
-		  /* ---------------------------------------------------------- *
-		   * Disabling SSLv2 will leave v3 and TSLv1 for negotiation    *
-		   * ---------------------------------------------------------- */
-		SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2);
-		  /* ---------------------------------------------------------- *
-		   * Create new SSL connection state object                     *
-		   * ---------------------------------------------------------- */
-		SSL*withssl = SSL_new(ctx);
-		if(withssl!=nullptr){
-			char hostname[hostname_sz];
-			int sens;char psw[password_sz];char nkn[namenul_sz];
-			if(parse_host_str(ps->text,hostname,psw,nkn,&sens,ps)) {
-				for(;;){
-					ssl=withssl;				
-					  /* ---------------------------------------------------------- *
-					   * Make the underlying TCP socket connection                  *
-					   * ---------------------------------------------------------- */
-					server = create_socket(hostname,portindex);
-					if(server != -1){
-						  /* ---------------------------------------------------------- *
-						   * Attach the SSL session to the socket descriptor            *
-						   * ---------------------------------------------------------- */
-						if(SSL_set_fd(withssl, server)==1){
-							  /* ---------------------------------------------------------- *
-							   * Try to SSL-connect here, returns 1 for success             *
-							   * ---------------------------------------------------------- */
-							main_text_s(ssl_con_try);
-							//is waiting until timeout if not SSL// || printf("No SSL")||1
-							if ( SSL_connect(withssl) == 1){//this at reconnects, is not ready for ssl conect,disc,plain connect
-								main_text_s("Successfully enabled SSL/TLS session.\n");
-								//cert = SSL_get_peer_certificate(ssl);
-								//certname = X509_NAME_new();
-								//certname = X509_get_subject_name(cert);
-								//X509_NAME_print_ex(stdout,/*outbio ,*/ certname, 0, 0);
-								  /* ---------------------------------------------------------- *
-								   * Start                                                      *
-								   * ---------------------------------------------------------- */
-								irc_start(psw,nkn,ps);
-								close(server);break;
-							}else{
-								ssl=nullptr;
-								//main_text_s("Error: Could not build a SSL session.\n");
-								main_text_s(ssl_con_no);
-								plain_socket=create_socket(hostname,portindex);
-								if(plain_socket!=-1){
-									close(server);
-									irc_start(psw,nkn,ps);
-									close(plain_socket);plain_socket=-1;
-									break;
-								}
-							}
-						}else main_text_s("Error: SSL_set_fd failed.\n");
-						close(server);
-					}
-					if(portindex==portend)break;
-					portindex+=sens;
-				}
-			}else main_text_s("Error: Wrong input. For format, press the vertical ellipsis button and then Help.\n");
-			main_text_s("Disconnected.\n");
-  			/* ---------------------------------------------------------- *
-  			* Free the structures we don't need anymore, and close       *
-  			* -----------------------------------------------------------*/
-			//X509_free(cert);
-			SSL_free(withssl);ssl=nullptr;
-		}
+		SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2);//Disabling SSLv2 will leave v3 and TSLv1 for negotiation
+		ssl = SSL_new(ctx);
+		if(ssl!=nullptr){
+			if(SSL_set_fd(ssl, server)==1){
+				//is waiting until timeout if not SSL// || printf("No SSL")||1
+				if ( SSL_connect(ssl) == 1){
+					main_text_s("Successfully enabled SSL/TLS session.\n");
+					irc_start(psw,nkn,ps);
+					r=TRUE;
+				}else r=FALSE;
+			}else{main_text_s("Error: SSL_set_fd failed.\n");r=FALSE;}
+			SSL_free(ssl);ssl=nullptr;
+		}else r=FALSE;
 		SSL_CTX_free(ctx);
-	}
+	}else return FALSE;
+	return r;
 }
-	
+static void con_plain(int server,char*psw,char*nkn,struct stk_s*ps){
+	main_text_s(ssl_con_plain);
+	plain_socket=server;
+	irc_start(psw,nkn,ps);
+	plain_socket=-1;
+}
+static void proced(struct stk_s*ps){
+	char hostname[hostname_sz];
+	int sens;char psw[password_sz];char nkn[namenul_sz];
+	if(parse_host_str(ps->text,hostname,psw,nkn,&sens,ps)) {
+		GSList*lst=con_group;unsigned char n=3;
+		for(;;){
+			if(gtk_check_menu_item_get_active((GtkCheckMenuItem*)lst->data))break;
+			lst=lst->next;n--;
+		}
+		for(;;){
+			int server = create_socket(hostname,portindex);
+			if(server != -1){
+				int r;
+				if(n==1){
+					r=con_ssl(server,psw,nkn,ps);
+					if(r==FALSE){
+						close(server);
+						server = create_socket(hostname,portindex);
+						if(server != -1){
+							con_plain(server,psw,nkn,ps);r=TRUE;
+						}
+					}
+				}else if(n==2)r=con_ssl(server,psw,nkn,ps);
+				else{con_plain(server,psw,nkn,ps);r=TRUE;}
+				close(server);
+				if(r)break;
+			}
+			if(portindex==portend)break;
+			portindex+=sens;
+		}
+		main_text_s("Disconnected.\n");
+	}else main_text_s("Error: Wrong input. For format, press the vertical ellipsis button and then Help.\n");
+}
 static gpointer worker (gpointer ps)
 {
 	//int s = 
@@ -1223,7 +1210,6 @@ static gpointer worker (gpointer ps)
 	con_th=-1;//nullptr;
 	return nullptr;
 }
-
 static void save_combo_box(GtkTreeModel*list){
 //can be from add, from remove,from test org con menu nothing
 	GtkTreeIter it;
@@ -1504,6 +1490,11 @@ static void send_activate(GtkEntry*entry,struct stk_s*ps){
 	}
 	gtk_entry_buffer_delete_text(t,0,-1);
 }
+#define menu_con_add_item(n,s,a,b,c,d)\
+a = gtk_radio_menu_item_new_with_label (b, s);\
+b = gtk_radio_menu_item_get_group((GtkRadioMenuItem*)a);\
+if (d->con_type==n)gtk_check_menu_item_set_active ((GtkCheckMenuItem*)a, TRUE);\
+gtk_menu_shell_append (c,a)
 static void
 activate (GtkApplication* app,
           struct stk_s*ps)
@@ -1561,6 +1552,16 @@ activate (GtkApplication* app,
 	if(ps->timestamp)gtk_check_menu_item_set_active(show_time,TRUE);
 	gtk_menu_shell_append ((GtkMenuShell*)menu,(GtkWidget*)show_time);gtk_widget_show((GtkWidget*)show_time);
 	//
+	GtkWidget*menu_con=gtk_menu_item_new_with_label("Connection Type");
+	GtkMenuShell*menucon=(GtkMenuShell*)gtk_menu_new();
+	con_group=nullptr;
+	menu_con_add_item(1,con_nr_1,menu_item,con_group,menucon,ps);//0x31
+	menu_con_add_item(2,con_nr_2,menu_item,con_group,menucon,ps);
+	menu_con_add_item(3,con_nr_3,menu_item,con_group,menucon,ps);
+	gtk_menu_item_set_submenu((GtkMenuItem*)menu_con,(GtkWidget*)menucon);
+	gtk_menu_shell_append ((GtkMenuShell*)menu,menu_con);
+	gtk_widget_show_all(menu_con);
+	//
 	g_signal_connect_data (org, "button-press-event",G_CALLBACK (prog_menu_popup),menu,nullptr,G_CONNECT_SWAPPED);
 	//
 	ps->sen_entry=gtk_entry_new();
@@ -1582,7 +1583,15 @@ activate (GtkApplication* app,
 	g_signal_connect_data (ps->notebook, "switch-page",G_CALLBACK (nb_switch_page),ps->sen_entry,nullptr,(GConnectFlags)0);//this,before show,was critical;
 }
 static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
-	gchar*result;
+	gchar*result;int nr;
+	if (g_variant_dict_lookup (options,ps->args[7], "i", &nr)){//if 0 this is false here
+		if(nr<1||nr>3){
+			printf("%s must be from 1-3 interval, \"%i\" given.\n",ps->args[7],nr);
+			return 0;
+		}
+		ps->con_type=(unsigned char)nr;
+	}else ps->con_type=1;
+	//
 	if (g_variant_dict_lookup (options, ps->args[0], "s", &result)){//missing argument is not reaching here
 		char*b=strchr(result,'x');
 		if(b!=nullptr){*b='\0';b++;}
@@ -1590,28 +1599,30 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		ps->dim[1]=b!=nullptr?atoi(b):ps->dim[0];
 		g_free(result);
 	}else ps->dim[0]=-1;//this is default at gtk
+	//
 	GVariant*v=g_variant_dict_lookup_value(options,ps->args[1],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr){
 		ps->nick=g_variant_dup_string(v,nullptr);//get is not the same pointer as argv[n],is always utf-8
 	}else ps->nick=nullptr;
-	if (g_variant_dict_lookup (options,ps->args[2], "s", &result)){
-		ps->separator=atoi(result);
-		g_free(result);
-	}else ps->separator=150;
-	if (g_variant_dict_lookup (options,ps->args[3], "s", &result)){
-		ps->refresh=(unsigned int)atoi(result);
-		g_free(result);
-	}else ps->refresh=60;
+	//
+	if (g_variant_dict_lookup (options,ps->args[2], "i", &ps->separator)==FALSE)
+		ps->separator=150;
+	//
+	if (g_variant_dict_lookup (options,ps->args[3], "i", &ps->refresh)==FALSE)
+		ps->refresh=60;
+	//
 	v=g_variant_dict_lookup_value(options,ps->args[4],G_VARIANT_TYPE_STRING);
-	if(v!=nullptr)ps->welcome=g_variant_dup_string(v,nullptr);
+	if(v!=nullptr)
+		ps->welcome=g_variant_dup_string(v,nullptr);
 	else ps->welcome=nullptr;
+	//
 	ps->timestamp=g_variant_dict_contains(options,ps->args[5]);
+	//
 	v=g_variant_dict_lookup_value(options,ps->args[6],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr){
 		ps->user_irc=g_variant_dup_string(v,nullptr);
 		ps->user_irc_free=TRUE;
-	}
-	else{ps->user_irc=user_message;ps->user_irc_free=FALSE;}
+	}else{ps->user_irc=user_message;ps->user_irc_free=FALSE;}
 	return -1;
 }
 int main (int    argc,
@@ -1627,12 +1638,14 @@ int main (int    argc,
 		//if(app!=nullptr){
 		ps.args[0]="dimensions";
 		g_application_add_main_option((GApplication*)app,ps.args[0],'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
+		ps.args[7]="connection_number";
+		g_application_add_main_option((GApplication*)app,ps.args[7],'c',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ". Default value is 1.","1-3");
 		ps.args[1]="nick";
 		g_application_add_main_option((GApplication*)app,ps.args[1],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
 		ps.args[3]="refresh";
-		g_application_add_main_option((GApplication*)app,ps.args[3],'f',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Refresh channels interval in seconds. Default 60. 0 for no refresh.","SECONDS");
+		g_application_add_main_option((GApplication*)app,ps.args[3],'f',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Refresh channels interval in seconds. Default 60. 0 for no refresh.","SECONDS");
 		ps.args[2]="right";
-		g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Right pane size, default 150","WIDTH");
+		g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Right pane size, default 150","WIDTH");
 		ps.args[5]="timestamp";
 		g_application_add_main_option((GApplication*)app,ps.args[5],'t',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Show message timestamp.",nullptr);
 		ps.args[6]="user";

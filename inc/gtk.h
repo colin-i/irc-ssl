@@ -34,6 +34,7 @@ typedef void GtkMenuItem;
 typedef void GtkMenuShell;
 typedef void GtkNotebook;
 typedef void GtkPaned;
+typedef void GtkRadioMenuItem;
 typedef void GtkScrolledWindow;
 typedef void GtkTextBuffer;
 typedef void GtkTextMark;
@@ -53,7 +54,7 @@ typedef enum{G_APPLICATION_FLAGS_NONE}
  GApplicationFlags;
 typedef enum{G_CONNECT_SWAPPED = 1 << 1}
 GConnectFlags;//_BEFORE G_CONNECT_AFTER = 1 << 0,
-typedef enum{  G_OPTION_ARG_NONE,  G_OPTION_ARG_STRING}//,  G_OPTION_ARG_INT,  G_OPTION_ARG_CALLBACK,  G_OPTION_ARG_FILENAME,  G_OPTION_ARG_STRING_ARRAY,  G_OPTION_ARG_FILENAME_ARRAY,  G_OPTION_ARG_DOUBLE,  G_OPTION_ARG_INT64
+typedef enum{  G_OPTION_ARG_NONE,  G_OPTION_ARG_STRING,  G_OPTION_ARG_INT}//,  G_OPTION_ARG_CALLBACK,  G_OPTION_ARG_FILENAME,  G_OPTION_ARG_STRING_ARRAY,  G_OPTION_ARG_FILENAME_ARRAY,  G_OPTION_ARG_DOUBLE,  G_OPTION_ARG_INT64
  GOptionArg;
 typedef enum{G_OPTION_FLAG_IN_MAIN = 1 << 1}//  G_OPTION_FLAG_NONE = 0,  G_OPTION_FLAG_HIDDEN = 1 << 0,
  GOptionFlags;//,  G_OPTION_FLAG_REVERSE = 1 << 2,  G_OPTION_FLAG_NO_ARG = 1 << 3,  G_OPTION_FLAG_FILENAME = 1 << 4,  G_OPTION_FLAG_OPTIONAL_ARG = 1 << 5,  G_OPTION_FLAG_NOALIAS = 1 << 6
@@ -78,6 +79,12 @@ struct _GList
   gpointer data;
   GList *next;
   GList *prev;
+};
+typedef struct _GSList GSList;
+struct _GSList
+{
+  gpointer data;
+  GSList *next;
 };
 typedef struct {
     int x, y;
@@ -223,6 +230,8 @@ GtkWidget *gtk_paned_get_child2 (GtkPaned *paned);
 GtkWidget * gtk_paned_new (GtkOrientation orientation);
 void gtk_paned_pack1 (GtkPaned *paned, GtkWidget *child, gboolean resize, gboolean shrink);
 void gtk_paned_pack2 (GtkPaned *paned, GtkWidget *child, gboolean resize, gboolean shrink);
+GSList* gtk_radio_menu_item_get_group (GtkRadioMenuItem *radio_menu_item);
+GtkWidget* gtk_radio_menu_item_new_with_label (GSList *group, const gchar *label);
 GtkAdjustment* gtk_scrolled_window_get_vadjustment (GtkScrolledWindow *scrolled_window);
 void gtk_scrolled_window_set_policy (GtkScrolledWindow *scrolled_window,GtkPolicyType hscrollbar_policy,GtkPolicyType vscrollbar_policy);
 GtkWidget* gtk_scrolled_window_new (GtkAdjustment *hadjustment,GtkAdjustment *vadjustment);
