@@ -1104,7 +1104,7 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 		char*buf=(char*)malloc(irc_bsz);int bsz=irc_bsz;
 		if(buf!=nullptr){
 			int sz=recv_data(buf,bsz);
-			if(sz>-1){
+			if(sz>0){//'the traditional "end-of-file" return'
 				send_safe(sendlist,sizeof(sendlist)-1);
 				for(;;){
 					if(sz==bsz&&buf[sz-1]!='\n'){
