@@ -1101,12 +1101,11 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 		memcpy(i1+pln+nln+fln,irc_term,irc_term_sz);
 		send_safe(i1,pln+nln+fln+irc_term_sz);
 		free(i1);
-		send_safe(sendlist,sizeof(sendlist)-1);
-		//
 		char*buf=(char*)malloc(irc_bsz);int bsz=irc_bsz;
 		if(buf!=nullptr){
 			int sz=recv_data(buf,bsz);
 			if(sz>-1){
+				send_safe(sendlist,sizeof(sendlist)-1);
 				for(;;){
 					if(sz==bsz&&buf[sz-1]!='\n'){
 						void*re;
