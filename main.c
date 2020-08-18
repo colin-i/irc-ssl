@@ -1191,7 +1191,11 @@ static void proced(struct stk_s*ps){
 						}
 					}
 				}else if(n==2)r=con_ssl(server,psw,nkn,ps);
-				else{con_plain(server,psw,nkn,ps);r=TRUE;}
+				else{//3
+					con_plain(server,psw,nkn,ps);
+					r=TRUE;
+					//if ssl is recv=0 after first send,in irc_start
+				}
 				close(server);
 				if(r)break;
 			}
