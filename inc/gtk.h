@@ -70,7 +70,7 @@ typedef enum{  GTK_RELIEF_NORMAL,  GTK_RELIEF_HALF,  GTK_RELIEF_NONE}
  GtkReliefStyle;
 typedef enum{  GTK_RESPONSE_NONE = -1}
  GtkResponseType;
-typedef enum{  GTK_WRAP_NONE,  GTK_WRAP_CHAR,  GTK_WRAP_WORD}//,  GTK_WRAP_WORD_CHAR
+typedef enum{  GTK_WRAP_NONE,  GTK_WRAP_CHAR,  GTK_WRAP_WORD,  GTK_WRAP_WORD_CHAR}
  GtkWrapMode;
 typedef struct _GList GList;
 struct _GList

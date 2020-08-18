@@ -352,7 +352,7 @@ static GtkWidget*container_frame(int sep,GCallback click,gpointer ps){
 	   */
 	GtkTextView*text = (GtkTextView*)gtk_text_view_new ();
 	gtk_text_view_set_editable(text, FALSE);
-	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD);
+	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD_CHAR);
 	  /* Create the scrolled window. Usually nullptr is passed for both parameters so 
 	   * that it creates the horizontal/vertical adjustments automatically. Setting 
 	   * the scrollbar policy to automatic allows the scrollbars to only show up 
@@ -394,7 +394,7 @@ static GtkWidget*container_frame(int sep,GCallback click,gpointer ps){
 static GtkWidget*container_frame_name(){
 	GtkTextView*text = (GtkTextView*)gtk_text_view_new ();
 	gtk_text_view_set_editable(text, FALSE);
-	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD);
+	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD_CHAR);
 	GtkWidget *scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
 	gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window,
 	                                  GTK_POLICY_NEVER,
