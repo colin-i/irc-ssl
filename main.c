@@ -1106,7 +1106,7 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 			int sz=recv_data(buf,bsz);
 			if(sz>0){//'the traditional "end-of-file" return'
 				send_safe(sendlist,sizeof(sendlist)-1);
-				for(;;){
+				do{
 					if(sz==bsz&&buf[sz-1]!='\n'){
 						void*re;
 						do{
@@ -1134,8 +1134,7 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 						break;
 					}
 					sz=recv_data(buf,bsz);
-					if(sz<=0)break;
-				}
+				}while(sz>0);
 			}else out_v=FALSE;
 			free(buf);
 		}
