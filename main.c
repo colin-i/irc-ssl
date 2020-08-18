@@ -346,29 +346,21 @@ static void pars_chan(char*chan,unsigned int nr){
 	gtk_list_store_append(channels,&it);
 	pars_chan_end(&it,chan,nr);
 }
-static GtkWidget*container_frame(int sep,GCallback click,gpointer ps){
-	  /* Text view is a widget in which can display the text buffer.
-	   * The line wrapping is set to break lines in between words.
-	   */
+static GtkWidget*container_frame_name(){
 	GtkTextView*text = (GtkTextView*)gtk_text_view_new ();
 	gtk_text_view_set_editable(text, FALSE);
 	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD_CHAR);
-	  /* Create the scrolled window. Usually nullptr is passed for both parameters so 
-	   * that it creates the horizontal/vertical adjustments automatically. Setting 
-	   * the scrollbar policy to automatic allows the scrollbars to only show up 
-	   * when needed. 
-	   */
 	GtkWidget *scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
 	gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window,
 	                                  GTK_POLICY_NEVER,
 	                                  GTK_POLICY_AUTOMATIC);
-	  /* The function directly below is used to add children to the scrolled window 
-	   * with scrolling capabilities (e.g text_view), otherwise, 
-	   * gtk_scrolled_window_add_with_viewport() would have been used
-	   */
 	gtk_container_add ((GtkContainer*) scrolled_window,
 	                                       (GtkWidget*) text);
 	gtk_container_set_border_width ((GtkContainer*)scrolled_window, 5);
+	return scrolled_window;
+}
+static GtkWidget*container_frame(int sep,GCallback click,gpointer ps){
+	GtkWidget*scrolled_window=container_frame_name();
 	//
 	GtkWidget *tree=gtk_tree_view_new();
 	GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
@@ -390,19 +382,6 @@ static GtkWidget*container_frame(int sep,GCallback click,gpointer ps){
 	gtk_paned_pack2((GtkPaned*)pan,scrolled_right,FALSE,TRUE);
 	gtk_widget_set_size_request (scrolled_right, sep, -1);
 	return pan;
-}
-static GtkWidget*container_frame_name(){
-	GtkTextView*text = (GtkTextView*)gtk_text_view_new ();
-	gtk_text_view_set_editable(text, FALSE);
-	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD_CHAR);
-	GtkWidget *scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
-	gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window,
-	                                  GTK_POLICY_NEVER,
-	                                  GTK_POLICY_AUTOMATIC);
-	gtk_container_add ((GtkContainer*) scrolled_window,
-	                                       (GtkWidget*) text);
-	gtk_container_set_border_width ((GtkContainer*)scrolled_window, 5);
-	return scrolled_window;
 }
 #define get_pan_from_menu(x) gtk_label_get_mnemonic_widget((GtkLabel*)gtk_bin_get_child ((GtkBin*)x))
 static void chan_popup(GtkWidget*menuitem,GtkNotebook*nb){
