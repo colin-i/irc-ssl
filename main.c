@@ -360,7 +360,7 @@ static GtkWidget*container_frame(int sep,GCallback click,gpointer ps){
 	   */
 	GtkWidget *scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
 	gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window,
-	                                  GTK_POLICY_AUTOMATIC,
+	                                  GTK_POLICY_NEVER,
 	                                  GTK_POLICY_AUTOMATIC);
 	  /* The function directly below is used to add children to the scrolled window 
 	   * with scrolling capabilities (e.g text_view), otherwise, 
@@ -397,7 +397,7 @@ static GtkWidget*container_frame_name(){
 	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD);
 	GtkWidget *scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
 	gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window,
-	                                  GTK_POLICY_AUTOMATIC,
+	                                  GTK_POLICY_NEVER,
 	                                  GTK_POLICY_AUTOMATIC);
 	gtk_container_add ((GtkContainer*) scrolled_window,
 	                                       (GtkWidget*) text);
@@ -1555,6 +1555,7 @@ activate (GtkApplication* app,
 	//
 	GtkWidget *org=gtk_button_new_with_label("\u22EE");ps->cbt=(GtkComboBoxText*)en;
 	GtkWidget *menu = gtk_menu_new ();
+	//
 	GtkWidget *menu_item = gtk_menu_item_new_with_label ("Organize Connections");
 	g_signal_connect_data (menu_item, "activate",G_CALLBACK (organize_connections),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
@@ -1566,7 +1567,6 @@ activate (GtkApplication* app,
 	chan_menu = gtk_menu_new ();
 	gtk_menu_item_set_submenu((GtkMenuItem*)menu_item,chan_menu);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
-	g_signal_connect_data (org, "button-press-event",G_CALLBACK (prog_menu_popup),menu,nullptr,G_CONNECT_SWAPPED);
 	//
 	menu_item = gtk_menu_item_new_with_label ("Names Online");
 	name_on_menu = gtk_menu_new ();
@@ -1581,6 +1581,8 @@ activate (GtkApplication* app,
 	show_time=(GtkCheckMenuItem*)gtk_check_menu_item_new_with_label("Show Message Timestamp");
 	if(ps->timestamp)gtk_check_menu_item_set_active(show_time,TRUE);
 	gtk_menu_shell_append ((GtkMenuShell*)menu,(GtkWidget*)show_time);gtk_widget_show((GtkWidget*)show_time);
+	//
+	g_signal_connect_data (org, "button-press-event",G_CALLBACK (prog_menu_popup),menu,nullptr,G_CONNECT_SWAPPED);
 	//
 	ps->sen_entry=gtk_entry_new();
 	ps->sen_entry_act=g_signal_connect_data(ps->sen_entry,"activate",G_CALLBACK(send_activate),ps,nullptr,(GConnectFlags)0);
