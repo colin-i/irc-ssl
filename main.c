@@ -352,7 +352,7 @@ static GtkWidget*container_frame_name(){
 	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD_CHAR);
 	GtkWidget *scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
 	gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window,
-	                                  GTK_POLICY_NEVER,
+	                                  GTK_POLICY_EXTERNAL,//NEVER but widh will have the bigger value and cannot rewrap
 	                                  GTK_POLICY_AUTOMATIC);
 	gtk_container_add ((GtkContainer*) scrolled_window,
 	                                       (GtkWidget*) text);
