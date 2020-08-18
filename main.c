@@ -1118,7 +1118,6 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 						}while(sz==bsz&&buf[sz-1]!='\n');
 						if(re==nullptr)break;
 					}
-					if(sz<=0)break;
 					char*b=buf;
 					for(;;){
 						char*n=(char*)memchr(b,'\n',(size_t)sz);
@@ -1135,6 +1134,7 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 						break;
 					}
 					sz=recv_data(buf,bsz);
+					if(sz<=0)break;
 				}
 			}else out_v=FALSE;
 			free(buf);
