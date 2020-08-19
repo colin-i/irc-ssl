@@ -122,17 +122,18 @@ enum {
 #pragma GCC diagnostic push//is from BOOL+char+2=4
 #pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
-	const char*args[8];
+	const char*args[9];
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;char*nknnow;
 	int separator;
 	GtkWidget*con_entry;gulong con_entry_act;GtkWidget*sen_entry;gulong sen_entry_act;
-	unsigned int refresh;unsigned int refreshid;
+	int refresh;unsigned int refreshid;
 	GtkNotebook*notebook;
 	struct data_len*dl;
 	char*welcome;gboolean timestamp;
 	const char*user_irc;BOOL user_irc_free;
 	unsigned char con_type;
+	unsigned int chan_min;
 };
 #pragma GCC diagnostic pop
 #define con_nr_1 "SSL or Unencrypted"
@@ -576,29 +577,31 @@ static void chan_change_nr_loss(GtkTreeIter*iter,char*chn,unsigned int nr){
 }
 static BOOL chan_change_nr(const char*chan,int v){
 	GtkTreeIter it;
-	gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, &it);
-	for(;;){
-		char c[channm_sz+1+10];
-		char*text;
-		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
-		sscanf(text,channame_scan,c);
-		if(strcmp(chan,c)==0){
-			size_t s=strlen(c);size_t ss=s;
-			unsigned int n;
-			s++;sscanf(text+s,"%u",&n);
-			n+=(unsigned int)v;
-			if(v>0)chan_change_nr_gain(&it,c,n);
-			else chan_change_nr_loss(&it,c,n);
-			c[ss]=' ';
-			s+=(size_t)sprintf(c+s,"%u",n);c[s]=0;
-			gtk_list_store_set(channels, &it, LIST_ITEM, c, -1);
+	if(gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, &it)){//chan_min hidding
+		for(;;){
+			char c[channm_sz+1+10];
+			char*text;
+			gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
+			sscanf(text,channame_scan,c);
+			if(strcmp(chan,c)==0){
+				size_t s=strlen(c);size_t ss=s;
+				unsigned int n;
+				s++;sscanf(text+s,"%u",&n);
+				n+=(unsigned int)v;
+				if(v>0)chan_change_nr_gain(&it,c,n);
+				else chan_change_nr_loss(&it,c,n);
+				c[ss]=' ';
+				s+=(size_t)sprintf(c+s,"%u",n);c[s]=0;
+				gtk_list_store_set(channels, &it, LIST_ITEM, c, -1);
+				g_free(text);
+				return TRUE;
+			}
 			g_free(text);
-			return TRUE;
+			if(gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it)==FALSE)
+				return FALSE;
 		}
-		g_free(text);
-		if(gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it)==FALSE)
-			return FALSE;
 	}
+	return FALSE;
 }
 static void pars_join(char*chan,struct stk_s*ps){
 	GtkWidget*pan=chan_pan(chan);
@@ -609,7 +612,7 @@ static void pars_join(char*chan,struct stk_s*ps){
 		g_signal_connect_data (close, "clicked",G_CALLBACK (close_channel),lb,nullptr,G_CONNECT_SWAPPED);
 	}
 	gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,pan));
-	if(chan_change_nr(chan,1)==FALSE)pars_chan(chan,1);
+	if(chan_change_nr(chan,1)==FALSE)if(ps->chan_min>=1)pars_chan(chan,1);
 }
 static void pars_join_user(char*channm,char*nicknm){
 	//if(p!=nullptr){
@@ -968,15 +971,16 @@ static void line_switch(char*n,GtkWidget*from,GtkWidget*to,const char*msg){
 	}
 }
 static gboolean incsafe(gpointer ps){
-	addattextmain(((struct stk_s*)ps)->dl);
 	#pragma GCC diagnostic push
 	#pragma GCC diagnostic ignored "-Wcast-qual"
 	char*a=(char*)((struct stk_s*)ps)->dl->data;
 	#pragma GCC diagnostic pop
 	size_t s=((struct stk_s*)ps)->dl->len;
-	s-=a[s-2]=='\r'?2:1;
+	if(a[s-1]=='\n')s--;
+	if(a[s-1]=='\r')s--;
 	a[s]='\0';
 	//
+	BOOL showmsg=TRUE;
 	char com[5];
 	if(sscanf(a,"%*s %7s",com)==1){
 		size_t ln=strlen(com);
@@ -1010,13 +1014,17 @@ static gboolean incsafe(gpointer ps){
 			char mod[1+3+1];//"limit of three (3) changes per command for modes that take a parameter."
 			if(sscanf(b,channame_scan " %4s " name_scan,channm,mod,nicknm)==3)
 				pars_mod(channm,mod,nicknm);
-		}else{
+		}else if(strlen(com)!=3)showmsg=FALSE;
+		else{
 			int d=atoi(com);
 			if(d==322){//list
 				unsigned int e;
 				//if its >nr ,c is not 2
-				if(sscanf(b,"%*s " channame_scan " %u",channm,&e)==2)
-					pars_chan(channm,e);
+				if(sscanf(b,"%*s " channame_scan " %u",channm,&e)==2){
+					if(e>=((struct stk_s*)ps)->chan_min)
+						pars_chan(channm,e);
+					else showmsg=FALSE;
+				}else showmsg=FALSE;
 			}else if(d==321)gtk_list_store_clear(channels);//list start
 			else if(d==353){//names
 				if(sscanf(b,"%*s %*c " channame_scan,channm)==1){
@@ -1039,6 +1047,10 @@ static gboolean incsafe(gpointer ps){
 				}
 			}
 		}
+	}else showmsg=FALSE;
+	if(showmsg){
+		a[s]='\n';((struct stk_s*)ps)->dl->len=s+1;
+		addattextmain(((struct stk_s*)ps)->dl);
 	}
 	pthread_kill(threadid,SIGUSR1);
 	return FALSE;
@@ -1074,7 +1086,7 @@ static gboolean senstartthreadsfunc(gpointer ps){
 	g_signal_handler_unblock(((struct stk_s*)ps)->sen_entry,((struct stk_s*)ps)->sen_entry_act);
 	//
 	if(((struct stk_s*)ps)->refresh>0)
-		((struct stk_s*)ps)->refreshid=g_timeout_add(1000*((struct stk_s*)ps)->refresh,refresh_callback,nullptr);
+		((struct stk_s*)ps)->refreshid=g_timeout_add(1000*(unsigned int)((struct stk_s*)ps)->refresh,refresh_callback,nullptr);
 	//
 	if(start_old_clear(chan_menu,nb)+start_old_clear(name_on_menu,nb)+start_old_clear(name_off_menu,nb)>0){
 		gtk_widget_hide(gtk_notebook_get_action_widget(nb,GTK_PACK_END));
@@ -1126,20 +1138,19 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 						if(re==nullptr)break;
 					}
 					char*b=buf;
-					for(;;){
+					do{
 						char*n=(char*)memchr(b,'\n',(size_t)sz);
-						if(n!=nullptr){
-							size_t s=(size_t)(n+1-b);
-							if(s>4&&memcmp(b,"PING",4)==0){
-								main_text(b,s);
-								b[1]='O';
-								send_safe(b,s);
-							}else if(*b==':')incomings(b,s,ps);
-							b=n+1;sz-=s;
-							continue;
-						}else if(sz>0)main_text(b,(size_t)sz);
-						break;
-					}
+						size_t s;
+						if(n!=nullptr)s=(size_t)(n+1-b);
+						else s=(size_t)sz;
+						if(s>4&&memcmp(b,"PING",4)==0){
+							main_text(b,s);
+							b[1]='O';
+							send_safe(b,s);
+						}else if(*b==':')incomings(b,s,ps);
+						if(n!=nullptr)b=n+1;
+						sz-=s;
+					}while(sz>0);
 					sz=recv_data(buf,bsz);
 				}while(sz>0);
 			}else out_v=FALSE;
@@ -1649,6 +1660,8 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		ps->user_irc=g_variant_dup_string(v,nullptr);
 		ps->user_irc_free=TRUE;
 	}else{ps->user_irc=user_message;ps->user_irc_free=FALSE;}
+	if (g_variant_dict_lookup (options,ps->args[8], "i", &ps->chan_min)==FALSE)
+		ps->chan_min=100;
 	return -1;
 }
 int main (int    argc,
@@ -1664,12 +1677,14 @@ int main (int    argc,
 		//if(app!=nullptr){
 		ps.args[0]="dimensions";
 		g_application_add_main_option((GApplication*)app,ps.args[0],'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
+		ps.args[8]="chan_min";
+		g_application_add_main_option((GApplication*)app,ps.args[8],'m',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Minimum users to list a channel(at \"322\"). Default 100.","NR");
 		ps.args[7]="connection_number";
 		g_application_add_main_option((GApplication*)app,ps.args[7],'c',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ", 4=" con_nr_4 ". Default value is 1.",con_nr_nrs);
 		ps.args[1]="nick";
 		g_application_add_main_option((GApplication*)app,ps.args[1],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
 		ps.args[3]="refresh";
-		g_application_add_main_option((GApplication*)app,ps.args[3],'f',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Refresh channels interval in seconds. Default 60. 0 for no refresh.","SECONDS");
+		g_application_add_main_option((GApplication*)app,ps.args[3],'f',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Refresh channels interval in seconds. Default 60. Less than 1 to disable.","SECONDS");
 		ps.args[2]="right";
 		g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Right pane size, default 150","WIDTH");
 		ps.args[5]="timestamp";
