@@ -119,10 +119,10 @@ enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };//connections org,channels
-#pragma GCC diagnostic push//is from BOOL+char+2=4
+#pragma GCC diagnostic push//is from BOOL+char+BOOL+1=4
 #pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
-	const char*args[9];
+	const char*args[10];
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;char*nknnow;
 	int separator;
@@ -134,6 +134,7 @@ struct stk_s{
 	const char*user_irc;BOOL user_irc_free;
 	unsigned char con_type;
 	unsigned int chan_min;
+	BOOL visible;
 };
 #pragma GCC diagnostic pop
 #define con_nr_1 "SSL or Unencrypted"
@@ -612,7 +613,7 @@ static void pars_join(char*chan,struct stk_s*ps){
 		g_signal_connect_data (close, "clicked",G_CALLBACK (close_channel),lb,nullptr,G_CONNECT_SWAPPED);
 	}
 	gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,pan));
-	if(chan_change_nr(chan,1)==FALSE)if(ps->chan_min>=1)pars_chan(chan,1);
+	if(chan_change_nr(chan,1)==FALSE)if(ps->chan_min<1)pars_chan(chan,1);
 }
 static void pars_join_user(char*channm,char*nicknm){
 	//if(p!=nullptr){
@@ -1018,15 +1019,15 @@ static gboolean incsafe(gpointer ps){
 		else{
 			int d=atoi(com);
 			if(d==322){//list
+				showmsg=FALSE;
 				unsigned int e;
 				//if its >nr ,c is not 2
-				if(sscanf(b,"%*s " channame_scan " %u",channm,&e)==2){
+				if(sscanf(b,"%*s " channame_scan " %u",channm,&e)==2)
 					if(e>=((struct stk_s*)ps)->chan_min)
 						pars_chan(channm,e);
-					else showmsg=FALSE;
-				}else showmsg=FALSE;
 			}else if(d==321)gtk_list_store_clear(channels);//list start
 			else if(d==353){//names
+				showmsg=FALSE;
 				if(sscanf(b,"%*s %*c " channame_scan,channm)==1){
 					GtkWidget*p=chan_pan(channm);
 					if(p!=nullptr){
@@ -1109,7 +1110,8 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 	g_idle_add(senstartthreadsfunc,ps);
 	int out;sigwait(&threadset,&out);
 	size_t fln=strlen(ps->user_irc);
-	size_t nln=(size_t)snprintf(nullptr,0,nickname_con,nkn);
+	size_t nkn_len=strlen(nkn);
+	size_t nln=sizeof(nickname_con)-3+nkn_len;
 	size_t pln=*psw=='\0'?0:(size_t)snprintf(nullptr,0,password_con,psw);
 	char*i1=(char*)malloc(pln+nln+fln+irc_term_sz);
 	BOOL out_v=TRUE;
@@ -1124,6 +1126,13 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 		if(buf!=nullptr){
 			int sz=recv_data(buf,bsz);
 			if(sz>0){//'the traditional "end-of-file" return'
+				if(ps->visible){
+					char vidata[5+namenul_sz+3+irc_term_sz-1]="MODE ";
+					memcpy(vidata+5,nkn,nkn_len);
+					size_t c=5+nkn_len;
+					memcpy(vidata+c," -i" irc_term,3+irc_term_sz);
+					send_safe(vidata,c+3+irc_term_sz);
+				}
 				send_safe(sendlist,sizeof(sendlist)-1);
 				do{
 					if(sz==bsz&&buf[sz-1]!='\n'){
@@ -1660,8 +1669,11 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		ps->user_irc=g_variant_dup_string(v,nullptr);
 		ps->user_irc_free=TRUE;
 	}else{ps->user_irc=user_message;ps->user_irc_free=FALSE;}
+	//
 	if (g_variant_dict_lookup (options,ps->args[8], "i", &ps->chan_min)==FALSE)
 		ps->chan_min=100;
+	//
+	ps->visible=(BOOL)g_variant_dict_contains(options,ps->args[9]);
 	return -1;
 }
 int main (int    argc,
@@ -1691,6 +1703,8 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[5],'t',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Show message timestamp.",nullptr);
 		ps.args[6]="user";
 		g_application_add_main_option((GApplication*)app,ps.args[6],'u',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"User message. Default \"" user_message "\"","STRING");
+		ps.args[9]="visible";
+		g_application_add_main_option((GApplication*)app,ps.args[9],'v',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Send -i MODE (invisible) at start.",nullptr);
 		ps.args[4]="welcome";
 		g_application_add_main_option((GApplication*)app,ps.args[4],'w',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
 		ps.path=argv[0];
