@@ -1,19 +1,20 @@
 
-typedef void* gpointer;
-typedef unsigned long gulong;
 typedef char gchar;
-typedef unsigned int guint;
+typedef unsigned char guchar;
 typedef int gint;
 typedef gint gboolean;
+typedef unsigned int guint;
 typedef unsigned int gsize;
-typedef double gdouble;
 typedef gsize GType;
+typedef double gdouble;
+typedef unsigned long gulong;
 typedef void GApplication;
 typedef void GDateTime;
 typedef void GVariant;
 typedef void GVariantDict;
 typedef void GVariantType;
 typedef void GdkEvent;
+typedef void GdkPixbuf;
 typedef void GtkAdjustment;
 typedef void GtkApplication;
 typedef void GtkBin;
@@ -47,8 +48,10 @@ typedef void GtkTreeView;
 typedef void GtkTreeViewColumn;
 typedef void GtkWidget;
 typedef void GtkWindow;
+typedef void* gpointer;
 typedef void (*GCallback)(void);
 typedef void *GClosureNotify;
+typedef void *GdkPixbufDestroyNotify;
 typedef gboolean(*GSourceFunc)(gpointer user_data);
 typedef enum{G_APPLICATION_FLAGS_NONE}
  GApplicationFlags;
@@ -58,7 +61,11 @@ typedef enum{  G_OPTION_ARG_NONE,  G_OPTION_ARG_STRING,  G_OPTION_ARG_INT}//,  G
  GOptionArg;
 typedef enum{G_OPTION_FLAG_IN_MAIN = 1 << 1}//  G_OPTION_FLAG_NONE = 0,  G_OPTION_FLAG_HIDDEN = 1 << 0,
  GOptionFlags;//,  G_OPTION_FLAG_REVERSE = 1 << 2,  G_OPTION_FLAG_NO_ARG = 1 << 3,  G_OPTION_FLAG_FILENAME = 1 << 4,  G_OPTION_FLAG_OPTIONAL_ARG = 1 << 5,  G_OPTION_FLAG_NOALIAS = 1 << 6
-typedef enum{GTK_ORIENTATION_HORIZONTAL,GTK_ORIENTATION_VERTICAL} GtkOrientation;
+typedef enum {
+ GDK_COLORSPACE_RGB
+} GdkColorspace;
+typedef enum{GTK_ORIENTATION_HORIZONTAL,GTK_ORIENTATION_VERTICAL}
+ GtkOrientation;
 typedef enum{  GTK_DIALOG_MODAL = 1 << 0, GTK_DIALOG_DESTROY_WITH_PARENT = 1 << 1}//, GTK_DIALOG_USE_HEADER_BAR = 1 << 2
  GtkDialogFlags;
 typedef enum{  GTK_ICON_SIZE_INVALID,  GTK_ICON_SIZE_MENU}
@@ -153,6 +160,7 @@ gboolean g_variant_dict_contains (GVariantDict *dict, const gchar *key);
 gboolean g_variant_dict_lookup (GVariantDict *dict, const gchar *key, const gchar *format_string, ...);
 GVariant * g_variant_dict_lookup_value (GVariantDict *dict, const gchar *key, const GVariantType *expected_type);
 gchar * g_variant_dup_string (GVariant *value, gsize *length);
+GdkPixbuf *gdk_pixbuf_new_from_data (const guchar *data,GdkColorspace colorspace,gboolean has_alpha,int bits_per_sample,int width, int height,int rowstride,GdkPixbufDestroyNotify destroy_fn,gpointer destroy_fn_data);
 void gtk_adjustment_set_value (GtkAdjustment *adjustment, gdouble value);
 GtkApplication * gtk_application_new (const gchar *application_id, GApplicationFlags flags);
 GtkWidget * gtk_application_window_new (GtkApplication *application);
@@ -275,6 +283,7 @@ void gtk_widget_show (GtkWidget *widget);
 void gtk_widget_show_all (GtkWidget *widget);
 void gtk_window_get_size (GtkWindow *window,gint *width,gint *height);
 void gtk_window_set_default_size (GtkWindow *window, gint width, gint height);
+void gtk_window_set_icon (GtkWindow *window, GdkPixbuf *icon);
 void gtk_window_set_title (GtkWindow *window,const gchar *title);
 
 #ifdef __cplusplus
