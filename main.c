@@ -982,7 +982,7 @@ static gboolean incsafe(gpointer ps){
 	a[s]='\0';
 	//
 	BOOL showmsg=TRUE;
-	char com[5];
+	char com[8];
 	if(sscanf(a,"%*s %7s",com)==1){
 		size_t ln=strlen(com);
 		char*b=strchr(a,' ')+1+ln;if(*b==' ')b++;
