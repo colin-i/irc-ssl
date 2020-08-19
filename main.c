@@ -984,7 +984,7 @@ static void names_end(GtkWidget*p,char*chan){
 		if(strcmp(chan,c)==0){
 			int n;
 			size_t len=strlen(c);
-			sscanf(text+len+1,"%i",&n);
+			sscanf(text+len+1,"%u",&n);
 			g_free(text);
 			GtkListStore*list=contf_get_list(p);
 			int z=gtk_tree_model_iter_n_children ((GtkTreeModel*)list,nullptr);
@@ -992,7 +992,7 @@ static void names_end(GtkWidget*p,char*chan){
 			if(dif>0)chan_change_nr_gain(&it,chan,(unsigned int)z);
 			else if(dif<0)chan_change_nr_loss(&it,chan,(unsigned int)z);
 			else return;
-			sprintf(c+len," %i",z);
+			sprintf(c+len," %u",z);
 			gtk_list_store_set(channels, &it, LIST_ITEM, c, -1);
 			return;
 		}
@@ -1049,11 +1049,11 @@ static gboolean incsafe(gpointer ps){
 			int d=atoi(com);
 			if(d==322){//list
 				showmsg=FALSE;
-				int e;
+				unsigned int e;
 				//if its >nr ,c is not 2
-				if(sscanf(b,"%*s " channame_scan " %i",channm,&e)==2)
-					if(e>=((struct stk_s*)ps)->chan_min)
-						pars_chan(channm,(unsigned int)e);
+				if(sscanf(b,"%*s " channame_scan " %u",channm,&e)==2)
+					if((int)e>=((struct stk_s*)ps)->chan_min)
+						pars_chan(channm,e);
 			}else if(d==321)gtk_list_store_clear(channels);//list start
 			else if(d==353){//names
 				showmsg=FALSE;
