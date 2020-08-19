@@ -127,13 +127,14 @@ struct stk_s{
 	char*nick;const char*text;char*nknnow;
 	int separator;
 	GtkWidget*con_entry;gulong con_entry_act;GtkWidget*sen_entry;gulong sen_entry_act;
-	int refresh;unsigned int refreshid;
+	int refresh;//0 gtk parse handle arguments!
+	unsigned int refreshid;
 	GtkNotebook*notebook;
 	struct data_len*dl;
 	char*welcome;gboolean timestamp;
 	const char*user_irc;BOOL user_irc_free;
 	unsigned char con_type;
-	unsigned int chan_min;
+	int chan_min;//0 gtk parse handle arguments!
 	BOOL visible;
 };
 #pragma GCC diagnostic pop
@@ -588,13 +589,13 @@ static BOOL chan_change_nr(const char*chan,int v){
 				size_t s=strlen(c);size_t ss=s;
 				unsigned int n;
 				s++;sscanf(text+s,"%u",&n);
+				g_free(text);
 				n+=(unsigned int)v;
 				if(v>0)chan_change_nr_gain(&it,c,n);
 				else chan_change_nr_loss(&it,c,n);
 				c[ss]=' ';
 				s+=(size_t)sprintf(c+s,"%u",n);c[s]=0;
 				gtk_list_store_set(channels, &it, LIST_ITEM, c, -1);
-				g_free(text);
 				return TRUE;
 			}
 			g_free(text);
@@ -971,6 +972,34 @@ static void line_switch(char*n,GtkWidget*from,GtkWidget*to,const char*msg){
 		g_list_free(lst);
 	}
 }
+static void names_end(GtkWidget*p,char*chan){
+	gtk_widget_set_has_tooltip(p,FALSE);
+	GtkTreeIter it;
+	gboolean valid=gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, &it);
+	while(valid){
+		char c[channm_sz+1+10];
+		char*text;
+		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
+		sscanf(text,channame_scan,c);
+		if(strcmp(chan,c)==0){
+			int n;
+			size_t len=strlen(c);
+			sscanf(text+len+1,"%i",&n);
+			g_free(text);
+			GtkListStore*list=contf_get_list(p);
+			int z=gtk_tree_model_iter_n_children ((GtkTreeModel*)list,nullptr);
+			int dif=z-n;
+			if(dif>0)chan_change_nr_gain(&it,chan,(unsigned int)z);
+			else if(dif<0)chan_change_nr_loss(&it,chan,(unsigned int)z);
+			else return;
+			sprintf(c+len," %i",z);
+			gtk_list_store_set(channels, &it, LIST_ITEM, c, -1);
+			return;
+		}
+		g_free(text);
+		valid = gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it);
+	}
+}
 static gboolean incsafe(gpointer ps){
 	#pragma GCC diagnostic push
 	#pragma GCC diagnostic ignored "-Wcast-qual"
@@ -1020,11 +1049,11 @@ static gboolean incsafe(gpointer ps){
 			int d=atoi(com);
 			if(d==322){//list
 				showmsg=FALSE;
-				unsigned int e;
+				int e;
 				//if its >nr ,c is not 2
-				if(sscanf(b,"%*s " channame_scan " %u",channm,&e)==2)
+				if(sscanf(b,"%*s " channame_scan " %i",channm,&e)==2)
 					if(e>=((struct stk_s*)ps)->chan_min)
-						pars_chan(channm,e);
+						pars_chan(channm,(unsigned int)e);
 			}else if(d==321)gtk_list_store_clear(channels);//list start
 			else if(d==353){//names
 				showmsg=FALSE;
@@ -1038,7 +1067,7 @@ static gboolean incsafe(gpointer ps){
 			}else if(d==366){//names end
 				if(sscanf(b,"%*s " channame_scan,channm)==1){
 					GtkWidget*p=chan_pan(channm);
-					if(p!=nullptr)gtk_widget_set_has_tooltip(p,FALSE);
+					if(p!=nullptr)names_end(p,channm);
 				}
 			}else if(d>400){
 				b=strchr(b,' ');
