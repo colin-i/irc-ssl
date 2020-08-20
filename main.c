@@ -136,6 +136,7 @@ struct stk_s{
 	unsigned char con_type;
 	int chan_min;//0 gtk parse handle arguments!
 	BOOL visible;
+	GtkWidget*trv;unsigned long trvr;
 };
 #pragma GCC diagnostic pop
 #define con_nr_1 "SSL or Unencrypted"
@@ -153,7 +154,8 @@ static const unsigned char icon16[]={
 //3842
 };
 
-#define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan)))
+#define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
+#define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
 #define contf_get_textv(pan) (GtkTextView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child1((GtkPaned*)pan))
 static void addtimestamp(GtkTextBuffer*text_buffer,GtkTextIter*it){
 	if(gtk_check_menu_item_get_active(show_time)){
@@ -230,8 +232,8 @@ static int recv_data(char*b,int sz){
 	return read(plain_socket,b,(size_t)sz);
 }
 static void send_data(const char*str,size_t sz){
-	if(ssl!=nullptr)SSL_write(ssl,str,(int)sz);
-	else if(plain_socket!=-1)write(plain_socket,str,sz);
+	if(ssl!=nullptr){SSL_write(ssl,str,(int)sz);return;}
+	write(plain_socket,str,sz);
 }
 #define sendlist "LIST" irc_term
 static gboolean sendthreadsfunc(gpointer b){
@@ -1127,6 +1129,8 @@ static gboolean senstartthreadsfunc(gpointer ps){
 		alert_counter=0;
 	}
 	//
+	g_signal_handler_unblock(((struct stk_s*)ps)->trv,((struct stk_s*)ps)->trvr);
+	//
 	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
 }
@@ -1135,6 +1139,22 @@ static gboolean senstopthreadsfunc(gpointer ps){
 	//
 	if(((struct stk_s*)ps)->refresh>0)
 		g_source_remove(((struct stk_s*)ps)->refreshid);
+	//
+	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
+	if(list!=nullptr){
+		GList*ls=list;
+		do{
+			GtkWidget*menu_item=(GtkWidget*)list->data;
+			GtkWidget*pan=get_pan_from_menu(menu_item);
+			GtkWidget*box=gtk_notebook_get_tab_label(((struct stk_s*)ps)->notebook,pan);
+			GList*l=gtk_container_get_children((GtkContainer*)box);
+			GtkWidget*b=(GtkWidget*)g_list_last(l)->data;
+			g_list_free(l);
+			g_signal_handler_disconnect(b,g_signal_handler_find(b,G_SIGNAL_MATCH_ID,g_signal_lookup("clicked", gtk_button_get_type()),0, nullptr, nullptr, nullptr));
+		}while((list=g_list_next(list))!=nullptr);
+		g_list_free(ls);
+	}
+	g_signal_handler_block(((struct stk_s*)ps)->trv,((struct stk_s*)ps)->trvr);
 	//
 	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
@@ -1203,7 +1223,7 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 	return out_v;
 }
 static gboolean close_ssl_safe(gpointer ignore){(void)ignore;
-//to call shutdown and send(without send entry) with peace
+//to call shutdown with peace
 	SSL_free(ssl);ssl=nullptr;
 	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
@@ -1599,7 +1619,10 @@ activate (GtkApplication* app,
 	//
 	home_page=container_frame(ps->separator,G_CALLBACK(chan_join),nullptr);
 	text_view=contf_get_textv(home_page);
-	channels=contf_get_list(home_page);
+	ps->trv=(GtkWidget*)contf_get_treev(home_page);
+	channels=(GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)ps->trv);
+	ps->trvr=g_signal_handler_find(ps->trv,G_SIGNAL_MATCH_ID,g_signal_lookup("button-release-event", gtk_button_get_type()),0, nullptr, nullptr, nullptr);
+	g_signal_handler_block(ps->trv,ps->trvr);//warning without
 	//
 	ps->notebook = (GtkNotebook*)gtk_notebook_new ();
 	gtk_notebook_set_scrollable(ps->notebook,TRUE);
