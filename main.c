@@ -231,7 +231,7 @@ static int recv_data(char*b,int sz){
 }
 static void send_data(const char*str,size_t sz){
 	if(ssl!=nullptr)SSL_write(ssl,str,(int)sz);
-	else write(plain_socket,str,sz);
+	else if(plain_socket!=-1)write(plain_socket,str,sz);
 }
 #define sendlist "LIST" irc_term
 static gboolean sendthreadsfunc(gpointer b){
@@ -462,7 +462,7 @@ static GtkWidget*add_new_tab(GtkWidget*frame,char*title,GtkWidget**cls,GtkNotebo
 static gboolean chan_join (GtkTreeView *tree){
 	GtkTreeSelection *sel=gtk_tree_view_get_selection(tree);
 	GtkTreeIter iterator;
-	if(gtk_tree_selection_get_selected (sel,nullptr,&iterator)){
+	if(gtk_tree_selection_get_selected (sel,nullptr,&iterator)){//can be no channel
 		char buf[4+channm_sz+irc_term_sz]="JOIN ";char*item_text;
 		gtk_tree_model_get ((GtkTreeModel*)channels, &iterator, LIST_ITEM, &item_text, -1);
 		for(size_t i=0;;i++){
@@ -1202,6 +1202,18 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 	sigwait(&threadset,&out);
 	return out_v;
 }
+static gboolean close_ssl_safe(gpointer ignore){(void)ignore;
+//to call shutdown and send(without send entry) with peace
+	SSL_free(ssl);ssl=nullptr;
+	pthread_kill( threadid, SIGUSR1);
+	return FALSE;
+}
+static gboolean close_plain_safe(gpointer ignore){(void)ignore;
+//to call shutdown and send(without send entry) with peace
+	plain_socket=-1;
+	pthread_kill( threadid, SIGUSR1);
+	return FALSE;
+}
 static BOOL con_ssl(int server,char*psw,char*nkn,struct stk_s*ps){
 	const SSL_METHOD *method;
 	SSL_CTX *ctx;
@@ -1220,7 +1232,8 @@ static BOOL con_ssl(int server,char*psw,char*nkn,struct stk_s*ps){
 					r=irc_start(psw,nkn,ps);
 				}else r=FALSE;
 			}else{main_text_s("Error: SSL_set_fd failed.\n");r=FALSE;}
-			SSL_free(ssl);ssl=nullptr;
+			g_idle_add(close_ssl_safe,nullptr);
+			int out;sigwait(&threadset,&out);
 		}else r=FALSE;
 		SSL_CTX_free(ctx);
 	}else return FALSE;
@@ -1230,7 +1243,6 @@ static BOOL con_plain(int server,char*psw,char*nkn,struct stk_s*ps){
 	main_text_s(ssl_con_plain);
 	plain_socket=server;
 	BOOL b=irc_start(psw,nkn,ps);
-	plain_socket=-1;
 	return b;
 }
 static void proced(struct stk_s*ps){
@@ -1245,17 +1257,22 @@ static void proced(struct stk_s*ps){
 		for(;;){
 			int server = create_socket(hostname,portindex);
 			if(server != -1){
-				int r;
+				BOOL r;int out;
 				if(n==1){
 					r=con_ssl(server,psw,nkn,ps);
 					if(r==FALSE){
 						close(server);
 						server = create_socket(hostname,portindex);
-						if(server != -1)
+						if(server != -1){
 							r=con_plain(server,psw,nkn,ps);
+							g_idle_add(close_plain_safe,nullptr);
+							sigwait(&threadset,&out);
+						}
 					}
 				}else if(n==2){
 					r=con_plain(server,psw,nkn,ps);
+					g_idle_add(close_plain_safe,nullptr);
+					sigwait(&threadset,&out);
 					if(r==FALSE){
 						close(server);
 						server = create_socket(hostname,portindex);
@@ -1263,8 +1280,11 @@ static void proced(struct stk_s*ps){
 							r=con_ssl(server,psw,nkn,ps);
 					}
 				}else if(n==3)r=con_ssl(server,psw,nkn,ps);
-				else
+				else{
 					r=con_plain(server,psw,nkn,ps);
+					g_idle_add(close_plain_safe,nullptr);
+					sigwait(&threadset,&out);
+				}
 				close(server);
 				if(r)break;
 			}
@@ -1344,11 +1364,6 @@ static gboolean enter_recallback( gpointer ps){
 		}
 		set_combo_box_text((GtkComboBox*)gtk_widget_get_ancestor(((struct stk_s*)ps)->con_entry,gtk_combo_box_text_get_type()),t);
 		((struct stk_s*)ps)->text=t;
-		/*#pragma GCC diagnostic push
-		#pragma GCC diagnostic ignored "-Wcast-qual"
-		con_th=g_thread_new(nullptr,worker,ps);
-		#pragma GCC diagnostic pop
-		g_thread_unref(con_th);*/
 		con_th = pthread_create( &threadid, nullptr, worker,ps);
 	}
 	//unblock this ENTER
