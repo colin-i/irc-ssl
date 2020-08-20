@@ -4,7 +4,9 @@ typedef unsigned char guchar;
 typedef int gint;
 typedef gint gboolean;
 typedef unsigned int guint;
+typedef unsigned int guint32;
 typedef unsigned int gsize;
+typedef guint32 GQuark;
 typedef gsize GType;
 typedef double gdouble;
 typedef unsigned long gulong;
@@ -61,9 +63,12 @@ typedef enum{  G_OPTION_ARG_NONE,  G_OPTION_ARG_STRING,  G_OPTION_ARG_INT}//,  G
  GOptionArg;
 typedef enum{G_OPTION_FLAG_IN_MAIN = 1 << 1}//  G_OPTION_FLAG_NONE = 0,  G_OPTION_FLAG_HIDDEN = 1 << 0,
  GOptionFlags;//,  G_OPTION_FLAG_REVERSE = 1 << 2,  G_OPTION_FLAG_NO_ARG = 1 << 3,  G_OPTION_FLAG_FILENAME = 1 << 4,  G_OPTION_FLAG_OPTIONAL_ARG = 1 << 5,  G_OPTION_FLAG_NOALIAS = 1 << 6
+typedef enum{
+  G_SIGNAL_MATCH_ID = 1 << 0}
+ GSignalMatchType;
 typedef enum {
- GDK_COLORSPACE_RGB
-} GdkColorspace;
+ GDK_COLORSPACE_RGB}
+ GdkColorspace;
 typedef enum{GTK_ORIENTATION_HORIZONTAL,GTK_ORIENTATION_VERTICAL}
  GtkOrientation;
 typedef enum{  GTK_DIALOG_MODAL = 1 << 0, GTK_DIALOG_DESTROY_WITH_PARENT = 1 << 1}//, GTK_DIALOG_USE_HEADER_BAR = 1 << 2
@@ -80,6 +85,7 @@ typedef enum{  GTK_RESPONSE_NONE = -1}
  GtkResponseType;
 typedef enum{  GTK_WRAP_NONE,  GTK_WRAP_CHAR,  GTK_WRAP_WORD,  GTK_WRAP_WORD_CHAR}
  GtkWrapMode;
+typedef struct _GClosure GClosure;
 typedef struct _GList GList;
 struct _GList
 {
@@ -148,12 +154,16 @@ void g_date_time_unref (GDateTime *datetime);
 void g_free (gpointer mem);
 guint g_idle_add (GSourceFunc function,gpointer data);
 void g_list_free (GList *list);
+GList* g_list_last (GList *list);
 #define g_list_next(list) ((list) ? (((GList *)(list))->next) : nullptr)
 gpointer g_object_ref (gpointer object);
 void g_object_unref (gpointer object);
 gulong g_signal_connect_data (gpointer instance,const gchar *detailed_signal,GCallback c_handler,gpointer data,GClosureNotify destroy_data,GConnectFlags connect_flags);
 void g_signal_handler_block (gpointer instance, gulong handler_id);
+void g_signal_handler_disconnect (gpointer instance, gulong handler_id);
+gulong g_signal_handler_find (gpointer instance,GSignalMatchType mask,guint signal_id,GQuark detail,GClosure *closure,gpointer func,gpointer data);
 void g_signal_handler_unblock (gpointer instance, gulong handler_id);
+guint g_signal_lookup (const gchar *name, GType itype);
 gboolean g_source_remove (guint tag);
 guint g_timeout_add (guint interval, GSourceFunc function, gpointer data);
 gboolean g_variant_dict_contains (GVariantDict *dict, const gchar *key);
@@ -169,6 +179,7 @@ GType gtk_box_get_type (void) __attribute__((__const__));
 GtkWidget* gtk_box_new (GtkOrientation orientation,gint spacing);
 void gtk_box_pack_end (GtkBox *box, GtkWidget *child, gboolean expand, gboolean fill, guint padding);
 void gtk_box_pack_start (GtkBox *box,GtkWidget *child,gboolean expand,gboolean fill,guint padding);
+GType gtk_button_get_type (void) __attribute__((__const__));
 GtkWidget* gtk_button_new (void);
 GtkWidget* gtk_button_new_with_label (const gchar *label);
 void gtk_button_set_image (GtkButton *button, GtkWidget *image);
