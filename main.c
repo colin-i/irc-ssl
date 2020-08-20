@@ -1047,15 +1047,15 @@ static gboolean incsafe(gpointer ps){
 		}else if(strlen(com)!=3)showmsg=FALSE;
 		else{
 			int d=atoi(com);
-			if(d==322){//list
+			if(d==322){//RPL_LIST
 				showmsg=FALSE;
 				unsigned int e;
 				//if its >nr ,c is not 2
 				if(sscanf(b,"%*s " channame_scan " %u",channm,&e)==2)
 					if((int)e>=((struct stk_s*)ps)->chan_min)
 						pars_chan(channm,e);
-			}else if(d==321)gtk_list_store_clear(channels);//list start
-			else if(d==353){//names
+			}else if(d==321)gtk_list_store_clear(channels);//RPL_LISTSTART
+			else if(d==353){//RPL_NAMREPLY
 				showmsg=FALSE;
 				if(sscanf(b,"%*s %*c " channame_scan,channm)==1){
 					GtkWidget*p=chan_pan(channm);
@@ -1064,18 +1064,22 @@ static gboolean incsafe(gpointer ps){
 						if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a));
 					}
 				}
-			}else if(d==366){//names end
+			}else if(d==366){//RPL_ENDOFNAMES
 				if(sscanf(b,"%*s " channame_scan,channm)==1){
 					GtkWidget*p=chan_pan(channm);
 					if(p!=nullptr)names_end(p,channm);
 				}
-			}else if(d>400){
+			}else if(d>400){//Error Replies.
 				b=strchr(b,' ');
 				if(b!=nullptr){
 					b++;if(sscanf(b,channame_scan " %c",channm,&c)==2)
 						pars_err(channm,b+strlen(channm)+2);
 				}
-			}
+			}else if(d==254)//RPL_LUSERCHANNELS
+			//this not getting after first recv
+			//another solution can be after motd (later)
+			//or after 1 second, not beautiful
+				send_data(sendlist,sizeof(sendlist)-1);
 		}
 	}else showmsg=FALSE;
 	if(showmsg){
@@ -1162,7 +1166,6 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 					memcpy(vidata+c," -i" irc_term,3+irc_term_sz);
 					send_safe(vidata,c+3+irc_term_sz);
 				}
-				send_safe(sendlist,sizeof(sendlist)-1);
 				do{
 					if(sz==bsz&&buf[sz-1]!='\n'){
 						void*re;
