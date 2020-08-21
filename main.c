@@ -521,7 +521,9 @@ static gboolean name_join(GtkTreeView*tree,GdkEvent*ignored,struct stk_s*ps){
 	gtk_tree_selection_get_selected (sel,nullptr,&iterator);
 	char*item_text;
 	gtk_tree_model_get (gtk_tree_view_get_model(tree), &iterator, LIST_ITEM, &item_text, -1);
-	char*a=*item_text!='@'?item_text:item_text+1;
+	//there are 4<A ` i saw once and one>z
+	char*a=('A'<=*item_text&&*item_text<='Z')
+		||('a'<=*item_text&&*item_text<='z')?item_text:item_text+1;
 	if(name_join_isnew(ps,a))
 		gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,name_join_nb(a,ps->notebook)));
 	free(item_text);
@@ -811,7 +813,7 @@ static void pars_mod_sens_plus(GtkListStore*lst,char*n){
 			return;
 		}
 		g_free(text);
-		if(gtk_tree_model_iter_previous( (GtkTreeModel*)lst,&it)==FALSE/*||*text=='@'*/){/*g_free(text);*/return;}//guard only loop
+		if(gtk_tree_model_iter_previous( (GtkTreeModel*)lst,&it)==FALSE)return;
 	}
 }
 static void pars_mod_sens_minus(GtkListStore*lst,char*n){
@@ -850,7 +852,7 @@ static void pars_mod_sens_minus(GtkListStore*lst,char*n){
 			return;
 		}
 		g_free(text);
-		if(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it)==FALSE/*||*text!='@'*/){/*g_free(text);*/break;}//guard only loop
+		if(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it)==FALSE)return;
 	}
 }
 static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
