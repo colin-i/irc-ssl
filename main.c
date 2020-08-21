@@ -726,9 +726,25 @@ static void add_name(GtkListStore*lst,char*t){
 			g_free(text);
 			GtkTreeIter i;
 			if(a>0||*text=='@'){
-				gtk_list_store_insert_after(lst,&i,&it);
-				gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
-				return;
+				if(*t=='@'){
+					for(;;){
+						if(a>0){
+							gtk_list_store_insert_after(lst,&i,&it);
+							gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
+							return;
+						}
+						gboolean valid=gtk_tree_model_iter_previous( (GtkTreeModel*)lst, &it);
+						if(valid==FALSE)break;
+						gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
+						a=strcmp(t,text);
+						g_free(text);
+					}
+					break;
+				}else{
+					gtk_list_store_insert_after(lst,&i,&it);
+					gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
+					return;
+				}
 			}
 		}while(gtk_tree_model_iter_previous( (GtkTreeModel*)lst, &it));
 	}
