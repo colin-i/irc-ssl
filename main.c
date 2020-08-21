@@ -514,6 +514,7 @@ static GtkWidget* name_join_nb(char*t,GtkNotebook*nb){
 	g_signal_connect_data (close, "clicked",G_CALLBACK (close_name),mn,nullptr,G_CONNECT_SWAPPED);//not "(GClosureNotify)gtk_widget_destroy" because at restart clear will be trouble
 	return scrl;
 }
+#define letter_start(a) ('A'<=*a&&*a<='Z')||('a'<=*a&&*a<='z')
 static gboolean name_join(GtkTreeView*tree,GdkEvent*ignored,struct stk_s*ps){
 	(void)ignored;
 	GtkTreeSelection *sel=gtk_tree_view_get_selection(tree);
@@ -522,8 +523,7 @@ static gboolean name_join(GtkTreeView*tree,GdkEvent*ignored,struct stk_s*ps){
 	char*item_text;
 	gtk_tree_model_get (gtk_tree_view_get_model(tree), &iterator, LIST_ITEM, &item_text, -1);
 	//there are 4<A ` i saw once and one>z
-	char*a=('A'<=*item_text&&*item_text<='Z')
-		||('a'<=*item_text&&*item_text<='z')?item_text:item_text+1;
+	char*a=letter_start(item_text)?item_text:item_text+1;
 	if(name_join_isnew(ps,a))
 		gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,name_join_nb(a,ps->notebook)));
 	free(item_text);
@@ -636,7 +636,7 @@ static void pars_join_user(char*channm,char*nicknm){
 	for(;;){
 		char*text;
 		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
-		if(strcmp(nicknm,text)>0||*text=='@'){
+		if(letter_start(text)==FALSE||strcmp(nicknm,text)>0){
 			g_free(text);
 			GtkTreeIter i;
 			gtk_list_store_insert_after(lst,&i,&it);
@@ -676,7 +676,7 @@ static void pars_part_quit(char*nk,const char*cn,GtkListStore*lst){
 	do{
 		char*txt;
 		gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &txt, -1);
-		if(*txt!='@'){
+		if(letter_start(txt)){
 			for(;;){
 				int a=strcmp(nk,txt);
 				g_free(txt);
@@ -720,33 +720,37 @@ static void add_name(GtkListStore*lst,char*t){
 	GtkTreeIter it;
 	int n=gtk_tree_model_iter_n_children((GtkTreeModel*)lst,nullptr);
 	if(n>0){
+		BOOL ls=letter_start(t);
 		gtk_tree_model_iter_nth_child((GtkTreeModel*)lst, &it, nullptr, n-1);
 		do{
 			char*text;
 			gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
-			int a=strcmp(t,text);
-			g_free(text);
+			BOOL le_st=letter_start(text);
 			GtkTreeIter i;
-			if(a>0||*text=='@'){
-				if(*t=='@'){
-					for(;;){
-						if(a>0){
-							gtk_list_store_insert_after(lst,&i,&it);
-							gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
-							return;
-						}
-						gboolean valid=gtk_tree_model_iter_previous( (GtkTreeModel*)lst, &it);
-						if(valid==FALSE)break;
-						gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
-						a=strcmp(t,text);
-						g_free(text);
-					}
-					break;
-				}else{
+			if(ls==FALSE){
+				if(le_st||strcmp(t,text)>0){
+					g_free(text);
 					gtk_list_store_insert_after(lst,&i,&it);
 					gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
 					return;
 				}
+				g_free(text);
+				continue;
+			}
+			if(le_st){
+				for(;;){
+					int a=strcmp(t,text);
+					g_free(text);
+					if(a>0){
+						gtk_list_store_insert_after(lst,&i,&it);
+						gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
+						return;
+					}
+					gboolean valid=gtk_tree_model_iter_previous( (GtkTreeModel*)lst, &it);
+					if(valid==FALSE)break;
+					gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
+				}
+				break;
 			}
 		}while(gtk_tree_model_iter_previous( (GtkTreeModel*)lst, &it));
 	}
