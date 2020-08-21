@@ -1603,6 +1603,7 @@ a = gtk_radio_menu_item_new_with_label (b, s);\
 b = gtk_radio_menu_item_get_group((GtkRadioMenuItem*)a);\
 if (d->con_type==n)gtk_check_menu_item_set_active ((GtkCheckMenuItem*)a, TRUE);\
 gtk_menu_shell_append (c,a)
+static void con_click(GtkEntry*en){gtk_widget_activate(en);}
 static void
 activate (GtkApplication* app,
           struct stk_s*ps)
@@ -1637,6 +1638,11 @@ activate (GtkApplication* app,
 	if(info_path_name_restore((GtkComboBoxText*)en,ps->path))gtk_entry_set_text ((GtkEntry*)entext,":");
 	ps->con_entry=entext;//this for timeouts
 	ps->con_entry_act=g_signal_connect_data (entext, "activate",G_CALLBACK (enter_callback),ps,nullptr,G_CONNECT_SWAPPED);
+	//
+	GtkWidget*con=gtk_button_new();
+	GtkWidget*conimg=gtk_image_new_from_icon_name ("go-next",GTK_ICON_SIZE_MENU);
+	gtk_button_set_image((GtkButton*)con,conimg);
+	g_signal_connect_data (con, "clicked",G_CALLBACK (con_click),entext,nullptr,G_CONNECT_SWAPPED);
 	//
 	GtkWidget *org=gtk_button_new_with_label("\u22EE");ps->cbt=(GtkComboBoxText*)en;
 	GtkWidget *menu = gtk_menu_new ();
@@ -1686,6 +1692,7 @@ activate (GtkApplication* app,
 	//
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 	gtk_box_pack_start((GtkBox*)top,en,TRUE,TRUE,0);
+	gtk_box_pack_start((GtkBox*)top,con,FALSE,FALSE,0);
 	gtk_box_pack_start((GtkBox*)top,org,FALSE,FALSE,0);
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	gtk_box_pack_start((GtkBox*)box,top,FALSE,FALSE,0);

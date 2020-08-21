@@ -280,6 +280,7 @@ GtkTreeSelection *gtk_tree_view_get_selection (GtkTreeView *tree_view);
 GtkWidget *gtk_tree_view_new (void);
 void gtk_tree_view_set_headers_visible (GtkTreeView *tree_view, gboolean headers_visible);
 void gtk_tree_view_set_model (GtkTreeView *tree_view, GtkTreeModel *model);
+gboolean gtk_widget_activate (GtkWidget *widget);
 void gtk_widget_destroy (GtkWidget *widget);
 void gtk_widget_hide (GtkWidget *widget);
 GtkWidget* gtk_widget_get_ancestor (GtkWidget *widget, GType widget_type);
