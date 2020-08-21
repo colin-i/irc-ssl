@@ -716,46 +716,49 @@ static int nick_and_chan(char*a,char*b,char*n,char*c,char*nick){
 	}
 	return -1;
 }
-static void add_name(GtkListStore*lst,char*t){
+static void add_name_lowuser(GtkListStore*lst,char*t){
 	GtkTreeIter it;
+	GtkTreeIter i;
+	char*text;
 	int n=gtk_tree_model_iter_n_children((GtkTreeModel*)lst,nullptr);
 	if(n>0){
-		BOOL ls=letter_start(t);
 		gtk_tree_model_iter_nth_child((GtkTreeModel*)lst, &it, nullptr, n-1);
 		do{
-			char*text;
 			gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
-			BOOL le_st=letter_start(text);
-			GtkTreeIter i;
-			if(ls==FALSE){
-				if(le_st||strcmp(t,text)>0){
-					g_free(text);
-					gtk_list_store_insert_after(lst,&i,&it);
-					gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
-					return;
-				}
+			if(letter_start(text)==FALSE||strcmp(t,text)>0){
 				g_free(text);
-				continue;
+				gtk_list_store_insert_after(lst,&i,&it);
+				gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
+				return;
 			}
-			if(le_st){
-				for(;;){
-					int a=strcmp(t,text);
-					g_free(text);
-					if(a>0){
-						gtk_list_store_insert_after(lst,&i,&it);
-						gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
-						return;
-					}
-					gboolean valid=gtk_tree_model_iter_previous( (GtkTreeModel*)lst, &it);
-					if(valid==FALSE)break;
-					gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
-				}
-				break;
-			}
+			g_free(text);
 		}while(gtk_tree_model_iter_previous( (GtkTreeModel*)lst, &it));
 	}
 	gtk_list_store_prepend(lst,&it);
 	gtk_list_store_set(lst, &it, LIST_ITEM, t, -1);
+}
+static void add_name_highuser(GtkListStore*lst,char*t){
+	GtkTreeIter it;
+	GtkTreeIter i;
+	char*text;
+	if(gtk_tree_model_get_iter_first((GtkTreeModel*)lst, &it)){
+		do{
+			gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
+			if(letter_start(text)||strcmp(t,text)<0){
+				g_free(text);
+				gtk_list_store_insert_before(lst,&i,&it);
+				gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
+				return;
+			}
+			g_free(text);
+		}while(gtk_tree_model_iter_next( (GtkTreeModel*)lst, &it));
+	}
+	gtk_list_store_append(lst,&it);
+	gtk_list_store_set(lst, &it, LIST_ITEM, t, -1);
+}
+static void add_name(GtkListStore*lst,char*t){
+	if(letter_start(t)){add_name_lowuser(lst,t);return;}
+	else add_name_highuser(lst,t);
 }
 static void pars_names(GtkWidget*pan,char*b,size_t s){
 	GtkListStore*lst=contf_get_list(pan);
@@ -779,86 +782,6 @@ static void pars_quit(char*nk){
 	}while((list=g_list_next(list))!=nullptr);
 	g_list_free(ls);
 }
-static void pars_mod_sens_plus(GtkListStore*lst,char*n){
-	int c=gtk_tree_model_iter_n_children ((GtkTreeModel*)lst,nullptr);
-	GtkTreeIter it;
-	gtk_tree_model_iter_nth_child((GtkTreeModel*)lst,&it,nullptr,c-1);
-	for(;;){
-		char*text;
-		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
-		if(strcmp(n,text)==0){
-			g_free(text);
-			char buf[namenul_sz+1];*buf='@';
-			strcpy(buf+1,n);
-			gtk_list_store_set(lst, &it, LIST_ITEM, buf, -1);
-			GtkTreeIter i=it;
-			if(gtk_tree_model_iter_previous( (GtkTreeModel*)lst,&i)){
-				do{
-					gtk_tree_model_get ((GtkTreeModel*)lst, &i, LIST_ITEM, &text, -1);
-					if(*text=='@'){
-						for(;;){
-							if(strcmp(n,text+1)>0){
-								g_free(text);
-								gtk_list_store_move_after(lst,&it,&i);
-								return;
-							}
-							g_free(text);
-							if(gtk_tree_model_iter_previous( (GtkTreeModel*)lst,&i)==FALSE){
-								gtk_list_store_move_after(lst,&it,nullptr);
-								return;
-							}
-							gtk_tree_model_get ((GtkTreeModel*)lst, &i, LIST_ITEM, &text, -1);
-						}
-					}
-					g_free(text);
-				}while(gtk_tree_model_iter_previous( (GtkTreeModel*)lst,&i));
-				gtk_list_store_move_after(lst,&it,nullptr);
-			}
-			return;
-		}
-		g_free(text);
-		if(gtk_tree_model_iter_previous( (GtkTreeModel*)lst,&it)==FALSE)return;
-	}
-}
-static void pars_mod_sens_minus(GtkListStore*lst,char*n){
-	GtkTreeIter it;
-	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
-	for(;;){
-		char*text;
-		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
-		if(strcmp(n,text+1)==0){
-			for(size_t j=0;text[j]!='\0';j++)text[j]=text[j+1];
-			gtk_list_store_set(lst, &it, LIST_ITEM, text, -1);
-			g_free(text);
-			GtkTreeIter i=it;
-			if(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&i)){
-				do{
-					gtk_tree_model_get ((GtkTreeModel*)lst, &i, LIST_ITEM, &text, -1);
-					if(*text!='@'){
-						for(;;){
-							if(strcmp(n,text)<0){
-								g_free(text);
-								gtk_list_store_move_before(lst,&it,&i);
-								return;
-							}
-							g_free(text);
-							if(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&i)==FALSE){
-								gtk_list_store_move_before(lst,&it,nullptr);
-								return;
-							}
-							gtk_tree_model_get ((GtkTreeModel*)lst, &i, LIST_ITEM, &text, -1);
-						}
-					}
-					g_free(text);
-				}while(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&i));
-				gtk_list_store_move_before(lst,&it,nullptr);
-			}
-			return;
-		}
-		g_free(text);
-		if(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it)==FALSE)return;
-	}
-}
 static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
 	for(size_t i=1;m[i]!='\0';i++){
 		if(m[i]=='o'){
@@ -871,18 +794,22 @@ static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
 					GtkListStore*lst=contf_get_list(get_pan_from_menu(menu_item));
 					GtkTreeIter it;
 					gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
-					gboolean valid;do{
+					do{
 						char*text;
 						gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
-						int a=strcmp(n,plus?text:text+1);
-						g_free(text);
-						if(a==0){
-							if(plus)pars_mod_sens_plus(lst,n);
-							else pars_mod_sens_minus(lst,n);
+						if(strcmp(n,letter_start(text)?text:text+1)==0){
+							g_free(text);
+							gtk_list_store_remove(lst,&it);
+							if(plus){
+								char buf[namenul_sz+1];*buf='@';
+								strcpy(buf+1,n);
+								add_name_highuser(lst,buf);
+							}
+							else add_name_lowuser(lst,n);
 							break;
 						}
-						valid=gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it);
-					}while(valid);
+						g_free(text);
+					}while(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it));
 					break;
 				}
 			}while((list=g_list_next(list))!=nullptr);
