@@ -193,14 +193,15 @@ static BOOL addattextview_isbottom(GtkTextView*tv,GtkTextBuffer*text_buffer,GtkT
 }
 //iter location is not wraped now
 #define addattextview_scroll(scroll,tv) if(scroll)g_idle_add(wait_iter_wrap,tv)
-static void addattextmain(struct data_len*s){
+static void addattextmain(const char*data,size_t len){
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (text_view);
 	GtkTextIter it;
 	BOOL b=addattextview_isbottom(text_view,text_buffer,&it);
 	addtimestamp(text_buffer,&it);
-	gtk_text_buffer_insert(text_buffer,&it,s->data,(int)s->len);
+	gtk_text_buffer_insert(text_buffer,&it,data,(int)len);
 	addattextview_scroll(b,text_view);
 }
+#define addattextmain_struct(s) addattextmain(s->data,s->len)
 static void addattextv(GtkTextView*v,const char*n,const char*msg){
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (v);
 	GtkTextIter it;
@@ -217,7 +218,7 @@ static void addattextv(GtkTextView*v,const char*n,const char*msg){
 #define addatchans(n,msg,p) addattextv(contf_get_textv(p),n,msg)
 #define addatnames(n,msg,p) addattextv((GtkTextView*)gtk_bin_get_child((GtkBin*)p),n,msg)
 static gboolean textviewthreadsfunc(gpointer b){
-	addattextmain((struct data_len*)b);
+	addattextmain_struct(((struct data_len*)b));
 	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
 }
@@ -1085,8 +1086,7 @@ static gboolean incsafe(gpointer ps){
 		}
 	}else showmsg=FALSE;
 	if(showmsg){
-		a[s]='\n';((struct stk_s*)ps)->dl->len=s+1;
-		addattextmain(((struct stk_s*)ps)->dl);
+		a[s]='\n';addattextmain(a,s+1);
 	}
 	pthread_kill(threadid,SIGUSR1);
 	return FALSE;
@@ -1393,6 +1393,7 @@ static gboolean enter_recallback( gpointer ps){
 static gboolean enter_callback( gpointer ps){
 	//block this ENTER
 	g_signal_handler_block(((struct stk_s*)ps)->con_entry,((struct stk_s*)ps)->con_entry_act);
+	const char a[]="Connecting...\n";addattextmain(a,sizeof(a)-1);
 	return enter_recallback(ps);
 }
 static BOOL info_path_name_set_val(const char*a,char*b,size_t i,size_t j){
@@ -1603,7 +1604,8 @@ a = gtk_radio_menu_item_new_with_label (b, s);\
 b = gtk_radio_menu_item_get_group((GtkRadioMenuItem*)a);\
 if (d->con_type==n)gtk_check_menu_item_set_active ((GtkCheckMenuItem*)a, TRUE);\
 gtk_menu_shell_append (c,a)
-static void con_click(GtkEntry*en){gtk_widget_activate(en);}
+static void con_click(GtkWidget*en){
+	gtk_widget_activate(en);}
 static void
 activate (GtkApplication* app,
           struct stk_s*ps)
