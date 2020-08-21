@@ -247,7 +247,49 @@ static void send_safe(const char*str,size_t sz){
 	g_idle_add(sendthreadsfunc,&dl);
 	int out;sigwait(&threadset,&out);
 }
-//
+static gboolean close_ssl_safe(gpointer ignore){(void)ignore;
+//to call shutdown with peace
+	SSL_free(ssl);ssl=nullptr;
+	pthread_kill( threadid, SIGUSR1);
+	return FALSE;
+}
+static gboolean close_plain(gpointer ignore){(void)ignore;
+//to call shutdown and send(without send entry) with peace
+	close(plain_socket);plain_socket=-1;
+	pthread_kill( threadid, SIGUSR1);
+	return FALSE;
+}
+#define close_plain_safe int a;g_idle_add(close_plain,nullptr);sigwait(&threadset,&a);
+/* ---------------------------------------------------------- *
+ * create_socket() creates the socket & TCP-connect to server *
+ * ---------------------------------------------------------- */
+static void create_socket(char*hostname,int port) {
+	struct hostent *host;
+	struct sockaddr_in dest_addr;
+	if ( (host = gethostbyname(hostname)) != nullptr ) {
+		  /* ---------------------------------------------------------- *
+		   * create the basic TCP socket                                *
+		   * ---------------------------------------------------------- */
+		plain_socket = socket(AF_INET, SOCK_STREAM, 0);
+		if(plain_socket!=-1){
+			dest_addr.sin_family=AF_INET;
+			dest_addr.sin_port=htons(port);
+			dest_addr.sin_addr.s_addr = *(unsigned long*)((void*)(host->h_addr_list[0]));
+			//  memset(&(dest_addr.sin_zero), '\0', 8);//string
+			//"setting it to zero doesn't seem to be actually necessary"
+			  /* ---------------------------------------------------------- *
+			   * Try to make the host connect here                          *
+			   * ---------------------------------------------------------- */
+			if ( connect(plain_socket, (struct sockaddr *) &dest_addr,
+				sizeof(struct sockaddr)) == -1 ) {
+				main_text_s("Error: Cannot connect to host.\n");
+				close_plain_safe
+			}
+		}else main_text_s("Error: Cannot open the socket.\n");
+	}
+	else
+		main_text_s("Error: Cannot resolve hostname.\n");
+}
 static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int*sens,struct stk_s*ps) {
 	size_t sz=strlen(indata);
 	//
@@ -307,41 +349,6 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int
 		return TRUE;
 	}
 	return FALSE;
-}
-/* ---------------------------------------------------------- *
- * create_socket() creates the socket & TCP-connect to server *
- * ---------------------------------------------------------- */
-static int create_socket(char*hostname,int port) {
-	int sockfd;
-	struct hostent *host;
-	struct sockaddr_in dest_addr;
-	if ( (host = gethostbyname(hostname)) != nullptr ) {
-		  /* ---------------------------------------------------------- *
-		   * create the basic TCP socket                                *
-		   * ---------------------------------------------------------- */
-		sockfd = socket(AF_INET, SOCK_STREAM, 0);
-		if(sockfd!=-1){
-			dest_addr.sin_family=AF_INET;
-			dest_addr.sin_port=htons(port);
-			dest_addr.sin_addr.s_addr = *(unsigned long*)((void*)(host->h_addr_list[0]));
-			//  memset(&(dest_addr.sin_zero), '\0', 8);//string
-			//"setting it to zero doesn't seem to be actually necessary"
-			  /* ---------------------------------------------------------- *
-			   * Try to make the host connect here                          *
-			   * ---------------------------------------------------------- */
-			if ( connect(sockfd, (struct sockaddr *) &dest_addr,
-				sizeof(struct sockaddr)) != -1 ) {
-				return sockfd;
-			}
-			else{
-				main_text_s("Error: Cannot connect to host.\n");
-				close(sockfd);
-			}
-		}else main_text_s("Error: Cannot open the socket.\n");
-	}
-	else
-		main_text_s("Error: Cannot resolve hostname.\n");
-	return -1;
 }
 static void pars_chan_end(GtkTreeIter*it,char*channm,unsigned int nr){
 	size_t ln=strlen(channm);channm[ln]=' ';sprintf(channm+ln+1,"%u",nr);
@@ -636,7 +643,7 @@ static void pars_join_user(char*channm,char*nicknm){
 			return;
 		}
 		g_free(text);
-		if(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it)==FALSE)break;
+		if(gtk_tree_model_iter_previous( (GtkTreeModel*)lst,&it)==FALSE)break;
 	}
 	gtk_list_store_prepend(lst,&it);
 	gtk_list_store_set(lst, &it, LIST_ITEM, nicknm, -1);
@@ -697,12 +704,10 @@ static void pars_part_user(char*channm,char*nicknm){
 static BOOL nick_extract(char*a,char*n){
 	return sscanf(a,":" name_scan1 "[^!]",n)==1;
 }
-static int nick_and_chan(char*a,char*b,const char*bb,char*n,char*c,char*nick){
+static int nick_and_chan(char*a,char*b,char*n,char*c,char*nick){
 	if(nick_extract(a,n)){
-		#pragma GCC diagnostic push
-		#pragma GCC diagnostic ignored "-Wformat-nonliteral"
-		if(sscanf(b,bb,c)==1){
-		#pragma GCC diagnostic pop
+		if(*b==':')b++;//undernet,at ngircd no
+		if(sscanf(b,channame_scan,c)==1){
 			if(strcmp(nick,n)!=0)return 1;
 			return 0;
 		}
@@ -711,21 +716,23 @@ static int nick_and_chan(char*a,char*b,const char*bb,char*n,char*c,char*nick){
 }
 static void add_name(GtkListStore*lst,char*t){
 	GtkTreeIter it;
-	gboolean valid=gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
-	while(valid){
-		char*text;
-		gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
-		int a=strcmp(t,text);
-		g_free(text);
-		GtkTreeIter i;
-		if(a<0){
-			gtk_list_store_insert_before(lst,&i,&it);
-			gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
-			return;
-		}
-		valid = gtk_tree_model_iter_next( (GtkTreeModel*)lst, &it);
+	int n=gtk_tree_model_iter_n_children((GtkTreeModel*)lst,nullptr);
+	if(n>0){
+		gtk_tree_model_iter_nth_child((GtkTreeModel*)lst, &it, nullptr, n-1);
+		do{
+			char*text;
+			gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
+			int a=strcmp(t,text);
+			g_free(text);
+			GtkTreeIter i;
+			if(a>0||*text=='@'){
+				gtk_list_store_insert_after(lst,&i,&it);
+				gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
+				return;
+			}
+		}while(gtk_tree_model_iter_previous( (GtkTreeModel*)lst, &it));
 	}
-	gtk_list_store_append(lst,&it);
+	gtk_list_store_prepend(lst,&it);
 	gtk_list_store_set(lst, &it, LIST_ITEM, t, -1);
 }
 static void pars_names(GtkWidget*pan,char*b,size_t s){
@@ -1028,11 +1035,11 @@ static gboolean incsafe(gpointer ps){
 				}else if(sscanf(b,name_scan " %c",channm,&c)==2)pars_pmsg_name(nicknm,b+strlen(channm)+2,(struct stk_s*)ps);
 			}
 		}else if(strcmp(com,"JOIN")==0){
-			int resp=nick_and_chan(a,b,":" channame_scan,nicknm,channm,((struct stk_s*)ps)->nknnow);
+			int resp=nick_and_chan(a,b,nicknm,channm,((struct stk_s*)ps)->nknnow);
 			if(resp==0)pars_join(channm,(struct stk_s*)ps);
 			else if(resp==1){pars_join_user(channm,nicknm);line_switch(nicknm,name_off_menu,name_on_menu,"User is online.");}
 		}else if(strcmp(com,"PART")==0){
-			int resp=nick_and_chan(a,b,channame_scan,nicknm,channm,((struct stk_s*)ps)->nknnow);
+			int resp=nick_and_chan(a,b,nicknm,channm,((struct stk_s*)ps)->nknnow);
 			if(resp==0)pars_part(channm,((struct stk_s*)ps)->notebook);
 			else if(resp==1)pars_part_user(channm,nicknm);
 		}else if(strcmp(com,"KICK")==0){
@@ -1222,19 +1229,7 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 	sigwait(&threadset,&out);
 	return out_v;
 }
-static gboolean close_ssl_safe(gpointer ignore){(void)ignore;
-//to call shutdown with peace
-	SSL_free(ssl);ssl=nullptr;
-	pthread_kill( threadid, SIGUSR1);
-	return FALSE;
-}
-static gboolean close_plain_safe(gpointer ignore){(void)ignore;
-//to call shutdown and send(without send entry) with peace
-	plain_socket=-1;
-	pthread_kill( threadid, SIGUSR1);
-	return FALSE;
-}
-static BOOL con_ssl(int server,char*psw,char*nkn,struct stk_s*ps){
+static BOOL con_ssl(char*psw,char*nkn,struct stk_s*ps){
 	const SSL_METHOD *method;
 	SSL_CTX *ctx;
 	BOOL r;
@@ -1245,7 +1240,7 @@ static BOOL con_ssl(int server,char*psw,char*nkn,struct stk_s*ps){
 		SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2);//Disabling SSLv2 will leave v3 and TSLv1 for negotiation
 		ssl = SSL_new(ctx);
 		if(ssl!=nullptr){
-			if(SSL_set_fd(ssl, server)==1){
+			if(SSL_set_fd(ssl, plain_socket)==1){
 				//is waiting until timeout if not SSL// || printf("No SSL")||1
 				if ( SSL_connect(ssl) == 1){
 					main_text_s("Successfully enabled SSL/TLS session.\n");
@@ -1259,9 +1254,8 @@ static BOOL con_ssl(int server,char*psw,char*nkn,struct stk_s*ps){
 	}else return FALSE;
 	return r;
 }
-static BOOL con_plain(int server,char*psw,char*nkn,struct stk_s*ps){
+static BOOL con_plain(char*psw,char*nkn,struct stk_s*ps){
 	main_text_s(ssl_con_plain);
-	plain_socket=server;
 	BOOL b=irc_start(psw,nkn,ps);
 	return b;
 }
@@ -1269,43 +1263,36 @@ static void proced(struct stk_s*ps){
 	char hostname[hostname_sz];
 	int sens;char psw[password_sz];char nkn[namenul_sz];
 	if(parse_host_str(ps->text,hostname,psw,nkn,&sens,ps)) {
+		main_text_s("Connecting...\n");
 		GSList*lst=con_group;unsigned char n=con_nr_max;
 		for(;;){
 			if(gtk_check_menu_item_get_active((GtkCheckMenuItem*)lst->data))break;
 			lst=lst->next;n--;
 		}
 		for(;;){
-			int server = create_socket(hostname,portindex);
-			if(server != -1){
-				BOOL r;int out;
+			create_socket(hostname,portindex);
+			if(plain_socket != -1){
+				BOOL r;
 				if(n==1){
-					r=con_ssl(server,psw,nkn,ps);
+					r=con_ssl(psw,nkn,ps);
 					if(r==FALSE){
-						close(server);
-						server = create_socket(hostname,portindex);
-						if(server != -1){
-							r=con_plain(server,psw,nkn,ps);
-							g_idle_add(close_plain_safe,nullptr);
-							sigwait(&threadset,&out);
-						}
+						close_plain_safe
+						create_socket(hostname,portindex);
+						if(plain_socket != -1)
+							r=con_plain(psw,nkn,ps);
 					}
 				}else if(n==2){
-					r=con_plain(server,psw,nkn,ps);
-					g_idle_add(close_plain_safe,nullptr);
-					sigwait(&threadset,&out);
+					r=con_plain(psw,nkn,ps);
 					if(r==FALSE){
-						close(server);
-						server = create_socket(hostname,portindex);
-						if(server != -1)
-							r=con_ssl(server,psw,nkn,ps);
+						close_plain_safe
+						create_socket(hostname,portindex);
+						if(plain_socket != -1)
+							r=con_ssl(psw,nkn,ps);
 					}
-				}else if(n==3)r=con_ssl(server,psw,nkn,ps);
-				else{
-					r=con_plain(server,psw,nkn,ps);
-					g_idle_add(close_plain_safe,nullptr);
-					sigwait(&threadset,&out);
-				}
-				close(server);
+				}else if(n==3)r=con_ssl(psw,nkn,ps);
+				else
+					r=con_plain(psw,nkn,ps);
+				close_plain_safe
 				if(r)break;
 			}
 			if(portindex==portend)break;
@@ -1393,7 +1380,6 @@ static gboolean enter_recallback( gpointer ps){
 static gboolean enter_callback( gpointer ps){
 	//block this ENTER
 	g_signal_handler_block(((struct stk_s*)ps)->con_entry,((struct stk_s*)ps)->con_entry_act);
-	const char a[]="Connecting...\n";addattextmain(a,sizeof(a)-1);
 	return enter_recallback(ps);
 }
 static BOOL info_path_name_set_val(const char*a,char*b,size_t i,size_t j){
