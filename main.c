@@ -529,7 +529,7 @@ static gboolean name_join(GtkTreeView*tree,GdkEvent*ignored,struct stk_s*ps){
 	char*a=letter_start(item_text)?item_text:item_text+1;
 	if(name_join_isnew(ps,a))
 		gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,name_join_nb(a,ps->notebook)));
-	free(item_text);
+	g_free(item_text);
 	return FALSE;//not care about other events
 }
 static GtkWidget* page_from_str(char*c,GtkWidget*men){
@@ -1558,6 +1558,20 @@ if (d->con_type==n)gtk_check_menu_item_set_active ((GtkCheckMenuItem*)a, TRUE);\
 gtk_menu_shell_append (c,a)
 static void con_click(GtkWidget*en){
 	gtk_widget_activate(en);}
+static void clipboard_tev(GtkNotebook*notebook){
+	GtkWidget*pg=gtk_notebook_get_nth_page(notebook,gtk_notebook_get_current_page(notebook));
+	const char*a=gtk_notebook_get_menu_label_text(notebook,pg);
+	GtkTextBuffer *buffer;
+	if(*a==*home_string)buffer = gtk_text_view_get_buffer(text_view);
+	else if(is_channel(a))buffer=gtk_text_view_get_buffer(contf_get_textv(pg));
+	else buffer=gtk_text_view_get_buffer((GtkTextView*)gtk_bin_get_child((GtkBin*)pg));
+	GtkTextIter start;GtkTextIter end;
+	gtk_text_buffer_get_bounds (buffer, &start, &end);
+	char*text = gtk_text_buffer_get_text (buffer, &start, &end, FALSE);
+	//an allocated UTF-8 string
+	gtk_clipboard_set_text (gtk_clipboard_get(GDK_SELECTION_CLIPBOARD),text,-1);
+	g_free(text);
+}
 static void
 activate (GtkApplication* app,
           struct stk_s*ps)
@@ -1637,6 +1651,10 @@ activate (GtkApplication* app,
 	gtk_menu_item_set_submenu((GtkMenuItem*)menu_con,(GtkWidget*)menucon);
 	gtk_menu_shell_append ((GtkMenuShell*)menu,menu_con);
 	gtk_widget_show_all(menu_con);
+	//
+	menu_item = gtk_menu_item_new_with_label ("Copy to Clipboard");
+	g_signal_connect_data (menu_item, "activate",G_CALLBACK (clipboard_tev),ps->notebook,nullptr,G_CONNECT_SWAPPED);
+	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	//
 	g_signal_connect_data (org, "button-press-event",G_CALLBACK (prog_menu_popup),menu,nullptr,G_CONNECT_SWAPPED);
 	//

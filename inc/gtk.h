@@ -24,6 +24,7 @@ typedef void GtkBox;
 typedef void GtkButton;
 typedef void GtkCellRenderer;
 typedef void GtkCheckMenuItem;
+typedef void GtkClipboard;
 typedef void GtkComboBox;
 typedef void GtkComboBoxText;
 typedef void GtkContainer;
@@ -132,6 +133,7 @@ typedef struct{
 typedef struct{
   GTypeClass *g_class;
 } GTypeInstance;
+typedef struct _GdkAtom *GdkAtom;
 
 #define G_CALLBACK(f) ((GCallback)(f))
 #define G_TYPE_FROM_CLASS(g_class) (((GTypeClass*) (g_class))->g_type)
@@ -140,6 +142,8 @@ typedef struct{
 #define G_TYPE_MAKE_FUNDAMENTAL(x) ((GType) ((x) << G_TYPE_FUNDAMENTAL_SHIFT))
 #define G_TYPE_STRING G_TYPE_MAKE_FUNDAMENTAL (16)
 #define G_VARIANT_TYPE_STRING ((const GVariantType *) "s")
+#define GUINT_TO_POINTER(u) ((gpointer) (guint) (u))
+#define GDK_SELECTION_CLIPBOARD ((GdkAtom)GUINT_TO_POINTER(69))
 
 #ifdef __cplusplus
 extern "C" {
@@ -188,6 +192,8 @@ GtkCellRenderer *gtk_cell_renderer_text_new (void);
 gboolean gtk_check_menu_item_get_active (GtkCheckMenuItem *check_menu_item);
 GtkWidget* gtk_check_menu_item_new_with_label (const gchar *label);
 void gtk_check_menu_item_set_active (GtkCheckMenuItem *check_menu_item, gboolean is_active);
+GtkClipboard *gtk_clipboard_get (GdkAtom selection);
+void gtk_clipboard_set_text (GtkClipboard *clipboard,const gchar *text,gint len);
 GtkTreeModel*gtk_combo_box_get_model (GtkComboBox *combo_box);
 void gtk_combo_box_set_active (GtkComboBox *combo_box, gint index_);
 void gtk_combo_box_text_append_text (GtkComboBoxText *combo_box, const gchar *text);
@@ -254,7 +260,9 @@ GtkWidget* gtk_radio_menu_item_new_with_label (GSList *group, const gchar *label
 GtkAdjustment* gtk_scrolled_window_get_vadjustment (GtkScrolledWindow *scrolled_window);
 void gtk_scrolled_window_set_policy (GtkScrolledWindow *scrolled_window,GtkPolicyType hscrollbar_policy,GtkPolicyType vscrollbar_policy);
 GtkWidget* gtk_scrolled_window_new (GtkAdjustment *hadjustment,GtkAdjustment *vadjustment);
+void gtk_text_buffer_get_bounds (GtkTextBuffer *buffer,GtkTextIter *start,GtkTextIter *end);
 void gtk_text_buffer_get_end_iter (GtkTextBuffer *buffer, GtkTextIter *iter);
+gchar *gtk_text_buffer_get_text (GtkTextBuffer *buffer,const GtkTextIter *start,const GtkTextIter *end,gboolean include_hidden_chars);
 void gtk_text_buffer_insert (GtkTextBuffer *buffer,GtkTextIter *iter,const gchar *text,gint len);
 void gtk_text_buffer_set_text (GtkTextBuffer *buffer, const gchar *text, gint len);
 GtkTextBuffer* gtk_text_view_get_buffer(GtkTextView *);
