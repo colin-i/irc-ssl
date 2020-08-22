@@ -69,7 +69,7 @@
 #endif
 
 #ifdef HAVE_GTK_GTK_H
-#pragma GCC diagnostic push//there are 4 more ignors in the program
+#pragma GCC diagnostic push//there are 3 more ignors in the program
 #pragma GCC diagnostic ignored "-Weverything"
 #include <gtk/gtk.h>
 #pragma GCC diagnostic pop
@@ -153,6 +153,9 @@ static const unsigned char icon16[]={
 ,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0x00,0x00,0xff,0xff,0xff,0x00,0x00,0x00,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8
 //3842
 };
+static char chantypes[5]={'\0'};
+static char chanmodes[7]={'\0'};
+static char chanmodessigns[7];
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -783,8 +786,9 @@ static void pars_quit(char*nk){
 	g_list_free(ls);
 }
 static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
-	for(size_t i=1;m[i]!='\0';i++){
-		if(m[i]=='o'){
+	for(size_t i=0;m[i]!='\0';i++){
+		char*modpos=strchr(chanmodes,m[i]);
+		if(modpos!=nullptr){
 			GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
 			GList*ls=list;
 			do{
@@ -797,15 +801,20 @@ static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
 					do{
 						char*text;
 						gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
-						if(strcmp(n,letter_start(text)?text:text+1)==0){
-							g_free(text);
-							gtk_list_store_remove(lst,&it);
+						BOOL normal=letter_start(text);
+						if(strcmp(n,normal?text:text+1)==0){
 							if(plus){
-								char buf[namenul_sz+1];*buf='@';
-								strcpy(buf+1,n);
-								add_name_highuser(lst,buf);
+								if(normal||modpos<strchr(chanmodes,*text)){
+									gtk_list_store_remove(lst,&it);
+									char buf[namenul_sz+1];*buf=chanmodessigns[modpos-chanmodes];
+									strcpy(buf+1,n);
+									add_name_highuser(lst,buf);
+								}
+							}else if(strchr(chanmodes,*text)<modpos){
+								gtk_list_store_remove(lst,&it);
+								add_name_lowuser(lst,n);
 							}
-							else add_name_lowuser(lst,n);
+							g_free(text);
 							break;
 						}
 						g_free(text);
@@ -819,8 +828,8 @@ static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
 	}
 }
 static void pars_mod(char*c,char*m,char*n){
-	if(*m=='+')pars_mod_sens(TRUE,c,m,n);
-	else if(*m=='-')pars_mod_sens(FALSE,c,m,n);
+	if(*m=='+')pars_mod_sens(TRUE,c,m+1,n);
+	else if(*m=='-')pars_mod_sens(FALSE,c,m+1,n);
 }
 static gboolean force_focus(gpointer e){
 	gtk_widget_grab_focus((GtkWidget*)e);
@@ -846,7 +855,10 @@ static void prealert(GtkNotebook*nb,GtkWidget*child){
 		if(alert_widget(box)==nullptr)alert(box,nb);
 	}
 }
-#define is_channel(c) *c=='#'||*c=='&'
+static BOOL is_channel(const char*c){
+	for(int i=0;;i++)if(chantypes[i]==*c)return TRUE;
+		else if(chantypes[i]=='\0')return FALSE;
+}
 static void send_msg(char*usednick,const char*a,const char*text,GtkWidget*pg){
 	size_t len=sizeof(send_prv1)-1;size_t wid=sizeof(send_prv2)-1;
 	size_t dim=strlen(a);size_t sz=strlen(text);
@@ -1034,6 +1046,11 @@ static gboolean incsafe(gpointer ps){
 					b++;if(sscanf(b,channame_scan " %c",channm,&c)==2)
 						pars_err(channm,b+strlen(channm)+2);
 				}
+			}else if(d==5){//RPL_ISUPPORT
+				char*e=strstr(b,"PREFIX=");
+				if(e!=nullptr)sscanf(e+7,"(%6[^)])%6s",chanmodes,chanmodessigns);
+				e=strstr(b,"CHANTYPES=");
+				if(e!=nullptr)sscanf(e+10,"%4s",chantypes);
 			}else if(d==254)//RPL_LUSERCHANNELS
 			//this not getting after first recv
 			//another solution can be after motd (later)

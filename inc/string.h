@@ -12,6 +12,7 @@ char * strchr ( const char *, int );
 int strcmp(const char*,const char*);
 char* strcpy(char* destination, const char* source);
 size_t strlen(const char*);
+char * strstr ( const char *, const char * );
 
 #ifdef __cplusplus
 }
