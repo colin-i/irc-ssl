@@ -156,6 +156,7 @@ static const unsigned char icon16[]={
 static char chantypes[5]={'\0'};
 static char chanmodes[7]={'\0'};
 static char chanmodessigns[7]={'\0'};//& at whois
+static unsigned int maximummodes=0;
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -672,30 +673,44 @@ static void pars_part(char*c,GtkNotebook*nb){
 	}while((list=g_list_next(list))!=nullptr);
 	g_list_free(lst);
 }
-#define pars_part_quit_item(a,lst,it,cn) if(a==0){gtk_list_store_remove(lst,it);chan_change_nr(cn,-1);break;}
+static BOOL get_iter_unmodes(GtkListStore*lst,GtkTreeIter*it,char*nk){
+	char*txt;
+	gtk_tree_model_iter_nth_child((GtkTreeModel*)lst, it, nullptr, 
+		gtk_tree_model_iter_n_children((GtkTreeModel*)lst,nullptr)-1);
+	do{
+		gtk_tree_model_get ((GtkTreeModel*)lst, it, 0, &txt, -1);
+		if(letter_start(txt)==FALSE){g_free(txt);return FALSE;}
+		int a=strcmp(nk,txt);
+		g_free(txt);
+		if(a==0)return TRUE;
+		else if(a>0)return FALSE;
+	}while(gtk_tree_model_iter_previous( (GtkTreeModel*)lst, it));
+	return FALSE;
+}
+static char get_iter_modes(GtkListStore*lst,GtkTreeIter*it,char*nk,BOOL notop){
+	char*txt;
+	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst,it);
+	gtk_tree_model_get ((GtkTreeModel*)lst,it, 0, &txt, -1);
+	char lastmod=*txt+1;unsigned int modes=0;
+	for(;;){
+		if(letter_start(txt)){g_free(txt);return '\0';}
+		if(*txt!=lastmod){
+			modes++;lastmod=*txt;
+			if(modes==maximummodes&&notop){g_free(txt);return '\0';}
+		}
+		int a=strcmp(nk,txt+1);
+		g_free(txt);
+		if(a==0)return lastmod;
+		else if(modes==maximummodes&&a<0)return '\0';//quit/mistakes/whois
+		if(gtk_tree_model_iter_next( (GtkTreeModel*)lst,it)==FALSE)return '\0';
+		gtk_tree_model_get ((GtkTreeModel*)lst,it, 0, &txt, -1);
+	}
+}
 static void pars_part_quit(char*nk,const char*cn,GtkListStore*lst){
 	GtkTreeIter it;
-	int lastcomp=-1;char lastmod='\0';
-	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
-	do{
-		char*txt;
-		gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &txt, -1);
-		if(letter_start(txt)){
-			for(;;){
-				int a=strcmp(nk,txt);
-				g_free(txt);
-				pars_part_quit_item(a,lst,&it,cn)
-				else if(a>0)break;
-				if(gtk_tree_model_iter_next( (GtkTreeModel*)lst, &it)==FALSE)break;
-				gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &txt, -1);
-			}
-			break;
-		}
-		if(lastcomp<0)lastcomp=strcmp(nk,txt+1);
-		else if(*txt!=lastmod){lastmod=*txt;lastcomp=strcmp(nk,txt+1);}
-		g_free(txt);
-		pars_part_quit_item(lastcomp,lst,&it,cn)
-	}while(gtk_tree_model_iter_next( (GtkTreeModel*)lst, &it));
+	if(get_iter_unmodes(lst,&it,nk)||get_iter_modes(lst,&it,nk,FALSE)!='\0'){
+		gtk_list_store_remove(lst,&it);chan_change_nr(cn,-1);
+	}
 }
 static void pars_part_user(char*channm,char*nicknm){
 	//if(p!=nullptr){
@@ -783,37 +798,39 @@ static void pars_quit(char*nk){
 	g_list_free(ls);
 }
 static void pars_mod_set(GtkListStore*lst,char*n,int pos,BOOL plus){
-	GtkTreeIter it;
-	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
-	do{
-		char*text;
-		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
-		BOOL normal=letter_start(text);
-		if(strcmp(n,normal?text:text+1)==0){
-			if(plus){
-				if(normal||pos<(strchr(chanmodessigns,*text)-chanmodessigns)){
-					gtk_list_store_remove(lst,&it);
-					char buf[namenul_sz+1];*buf=chanmodessigns[pos];
-					strcpy(buf+1,n);
-					add_name_highuser(lst,buf);
-				}
-			}else{
-				int spos=strchr(chanmodessigns,*text)-chanmodessigns;
-				if(spos<=pos){
-					gtk_list_store_remove(lst,&it);
-					add_name_lowuser(lst,n);
-					if(chanmodessigns[spos+1]!='\0'){//can be downgraded
-						char downgraded[6+namenul_sz+irc_term_sz];
-						int sz=sprintf(downgraded,"WHOIS %s" irc_term,n);
-						send_data(downgraded,(size_t)sz);
-					}
+	GtkTreeIter it;char prevmod;
+	if(plus){
+		if(get_iter_unmodes(lst,&it,n)){
+			gtk_list_store_remove(lst,&it);
+			char buf[namenul_sz+1];*buf=chanmodessigns[pos];
+			strcpy(buf+1,n);
+			add_name_highuser(lst,buf);
+			return;
+		}
+		prevmod=get_iter_modes(lst,&it,n,TRUE);
+		if(prevmod!='\0'){
+			if(pos<(strchr(chanmodessigns,prevmod)-chanmodessigns)){
+				gtk_list_store_remove(lst,&it);
+				char buf[namenul_sz+1];*buf=chanmodessigns[pos];
+				strcpy(buf+1,n);
+				add_name_highuser(lst,buf);
+			}
+		}
+	}else{
+		prevmod=get_iter_modes(lst,&it,n,FALSE);
+		if(prevmod!='\0'){
+			int spos=strchr(chanmodessigns,prevmod)-chanmodessigns;
+			if(spos<=pos){
+				gtk_list_store_remove(lst,&it);
+				add_name_lowuser(lst,n);
+				if(chanmodessigns[spos+1]!='\0'){//can be downgraded
+					char downgraded[6+namenul_sz+irc_term_sz];
+					int sz=sprintf(downgraded,"WHOIS %s" irc_term,n);
+					send_data(downgraded,(size_t)sz);
 				}
 			}
-			g_free(text);
-			break;
 		}
-		g_free(text);
-	}while(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it));
+	}
 }
 static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
 	for(size_t i=0;m[i]!='\0';i++){
@@ -1078,7 +1095,10 @@ static gboolean incsafe(gpointer ps){
 				}
 			}else if(d==5){//RPL_ISUPPORT
 				char*e=strstr(b,"PREFIX=");
-				if(e!=nullptr)sscanf(e+7,"(%6[^)])%6s",chanmodes,chanmodessigns);
+				if(e!=nullptr){
+					sscanf(e+7,"(%6[^)])%6s",chanmodes,chanmodessigns);
+					maximummodes=strlen(chanmodessigns);
+				}
 				e=strstr(b,"CHANTYPES=");
 				if(e!=nullptr)sscanf(e+10,"%4s",chantypes);
 			}else if(d==254)//RPL_LUSERCHANNELS
