@@ -691,12 +691,14 @@ static char get_iter_modes(GtkListStore*lst,GtkTreeIter*it,char*nk,BOOL notop){
 	char*txt;
 	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst,it);
 	gtk_tree_model_get ((GtkTreeModel*)lst,it, 0, &txt, -1);
-	char lastmod=*txt+1;unsigned int modes=0;
+	char lastmod=*txt^1;//to be dif at first compare
+	unsigned int modes=0;
 	for(;;){
 		if(letter_start(txt)){g_free(txt);return '\0';}
 		if(*txt!=lastmod){
 			modes++;lastmod=*txt;
-			if(modes==maximummodes&&notop){g_free(txt);return '\0';}
+			if(notop&&modes==maximummodes&&lastmod==*chanmodessigns){g_free(txt);return '\0';}
+			//not at partquit&the 5th&1from5
 		}
 		int a=strcmp(nk,txt+1);
 		g_free(txt);
