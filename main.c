@@ -155,7 +155,7 @@ static const unsigned char icon16[]={
 };
 static char chantypes[5]={'\0'};
 static char chanmodes[7]={'\0'};
-static char chanmodessigns[7];
+static char chanmodessigns[7]={'\0'};//& at whois
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -267,9 +267,9 @@ static gboolean close_plain(gpointer ignore){(void)ignore;
  * create_socket() creates the socket & TCP-connect to server *
  * ---------------------------------------------------------- */
 static void create_socket(char*hostname,int port) {
-	struct hostent *host;
+	struct hostent *host = gethostbyname(hostname);
 	struct sockaddr_in dest_addr;
-	if ( (host = gethostbyname(hostname)) != nullptr ) {
+	if ( host != nullptr ) {
 		  /* ---------------------------------------------------------- *
 		   * create the basic TCP socket                                *
 		   * ---------------------------------------------------------- */
@@ -672,9 +672,10 @@ static void pars_part(char*c,GtkNotebook*nb){
 	}while((list=g_list_next(list))!=nullptr);
 	g_list_free(lst);
 }
-#define pars_part_quit_item(lst,it,cn){gtk_list_store_remove(lst,it);chan_change_nr(cn,-1);}
+#define pars_part_quit_item(a,lst,it,cn) if(a==0){gtk_list_store_remove(lst,it);chan_change_nr(cn,-1);break;}
 static void pars_part_quit(char*nk,const char*cn,GtkListStore*lst){
 	GtkTreeIter it;
+	int lastcomp=-1;char lastmod='\0';
 	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
 	do{
 		char*txt;
@@ -683,21 +684,17 @@ static void pars_part_quit(char*nk,const char*cn,GtkListStore*lst){
 			for(;;){
 				int a=strcmp(nk,txt);
 				g_free(txt);
-				if(a<=0){
-					if(a==0)pars_part_quit_item(lst,&it,cn)
-					break;
-				}
+				pars_part_quit_item(a,lst,&it,cn)
+				else if(a>0)break;
 				if(gtk_tree_model_iter_next( (GtkTreeModel*)lst, &it)==FALSE)break;
 				gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &txt, -1);
 			}
 			break;
 		}
-		int a=strcmp(nk,txt+1);
+		if(lastcomp<0)lastcomp=strcmp(nk,txt+1);
+		else if(*txt!=lastmod){lastmod=*txt;lastcomp=strcmp(nk,txt+1);}
 		g_free(txt);
-		if(a<=0){
-			if(a==0)pars_part_quit_item(lst,&it,cn)
-			break;
-		}
+		pars_part_quit_item(lastcomp,lst,&it,cn)
 	}while(gtk_tree_model_iter_next( (GtkTreeModel*)lst, &it));
 }
 static void pars_part_user(char*channm,char*nicknm){
@@ -771,7 +768,7 @@ static void pars_names(GtkWidget*pan,char*b,size_t s){
 	}
 	size_t j=0;
 	for(size_t i=0;i<s;i++){
-		if(b[i]==' '){b[i]=0;add_name(lst,b+j);j=i+1;}
+		if(b[i]==' '){b[i]='\0';add_name(lst,b+j);j=i+1;}
 	}
 	add_name(lst,b+j);
 }
@@ -785,6 +782,39 @@ static void pars_quit(char*nk){
 	}while((list=g_list_next(list))!=nullptr);
 	g_list_free(ls);
 }
+static void pars_mod_set(GtkListStore*lst,char*n,int pos,BOOL plus){
+	GtkTreeIter it;
+	gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
+	do{
+		char*text;
+		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
+		BOOL normal=letter_start(text);
+		if(strcmp(n,normal?text:text+1)==0){
+			if(plus){
+				if(normal||pos<(strchr(chanmodessigns,*text)-chanmodessigns)){
+					gtk_list_store_remove(lst,&it);
+					char buf[namenul_sz+1];*buf=chanmodessigns[pos];
+					strcpy(buf+1,n);
+					add_name_highuser(lst,buf);
+				}
+			}else{
+				int spos=strchr(chanmodessigns,*text)-chanmodessigns;
+				if(spos<=pos){
+					gtk_list_store_remove(lst,&it);
+					add_name_lowuser(lst,n);
+					if(chanmodessigns[spos+1]!='\0'){//can be downgraded
+						char downgraded[6+namenul_sz+irc_term_sz];
+						int sz=sprintf(downgraded,"WHOIS %s" irc_term,n);
+						send_data(downgraded,(size_t)sz);
+					}
+				}
+			}
+			g_free(text);
+			break;
+		}
+		g_free(text);
+	}while(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it));
+}
 static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
 	for(size_t i=0;m[i]!='\0';i++){
 		char*modpos=strchr(chanmodes,m[i]);
@@ -796,34 +826,28 @@ static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
 				const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
 				if(strcmp(c,d)==0){
 					GtkListStore*lst=contf_get_list(get_pan_from_menu(menu_item));
-					GtkTreeIter it;
-					gtk_tree_model_get_iter_first ((GtkTreeModel*)lst, &it);
-					do{
-						char*text;
-						gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
-						BOOL normal=letter_start(text);
-						if(strcmp(n,normal?text:text+1)==0){
-							if(plus){
-								if(normal||modpos<strchr(chanmodes,*text)){
-									gtk_list_store_remove(lst,&it);
-									char buf[namenul_sz+1];*buf=chanmodessigns[modpos-chanmodes];
-									strcpy(buf+1,n);
-									add_name_highuser(lst,buf);
-								}
-							}else if(strchr(chanmodes,*text)<modpos){
-								gtk_list_store_remove(lst,&it);
-								add_name_lowuser(lst,n);
-							}
-							g_free(text);
-							break;
-						}
-						g_free(text);
-					}while(gtk_tree_model_iter_next( (GtkTreeModel*)lst,&it));
+					pars_mod_set(lst,n,modpos-chanmodes,plus);
 					break;
 				}
 			}while((list=g_list_next(list))!=nullptr);
 			g_list_free(ls);
 			return;
+		}
+	}
+}
+static void pars_wmod(char*n,char*msg){
+	size_t j=0;
+	for(size_t i=0;;i++){
+		if(msg[i]==' '||msg[i]=='\0'){
+			char*modpos=strchr(chanmodessigns,msg[j]);
+			if(modpos!=nullptr){
+				char a=msg[i];msg[i]='\0';
+				GtkWidget*pan=chan_pan(&msg[j+1]);
+				if(pan!=nullptr)pars_mod_set(contf_get_list(pan),n,modpos-chanmodessigns,TRUE);
+				msg[i]=a;
+			}
+			if(msg[i]=='\0')return;
+			j=i+i;
 		}
 	}
 }
@@ -1045,6 +1069,12 @@ static gboolean incsafe(gpointer ps){
 				if(b!=nullptr){
 					b++;if(sscanf(b,channame_scan " %c",channm,&c)==2)
 						pars_err(channm,b+strlen(channm)+2);
+				}
+			}else if(d==319){//RPL_WHOISCHANNELS
+				b=strchr(b,' ');
+				if(b!=nullptr){
+					b++;if(sscanf(b,name_scan " %c",nicknm,&c)==2)
+						pars_wmod(nicknm,b+strlen(nicknm)+2);
 				}
 			}else if(d==5){//RPL_ISUPPORT
 				char*e=strstr(b,"PREFIX=");
