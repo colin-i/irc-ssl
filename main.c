@@ -62,6 +62,11 @@
 #else
 #include "inc/socket.h"
 #endif
+#ifdef HAVE_TIME_H
+#include <time.h>
+#else
+#include "inc/time.h"
+#endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #else
@@ -122,7 +127,7 @@ enum {
 #pragma GCC diagnostic push//is from BOOL+char+BOOL+1=4
 #pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
-	const char*args[10];
+	const char*args[11];
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;char*nknnow;
 	int separator;
@@ -163,6 +168,8 @@ static unsigned int maximummodes=0;
 #define show_from_clause(a,b,c) if(icmpAmemBstr(a,b))show_msg=c;
 #define show_to_clause(a) if(show_msg==a)show_msg=RPL_NONE;
 static int show_msg=RPL_NONE;
+#define decimals_in_uint 10
+static int log_file=-1;
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -226,7 +233,16 @@ static void addattextv(GtkTextView*v,const char*n,const char*msg){
 	addattextview_scroll(b,v);
 }
 #define addatchans(n,msg,p) addattextv(contf_get_textv(p),n,msg)
-#define addatnames(n,msg,p) addattextv((GtkTextView*)gtk_bin_get_child((GtkBin*)p),n,msg)
+static void addatnames(const char*n,const char*msg,GtkWidget*p){
+	addattextv((GtkTextView*)gtk_bin_get_child((GtkBin*)p),n,msg);
+	if(log_file!=-1){
+		write(log_file,n,strlen(n));
+		char buf[1+20+1+1];//2 at 64, $((2**63))...
+		write(log_file,buf,(size_t)sprintf(buf,sizeof(time_t)==8?" %lld ":" %ld ",time(nullptr)));
+		write(log_file,msg,strlen(msg));
+		write(log_file,irc_term,irc_term_sz);
+	}
+}
 static gboolean textviewthreadsfunc(gpointer b){
 	addattextmain_struct(((struct data_len*)b));
 	pthread_kill( threadid, SIGUSR1);
@@ -603,7 +619,7 @@ static BOOL chan_change_nr(const char*chan,int v){
 	GtkTreeIter it;
 	if(gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, &it)){//chan_min hidding
 		for(;;){
-			char c[channm_sz+1+10];
+			char c[channm_sz+1+decimals_in_uint];
 			char*text;
 			gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
 			sscanf(text,channame_scan,c);
@@ -1003,7 +1019,7 @@ static void names_end(GtkWidget*p,char*chan){
 	GtkTreeIter it;
 	gboolean valid=gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, &it);
 	while(valid){
-		char c[channm_sz+1+10];
+		char c[channm_sz+1+decimals_in_uint];
 		char*text;
 		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
 		sscanf(text,channame_scan,c);
@@ -1041,7 +1057,7 @@ static gboolean incsafe(gpointer ps){
 	if(sscanf(a,"%*s %7s",com)==1){
 		size_t ln=strlen(com);
 		char*b=strchr(a,' ')+1+ln;if(*b==' ')b++;
-		char channm[channm_sz+1+10];//+ to set the "chan nr" at join on the same string
+		char channm[channm_sz+1+decimals_in_uint];//+ to set the "chan nr" at join on the same string
 		char nicknm[namenul_sz];
 		char c;
 		if(strcmp(com,"PRIVMSG")==0){
@@ -1346,7 +1362,7 @@ static void save_combo_box(GtkTreeModel*list){
 //can be from add, from remove,from test org con menu nothing
 	GtkTreeIter it;
 	if(info_path_name!=nullptr){
-		int f=open(info_path_name,O_WRONLY|O_TRUNC);
+		int f=open(info_path_name,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR);
 		if(f!=-1){
 			BOOL i=FALSE;
 			gboolean valid=gtk_tree_model_get_iter_first (list, &it);
@@ -1757,7 +1773,7 @@ activate (GtkApplication* app,
 	g_signal_connect_data (ps->notebook, "switch-page",G_CALLBACK (nb_switch_page),ps->sen_entry,nullptr,(GConnectFlags)0);//this,before show,was critical;
 }
 static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
-	gchar*result;int nr;
+	int nr;
 	if (g_variant_dict_lookup (options,ps->args[7], "i", &nr)){//if 0 this is false here
 		if(nr<1||nr>con_nr_max){
 			printf("%s must be from " con_nr_nrs " interval, \"%i\" given.\n",ps->args[7],nr);
@@ -1766,7 +1782,8 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		ps->con_type=(unsigned char)nr;
 	}else ps->con_type=1;
 	//
-	if (g_variant_dict_lookup (options, ps->args[0], "s", &result)){//missing argument is not reaching here
+	char*result;
+	if(g_variant_dict_lookup (options, ps->args[0], "s", &result)){//missing argument is not reaching here
 		char*b=strchr(result,'x');
 		if(b!=nullptr){*b='\0';b++;}
 		ps->dim[0]=atoi(result);
@@ -1800,6 +1817,12 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	//
 	if (g_variant_dict_lookup (options,ps->args[8], "i", &ps->chan_min)==FALSE)
 		ps->chan_min=100;
+	//
+	v=g_variant_dict_lookup_value(options,ps->args[10],G_VARIANT_TYPE_STRING);
+	if(v!=nullptr){
+		const char*a=g_variant_get_string(v,nullptr);
+		log_file=open(a,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR);
+	}
 	//
 	ps->visible=(BOOL)g_variant_dict_contains(options,ps->args[9]);
 	return -1;
@@ -1835,6 +1858,8 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[9],'v',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Send -i MODE (invisible) at start.",nullptr);
 		ps.args[4]="welcome";
 		g_application_add_main_option((GApplication*)app,ps.args[4],'w',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
+		ps.args[10]="log";
+		g_application_add_main_option((GApplication*)app,ps.args[10],'l',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Log private chat to filename.","FILENAME");//_FILENAME
 		ps.path=argv[0];
 		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
@@ -1848,5 +1873,6 @@ int main (int    argc,
 		#pragma GCC diagnostic pop
 		g_object_unref (app);
 		if(info_path_name!=nullptr)free(info_path_name);
+		if(log_file!=-1)close(log_file);
 	}else puts("openssl error");
 }

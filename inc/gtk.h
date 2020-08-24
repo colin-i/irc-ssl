@@ -60,7 +60,7 @@ typedef enum{G_APPLICATION_FLAGS_NONE}
  GApplicationFlags;
 typedef enum{G_CONNECT_SWAPPED = 1 << 1}
 GConnectFlags;//_BEFORE G_CONNECT_AFTER = 1 << 0,
-typedef enum{  G_OPTION_ARG_NONE,  G_OPTION_ARG_STRING,  G_OPTION_ARG_INT}//,  G_OPTION_ARG_CALLBACK,  G_OPTION_ARG_FILENAME,  G_OPTION_ARG_STRING_ARRAY,  G_OPTION_ARG_FILENAME_ARRAY,  G_OPTION_ARG_DOUBLE,  G_OPTION_ARG_INT64
+typedef enum{  G_OPTION_ARG_NONE,  G_OPTION_ARG_STRING,  G_OPTION_ARG_INT,  G_OPTION_ARG_CALLBACK,  G_OPTION_ARG_FILENAME}//,  G_OPTION_ARG_STRING_ARRAY,  G_OPTION_ARG_FILENAME_ARRAY,  G_OPTION_ARG_DOUBLE,  G_OPTION_ARG_INT64
  GOptionArg;
 typedef enum{G_OPTION_FLAG_IN_MAIN = 1 << 1}//  G_OPTION_FLAG_NONE = 0,  G_OPTION_FLAG_HIDDEN = 1 << 0,
  GOptionFlags;//,  G_OPTION_FLAG_REVERSE = 1 << 2,  G_OPTION_FLAG_NO_ARG = 1 << 3,  G_OPTION_FLAG_FILENAME = 1 << 4,  G_OPTION_FLAG_OPTIONAL_ARG = 1 << 5,  G_OPTION_FLAG_NOALIAS = 1 << 6
@@ -174,6 +174,7 @@ gboolean g_variant_dict_contains (GVariantDict *dict, const gchar *key);
 gboolean g_variant_dict_lookup (GVariantDict *dict, const gchar *key, const gchar *format_string, ...);
 GVariant * g_variant_dict_lookup_value (GVariantDict *dict, const gchar *key, const GVariantType *expected_type);
 gchar * g_variant_dup_string (GVariant *value, gsize *length);
+const gchar * g_variant_get_string (GVariant *value, gsize *length);
 GdkPixbuf *gdk_pixbuf_new_from_data (const guchar *data,GdkColorspace colorspace,gboolean has_alpha,int bits_per_sample,int width, int height,int rowstride,GdkPixbufDestroyNotify destroy_fn,gpointer destroy_fn_data);
 void gtk_adjustment_set_value (GtkAdjustment *adjustment, gdouble value);
 GtkApplication * gtk_application_new (const gchar *application_id, GApplicationFlags flags);
