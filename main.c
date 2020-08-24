@@ -157,6 +157,12 @@ static char chantypes[5]={'\0'};
 static char chanmodes[7]={'\0'};
 static char chanmodessigns[7]={'\0'};//& at whois
 static unsigned int maximummodes=0;
+#define RPL_NONE -1
+#define RPL_LIST 322
+#define RPL_NAMREPLY 353
+#define show_from_clause(a,b,c) if(icmpAmemBstr(a,b))show_msg=c;
+#define show_to_clause(a) if(show_msg==a)show_msg=RPL_NONE;
+static int show_msg=RPL_NONE;
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -785,7 +791,7 @@ static void pars_names(GtkWidget*pan,char*b,size_t s){
 	}
 	size_t j=0;
 	for(size_t i=0;i<s;i++){
-		if(b[i]==' '){b[i]='\0';add_name(lst,b+j);j=i+1;}
+		if(b[i]==' '){b[i]='\0';add_name(lst,b+j);b[i]=' ';j=i+1;}
 	}
 	add_name(lst,b+j);
 }
@@ -857,16 +863,22 @@ static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
 static void pars_wmod(char*n,char*msg){
 	size_t j=0;
 	for(size_t i=0;;i++){
-		if(msg[i]==' '||msg[i]=='\0'){
+		if(msg[i]==' '){
 			char*modpos=strchr(chanmodessigns,msg[j]);
 			if(modpos!=nullptr){
-				char a=msg[i];msg[i]='\0';
+				msg[i]='\0';
 				GtkWidget*pan=chan_pan(&msg[j+1]);
 				if(pan!=nullptr)pars_mod_set(contf_get_list(pan),n,modpos-chanmodessigns,TRUE);
-				msg[i]=a;
+				msg[i]=' ';
 			}
-			if(msg[i]=='\0')return;
 			j=i+i;
+		}else if(msg[i]=='\0'){
+			char*modpos=strchr(chanmodessigns,msg[j]);
+			if(modpos!=nullptr){
+				GtkWidget*pan=chan_pan(&msg[j+1]);
+				if(pan!=nullptr)pars_mod_set(contf_get_list(pan),n,modpos-chanmodessigns,TRUE);
+			}
+			return;
 		}
 	}
 }
@@ -1061,16 +1073,17 @@ static gboolean incsafe(gpointer ps){
 		}else if(strlen(com)!=3)showmsg=FALSE;
 		else{
 			int d=atoi(com);
-			if(d==322){//RPL_LIST
-				showmsg=FALSE;
+			if(d==RPL_LIST){
+				if(show_msg!=RPL_LIST)showmsg=FALSE;
 				unsigned int e;
 				//if its >nr ,c is not 2
 				if(sscanf(b,"%*s " channame_scan " %u",channm,&e)==2)
 					if((int)e>=((struct stk_s*)ps)->chan_min)
 						pars_chan(channm,e);
 			}else if(d==321)gtk_list_store_clear(channels);//RPL_LISTSTART
-			else if(d==353){//RPL_NAMREPLY
-				showmsg=FALSE;
+			else if(d==323){show_to_clause(RPL_LIST)}//RPL_LISTEND
+			else if(d==RPL_NAMREPLY){
+				if(show_msg!=RPL_NAMREPLY)showmsg=FALSE;
 				if(sscanf(b,"%*s %*c " channame_scan,channm)==1){
 					GtkWidget*p=chan_pan(channm);
 					if(p!=nullptr){
@@ -1079,6 +1092,7 @@ static gboolean incsafe(gpointer ps){
 					}
 				}
 			}else if(d==366){//RPL_ENDOFNAMES
+				show_to_clause(RPL_NAMREPLY)
 				if(sscanf(b,"%*s " channame_scan,channm)==1){
 					GtkWidget*p=chan_pan(channm);
 					if(p!=nullptr)names_end(p,channm);
@@ -1584,15 +1598,28 @@ static void help_popup(GtkWindow*top){
 	gtk_box_pack_start((GtkBox*)box, scrolled_window, TRUE, TRUE, 0);
 	gtk_widget_show_all (dialog);
 }
+static BOOL icmpAmemBstr(const char*s1,const char*s2){
+	for(size_t i=0;;i++){
+		char a=s1[i];
+		char c=a-s2[i];
+		if(c!='\0'){
+			if('A'<=a&&a<='Z'){if(a+('a'-'A')!=s2[i])return FALSE;}
+			else if('a'<=a&&a<='z'){if(a-('a'-'A')!=s2[i])return FALSE;}
+			else if(s2[i]=='\0')return TRUE;
+			else return FALSE;
+		}else if(a=='\0')return TRUE;
+	}
+}
 static void send_activate(GtkEntry*entry,struct stk_s*ps){
 	GtkEntryBuffer*t=gtk_entry_get_buffer(entry);
 	const char*text=gtk_entry_buffer_get_text(t);
 	//
 	GtkWidget*pg=gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook));
 	const char*a=gtk_notebook_get_menu_label_text(ps->notebook,pg);
-	BOOL priv=*a!=*home_string;
-	if(priv)send_msg(ps->nknnow,a,text,pg);
+	if(*a!=*home_string)send_msg(ps->nknnow,a,text,pg);
 	else{
+		show_from_clause(text,"list",RPL_LIST)
+		else show_from_clause(text,"names",RPL_NAMREPLY)
 		size_t sz=strlen(text);
 		char*b=(char*)malloc(sz+irc_term_sz);
 		if(b==nullptr)return;
