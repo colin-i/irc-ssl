@@ -1844,6 +1844,8 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[8],'m',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Minimum users to list a channel(at \"322\"). Default 100.","NR");
 		ps.args[7]="connection_number";
 		g_application_add_main_option((GApplication*)app,ps.args[7],'c',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ", 4=" con_nr_4 ". Default value is 1.",con_nr_nrs);
+		ps.args[10]="log";
+		g_application_add_main_option((GApplication*)app,ps.args[10],'l',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Log private chat to filename.","FILENAME");//_FILENAME
 		ps.args[1]="nick";
 		g_application_add_main_option((GApplication*)app,ps.args[1],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
 		ps.args[3]="refresh";
@@ -1858,8 +1860,6 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[9],'v',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Send -i MODE (invisible) at start.",nullptr);
 		ps.args[4]="welcome";
 		g_application_add_main_option((GApplication*)app,ps.args[4],'w',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
-		ps.args[10]="log";
-		g_application_add_main_option((GApplication*)app,ps.args[10],'l',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Log private chat to filename.","FILENAME");//_FILENAME
 		ps.path=argv[0];
 		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
