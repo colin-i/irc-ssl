@@ -118,7 +118,7 @@ static GtkWidget*name_on_menu;static GtkWidget*name_off_menu;
 #define send_prv2 " :"
 #define home_string "*Home"
 static unsigned int alert_counter=0;
-static GtkCheckMenuItem*show_time;
+static GtkCheckMenuItem*show_time;static GtkCheckMenuItem*channels_counted;
 #define user_message "USER guest tolmoon tolsun :Ronnie Reagan"
 enum {
   LIST_ITEM = 0,
@@ -172,6 +172,7 @@ static int show_msg=RPL_NONE;
 #define decimals_in_uint 10
 static int log_file=-1;
 static char**ignoreds={nullptr};
+static BOOL can_send_data=FALSE;
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -265,6 +266,7 @@ static void send_data(const char*str,size_t sz){
 	write(plain_socket,str,sz);
 }
 #define sendlist "LIST" irc_term
+#define send_list send_data(sendlist,sizeof(sendlist)-1);
 static gboolean sendthreadsfunc(gpointer b){
 	send_data(((struct data_len*)b)->data,((struct data_len*)b)->len);
 	pthread_kill( threadid, SIGUSR1);
@@ -382,25 +384,54 @@ static void pars_chan_end(GtkTreeIter*it,char*channm,unsigned int nr){
 	size_t ln=strlen(channm);channm[ln]=' ';sprintf(channm+ln+1,"%u",nr);
 	gtk_list_store_set(channels, it, LIST_ITEM, channm, -1);
 }
-static void pars_chan(char*chan,unsigned int nr){
+static BOOL pars_chan_counted(char*chan,unsigned int nr){
 	GtkTreeIter it;
 	gboolean valid=gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, &it);
 	while(valid){
-		char c[channm_sz];unsigned int n;GtkTreeIter i;
 		char*text;
 		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
-		sscanf(text,channame_scan " %u",c,&n);
-		int a=strcmp(chan,c);
+		char*c=strchr(text,' ');*c='\0';
+		unsigned int n=(unsigned int)atoi(c+1);
+		int a=strcmp(chan,text);
 		g_free(text);
 		if(nr>n||(nr==n&&a<0)){
+			GtkTreeIter i;
 			gtk_list_store_insert_before(channels,&i,&it);
 			pars_chan_end(&i,chan,nr);
-			return;
+			return FALSE;
 		}
 		valid = gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it);
 	}
-	gtk_list_store_append(channels,&it);
-	pars_chan_end(&it,chan,nr);
+	return TRUE;
+}
+static BOOL pars_chan_alpha(char*chan,unsigned int nr){
+	GtkTreeIter it;
+	gboolean valid=gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, &it);
+	while(valid){
+		char*text;
+		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
+		char*c=strchr(text,' ');*c='\0';
+		int a=strcmp(chan,text);
+		g_free(text);
+		if(a<0){
+			GtkTreeIter i;
+			gtk_list_store_insert_before(channels,&i,&it);
+			pars_chan_end(&i,chan,nr);
+			return FALSE;
+		}
+		valid = gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it);
+	}
+	return TRUE;
+}
+static void pars_chan(char*chan,unsigned int nr){
+	BOOL b;
+	if(gtk_check_menu_item_get_active(channels_counted)){b=pars_chan_counted(chan,nr);}
+	else b=pars_chan_alpha(chan,nr);
+	if(b){
+		GtkTreeIter it;
+		gtk_list_store_append(channels,&it);
+		pars_chan_end(&it,chan,nr);
+	}
 }
 static GtkWidget*container_frame_name(){
 	GtkTextView*text = (GtkTextView*)gtk_text_view_new ();
@@ -617,31 +648,52 @@ static void chan_change_nr_loss(GtkTreeIter*iter,char*chn,unsigned int nr){
 	}
 	gtk_list_store_move_before(channels,iter,&it);
 }
+static BOOL get_chan_counted(const char*chan,char*c,GtkTreeIter*it,char**text){
+	gboolean valid=gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, it);
+	while(valid){
+		gtk_tree_model_get ((GtkTreeModel*)channels, it, 0, text, -1);
+		sscanf(*text,channame_scan,c);
+		if(strcmp(chan,c)==0)return TRUE;
+		g_free(*text);
+		valid = gtk_tree_model_iter_next( (GtkTreeModel*)channels, it);
+	}
+	return FALSE;
+}
+static BOOL get_chan_alpha(const char*chan,char*c,GtkTreeIter*it,char**text){
+	gboolean valid=gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, it);
+	while(valid){
+		gtk_tree_model_get ((GtkTreeModel*)channels, it, 0, text, -1);
+		sscanf(*text,channame_scan,c);
+		int a=strcmp(chan,c);
+		if(a==0)return TRUE;
+		g_free(*text);
+		if(a<0)return FALSE;
+		valid = gtk_tree_model_iter_next( (GtkTreeModel*)channels, it);
+	}
+	return FALSE;
+}
 static BOOL chan_change_nr(const char*chan,int v){
 	GtkTreeIter it;
-	if(gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, &it)){//chan_min hidding
-		for(;;){
-			char c[channm_sz+1+decimals_in_uint];
-			char*text;
-			gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
-			sscanf(text,channame_scan,c);
-			if(strcmp(chan,c)==0){
-				size_t s=strlen(c);size_t ss=s;
-				unsigned int n;
-				s++;sscanf(text+s,"%u",&n);
-				g_free(text);
-				n+=(unsigned int)v;
-				if(v>0)chan_change_nr_gain(&it,c,n);
-				else chan_change_nr_loss(&it,c,n);
-				c[ss]=' ';
-				s+=(size_t)sprintf(c+s,"%u",n);c[s]=0;
-				gtk_list_store_set(channels, &it, LIST_ITEM, c, -1);
-				return TRUE;
-			}
-			g_free(text);
-			if(gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it)==FALSE)
-				return FALSE;
+	//chan_min hidding
+	char c[channm_sz+1+decimals_in_uint];char*text;
+	BOOL b;
+	gboolean ac=gtk_check_menu_item_get_active(channels_counted);
+	if(ac){b=get_chan_counted(chan,c,&it,&text);}
+	else b=get_chan_alpha(chan,c,&it,&text);
+	if(b){
+		size_t s=strlen(c);size_t ss=s;
+		unsigned int n;
+		s++;sscanf(text+s,"%u",&n);
+		g_free(text);
+		n+=(unsigned int)v;
+		if(ac){
+			if(v>0)chan_change_nr_gain(&it,c,n);
+			else chan_change_nr_loss(&it,c,n);
 		}
+		c[ss]=' ';
+		s+=(size_t)sprintf(c+s,"%u",n);c[s]='\0';
+		gtk_list_store_set(channels, &it, LIST_ITEM, c, -1);//-1 is for end of arguments
+		return TRUE;
 	}
 	return FALSE;
 }
@@ -1026,30 +1078,27 @@ static void line_switch(char*n,GtkWidget*from,GtkWidget*to,const char*msg){
 }
 static void names_end(GtkWidget*p,char*chan){
 	gtk_widget_set_has_tooltip(p,FALSE);
-	GtkTreeIter it;
-	gboolean valid=gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, &it);
-	while(valid){
-		char c[channm_sz+1+decimals_in_uint];
-		char*text;
-		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
-		sscanf(text,channame_scan,c);
-		if(strcmp(chan,c)==0){
-			int n;
-			size_t len=strlen(c);
-			sscanf(text+len+1,"%u",&n);
-			g_free(text);
-			GtkListStore*list=contf_get_list(p);
-			int z=gtk_tree_model_iter_n_children ((GtkTreeModel*)list,nullptr);
-			int dif=z-n;
+	char c[channm_sz+1+decimals_in_uint];
+	GtkTreeIter it;char*text;
+	BOOL b;
+	gboolean ac=gtk_check_menu_item_get_active(channels_counted);
+	if(ac){b=get_chan_counted(chan,c,&it,&text);}
+	else b=get_chan_alpha(chan,c,&it,&text);
+	if(b){
+		int n;
+		size_t len=strlen(c);
+		sscanf(text+len+1,"%u",&n);
+		g_free(text);
+		GtkListStore*list=contf_get_list(p);
+		int z=gtk_tree_model_iter_n_children ((GtkTreeModel*)list,nullptr);
+		int dif=z-n;
+		if(dif==0)return;
+		if(ac){
 			if(dif>0)chan_change_nr_gain(&it,chan,(unsigned int)z);
 			else if(dif<0)chan_change_nr_loss(&it,chan,(unsigned int)z);
-			else return;
-			sprintf(c+len," %u",z);
-			gtk_list_store_set(channels, &it, LIST_ITEM, c, -1);
-			return;
 		}
-		g_free(text);
-		valid = gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it);
+		sprintf(c+len," %u",z);
+		gtk_list_store_set(channels, &it, LIST_ITEM, c, -1);
 	}
 }
 static gboolean incsafe(gpointer ps){
@@ -1121,7 +1170,7 @@ static gboolean incsafe(gpointer ps){
 				show_to_clause(RPL_NAMREPLY)
 				if(sscanf(b,"%*s " channame_scan,channm)==1){
 					GtkWidget*p=chan_pan(channm);
-					if(p!=nullptr)names_end(p,channm);
+					if(p!=nullptr)names_end(p,channm);//at a join
 				}
 			}else if(d>400){//Error Replies.
 				b=strchr(b,' ');
@@ -1147,7 +1196,7 @@ static gboolean incsafe(gpointer ps){
 			//this not getting after first recv
 			//another solution can be after motd (later)
 			//or after 1 second, not beautiful
-				send_data(sendlist,sizeof(sendlist)-1);
+				send_list
 		}
 	}else showmsg=FALSE;
 	if(showmsg){
@@ -1164,7 +1213,7 @@ static void incomings(char*a,size_t n,struct stk_s*ps){
 }
 static gboolean refresh_callback( gpointer ignored){
 	(void)ignored;
-	send_data(sendlist,sizeof(sendlist)-1);
+	send_list
 	return TRUE;
 }
 static int start_old_clear(GtkWidget*w,GtkNotebook*nb){
@@ -1197,9 +1246,11 @@ static gboolean senstartthreadsfunc(gpointer ps){
 	g_signal_handler_unblock(((struct stk_s*)ps)->trv,((struct stk_s*)ps)->trvr);
 	//
 	pthread_kill( threadid, SIGUSR1);
+	can_send_data=TRUE;
 	return FALSE;
 }
 static gboolean senstopthreadsfunc(gpointer ps){
+	can_send_data=FALSE;
 	g_signal_handler_block(((struct stk_s*)ps)->sen_entry,((struct stk_s*)ps)->sen_entry_act);
 	//
 	if(((struct stk_s*)ps)->refresh>0)
@@ -1225,8 +1276,6 @@ static gboolean senstopthreadsfunc(gpointer ps){
 	return FALSE;
 }
 static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
-	g_idle_add(senstartthreadsfunc,ps);
-	int out;sigwait(&threadset,&out);
 	size_t fln=strlen(ps->user_irc);
 	size_t nkn_len=strlen(nkn);
 	size_t nln=sizeof(nickname_con)-3+nkn_len;
@@ -1244,6 +1293,8 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 		if(buf!=nullptr){
 			int sz=recv_data(buf,bsz);
 			if(sz>0){//'the traditional "end-of-file" return'
+				g_idle_add(senstartthreadsfunc,ps);
+				int out;sigwait(&threadset,&out);
 				if(ps->visible){
 					char vidata[5+namenul_sz+3+irc_term_sz-1]="MODE ";
 					memcpy(vidata+5,nkn,nkn_len);
@@ -1279,12 +1330,12 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 					}while(sz>0);
 					sz=recv_data(buf,bsz);
 				}while(sz>0);
+				g_idle_add(senstopthreadsfunc,ps);
+				sigwait(&threadset,&out);
 			}else out_v=FALSE;
 			free(buf);
 		}
 	}
-	g_idle_add(senstopthreadsfunc,ps);
-	sigwait(&threadset,&out);
 	return out_v;
 }
 static BOOL con_ssl(char*psw,char*nkn,struct stk_s*ps){
@@ -1677,6 +1728,9 @@ static void clipboard_tev(GtkNotebook*notebook){
 	gtk_clipboard_set_text (gtk_clipboard_get(GDK_SELECTION_CLIPBOARD),text,-1);
 	g_free(text);
 }
+static void channels_sort(){
+	if(can_send_data)send_list
+}
 static void
 activate (GtkApplication* app,
           struct stk_s*ps)
@@ -1760,6 +1814,11 @@ activate (GtkApplication* app,
 	menu_item = gtk_menu_item_new_with_label ("Copy to Clipboard");
 	g_signal_connect_data (menu_item, "activate",G_CALLBACK (clipboard_tev),ps->notebook,nullptr,G_CONNECT_SWAPPED);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
+	//
+	channels_counted=(GtkCheckMenuItem*)gtk_check_menu_item_new_with_label("Sort Channels by Number");
+	gtk_check_menu_item_set_active(channels_counted,TRUE);
+	g_signal_connect_data (channels_counted, "toggled",G_CALLBACK(channels_sort),nullptr,nullptr,(GConnectFlags)0);
+	gtk_menu_shell_append ((GtkMenuShell*)menu,(GtkWidget*)channels_counted);gtk_widget_show((GtkWidget*)channels_counted);
 	//
 	g_signal_connect_data (org, "button-press-event",G_CALLBACK (prog_menu_popup),menu,nullptr,G_CONNECT_SWAPPED);
 	//
