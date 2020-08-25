@@ -1079,7 +1079,7 @@ static gboolean incsafe(gpointer ps){
 		}else if(strcmp(com,"JOIN")==0){
 			int resp=nick_and_chan(a,b,nicknm,channm,((struct stk_s*)ps)->nknnow);
 			if(resp==0)pars_join(channm,(struct stk_s*)ps);
-			else if(resp==1){pars_join_user(channm,nicknm);line_switch(nicknm,name_off_menu,name_on_menu,"User is online.");}
+			else if(resp==1){pars_join_user(channm,nicknm);line_switch(nicknm,name_off_menu,name_on_menu,"User Join");}
 		}else if(strcmp(com,"PART")==0){
 			int resp=nick_and_chan(a,b,nicknm,channm,((struct stk_s*)ps)->nknnow);
 			if(resp==0)pars_part(channm,((struct stk_s*)ps)->notebook);
@@ -1090,7 +1090,7 @@ static gboolean incsafe(gpointer ps){
 		}else if(strcmp(com,"QUIT")==0){
 			if(nick_extract(a,nicknm)){
 				pars_quit(nicknm);
-				line_switch(nicknm,name_on_menu,name_off_menu,"User quit.");
+				line_switch(nicknm,name_on_menu,name_off_menu,"User Quit");
 			}
 		}else if(strcmp(com,"MODE")==0){
 			char mod[1+3+1];//"limit of three (3) changes per command for modes that take a parameter."
