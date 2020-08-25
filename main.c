@@ -127,7 +127,7 @@ enum {
 #pragma GCC diagnostic push//is from BOOL+char+BOOL+1=4
 #pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
-	const char*args[11];
+	const char*args[12];
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;char*nknnow;
 	int separator;
@@ -142,6 +142,7 @@ struct stk_s{
 	int chan_min;//0 gtk parse handle arguments!
 	BOOL visible;
 	GtkWidget*trv;unsigned long trvr;
+	char*ignor_str;
 };
 #pragma GCC diagnostic pop
 #define con_nr_1 "SSL or Unencrypted"
@@ -170,6 +171,7 @@ static unsigned int maximummodes=0;
 static int show_msg=RPL_NONE;
 #define decimals_in_uint 10
 static int log_file=-1;
+static char**ignoreds={nullptr};
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -960,6 +962,12 @@ static void pars_pmsg_chan(char*n,char*c,char*msg,GtkNotebook*nb){
 	}while((list=g_list_next(list))!=nullptr);
 	g_list_free(lst);
 }
+static BOOL talk_user(char*n){
+	for(size_t i=0;;i++){
+		if(ignoreds[i]==nullptr)return TRUE;
+		if(strcmp(ignoreds[i],n)==0)return FALSE;
+	}
+}
 static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps){
 	BOOL novel=TRUE;
 	GtkNotebook*nb=ps->notebook;
@@ -980,9 +988,11 @@ static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps){
 		g_list_free(lst);
 	}
 	if(novel){
-		GtkWidget*scrl=name_join_nb(n,nb);addatnames(n,msg,scrl);
-		alert(gtk_notebook_get_tab_label(nb,scrl),nb);
-		if(ps->welcome!=nullptr)send_msg(ps->nknnow,n,ps->welcome,scrl);
+		if(talk_user(n)){
+			GtkWidget*scrl=name_join_nb(n,nb);addatnames(n,msg,scrl);
+			alert(gtk_notebook_get_tab_label(nb,scrl),nb);
+			if(ps->welcome!=nullptr)send_msg(ps->nknnow,n,ps->welcome,scrl);
+		}
 	}
 }
 static void pars_err(char*str,char*msg){
@@ -1818,11 +1828,30 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	if (g_variant_dict_lookup (options,ps->args[8], "i", &ps->chan_min)==FALSE)
 		ps->chan_min=100;
 	//
+	const char*a;
 	v=g_variant_dict_lookup_value(options,ps->args[10],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr){
-		const char*a=g_variant_get_string(v,nullptr);
+		a=g_variant_get_string(v,nullptr);
 		log_file=open(a,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR);
 	}
+	//
+	v=g_variant_dict_lookup_value(options,ps->args[11],G_VARIANT_TYPE_STRING);
+	if(v!=nullptr){
+		a=g_variant_get_string(v,nullptr);
+		size_t n=2;
+		for(size_t i=0;a[i]!='\0';i++)
+			if(a[i]==',')n++;
+		char**b=(char**)malloc(n*sizeof(char*));
+		if(b!=nullptr){
+			ps->ignor_str=g_variant_dup_string(v,nullptr);
+			ignoreds=b;
+			size_t k=0;size_t j=0;
+			for(size_t i=0;a[i]!='\0';i++)
+				if(a[i]==','){ignoreds[k]=&ps->ignor_str[j];j=i+1;k++;}
+			ignoreds[k]=&ps->ignor_str[j];
+			ignoreds[k+1]=nullptr;
+		}
+	}else ps->ignor_str=nullptr;
 	//
 	ps->visible=(BOOL)g_variant_dict_contains(options,ps->args[9]);
 	return -1;
@@ -1844,6 +1873,8 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[8],'m',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Minimum users to list a channel(at \"322\"). Default 100.","NR");
 		ps.args[7]="connection_number";
 		g_application_add_main_option((GApplication*)app,ps.args[7],'c',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ", 4=" con_nr_4 ". Default value is 1.",con_nr_nrs);
+		ps.args[11]="ignore";
+		g_application_add_main_option((GApplication*)app,ps.args[11],'i',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Ignore private messages from nicknames.","S1,S2...SN");//_FILENAME
 		ps.args[10]="log";
 		g_application_add_main_option((GApplication*)app,ps.args[10],'l',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Log private chat to filename.","FILENAME");//_FILENAME
 		ps.args[1]="nick";
@@ -1874,5 +1905,6 @@ int main (int    argc,
 		g_object_unref (app);
 		if(info_path_name!=nullptr)free(info_path_name);
 		if(log_file!=-1)close(log_file);
+		if(ps.ignor_str!=nullptr){free(ps.ignor_str);free(ignoreds);}
 	}else puts("openssl error");
 }
