@@ -127,7 +127,7 @@ enum {
 #pragma GCC diagnostic push//is from BOOL+char+BOOL+1=4
 #pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
-	const char*args[12];
+	const char*args[13];
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;char*nknnow;
 	int separator;
@@ -143,6 +143,7 @@ struct stk_s{
 	BOOL visible;
 	GtkWidget*trv;unsigned long trvr;
 	char*ignor_str;
+	char*execute_newmsg;GtkWindow*main_win;
 };
 #pragma GCC diagnostic pop
 #define con_nr_1 "SSL or Unencrypted"
@@ -528,7 +529,8 @@ static GtkWidget*add_new_tab(GtkWidget*frame,char*title,GtkWidget**cls,GtkNotebo
 	*cls=close;
 	return is_name?menu_item:t;
 }
-static gboolean chan_join (GtkTreeView *tree){
+static gboolean chan_join (GtkTreeView *tree,GdkEvent*ignored,GtkNotebook*notebook){
+	(void)ignored;
 	GtkTreeSelection *sel=gtk_tree_view_get_selection(tree);
 	GtkTreeIter iterator;
 	if(gtk_tree_selection_get_selected (sel,nullptr,&iterator)){//can be no channel
@@ -536,9 +538,27 @@ static gboolean chan_join (GtkTreeView *tree){
 		gtk_tree_model_get ((GtkTreeModel*)channels, &iterator, LIST_ITEM, &item_text, -1);
 		for(size_t i=0;;i++){
 			if(item_text[i]==' '){
-				memcpy(buf+5,item_text,i);
-				memcpy(buf+5+i,irc_term,irc_term_sz);
-				send_data(buf,5+irc_term_sz+i);
+				BOOL b=TRUE;
+				GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
+				if(list!=nullptr){
+					GList*lst=list;
+					item_text[i]='\0';
+					do{
+						GtkWidget*menu_item=(GtkWidget*)list->data;
+						const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
+						if(strcmp(item_text,d)==0){
+							gtk_notebook_set_current_page(notebook,gtk_notebook_page_num(notebook,get_pan_from_menu(menu_item)));
+							b=FALSE;
+							break;
+						}
+					}while((list=g_list_next(list))!=nullptr);
+					g_list_free(lst);
+				}
+				if(b){
+					memcpy(buf+5,item_text,i);
+					memcpy(buf+5+i,irc_term,irc_term_sz);
+					send_data(buf,5+irc_term_sz+i);
+				}
 				break;
 			}
 		}
@@ -1020,6 +1040,10 @@ static BOOL talk_user(char*n){
 		if(strcmp(ignoreds[i],n)==0)return FALSE;
 	}
 }
+#define exec_nm \
+if(ps->execute_newmsg!=nullptr)\
+	if(gtk_window_is_active(ps->main_win)==FALSE)\
+		g_spawn_command_line_async(ps->execute_newmsg,nullptr);
 static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps){
 	BOOL novel=TRUE;
 	GtkNotebook*nb=ps->notebook;
@@ -1034,6 +1058,7 @@ static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps){
 				addatnames(n,msg,scrl);
 				prealert(nb,scrl);
 				novel=FALSE;
+				exec_nm
 				break;
 			}
 		}while((list=g_list_next(list))!=nullptr);
@@ -1044,6 +1069,7 @@ static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps){
 			GtkWidget*scrl=name_join_nb(n,nb);addatnames(n,msg,scrl);
 			alert(gtk_notebook_get_tab_label(nb,scrl),nb);
 			if(ps->welcome!=nullptr)send_msg(ps->nknnow,n,ps->welcome,scrl);
+			exec_nm
 		}
 	}
 }
@@ -1748,14 +1774,14 @@ activate (GtkApplication* app,
 	gtk_window_set_icon((GtkWindow*)window, p);
 	g_object_unref(p);
 	//
-	home_page=container_frame(ps->separator,G_CALLBACK(chan_join),nullptr);
+	ps->notebook = (GtkNotebook*)gtk_notebook_new ();
+	home_page=container_frame(ps->separator,G_CALLBACK(chan_join),ps->notebook);
 	text_view=contf_get_textv(home_page);
 	ps->trv=(GtkWidget*)contf_get_treev(home_page);
 	channels=(GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)ps->trv);
 	ps->trvr=g_signal_handler_find(ps->trv,G_SIGNAL_MATCH_ID,g_signal_lookup("button-release-event", gtk_button_get_type()),0, nullptr, nullptr, nullptr);
 	g_signal_handler_block(ps->trv,ps->trvr);//warning without
 	//
-	ps->notebook = (GtkNotebook*)gtk_notebook_new ();
 	gtk_notebook_set_scrollable(ps->notebook,TRUE);
 	gtk_notebook_popup_enable(ps->notebook);
 	gtk_notebook_append_page_menu (ps->notebook, home_page, gtk_label_new (home_string), gtk_label_new (home_string));//i dont like the display (at 2,3..) without the last parameter
@@ -1843,6 +1869,7 @@ activate (GtkApplication* app,
 	gtk_box_pack_start((GtkBox*)box,ps->sen_entry,FALSE,FALSE,0);
 	gtk_container_add ((GtkContainer*)window, box);
 	gtk_widget_show_all (window);
+	ps->main_win=(GtkWindow*)window;
 	//
 	GtkWidget*info=gtk_image_new_from_icon_name ("dialog-information",GTK_ICON_SIZE_MENU);
 	gtk_notebook_set_action_widget(ps->notebook,info,GTK_PACK_END);
@@ -1919,6 +1946,11 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		}
 	}else ps->ignor_str=nullptr;
 	//
+	v=g_variant_dict_lookup_value(options,ps->args[12],G_VARIANT_TYPE_STRING);
+	if(v!=nullptr)
+		ps->execute_newmsg=g_variant_dup_string(v,nullptr);
+	else ps->execute_newmsg=nullptr;
+	//
 	ps->visible=(BOOL)g_variant_dict_contains(options,ps->args[9]);
 	return -1;
 }
@@ -1949,12 +1981,14 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[3],'f',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Refresh channels interval in seconds. Default 60. Less than 1 to disable.","SECONDS");
 		ps.args[2]="right";
 		g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Right pane size, default 150","WIDTH");
+		ps.args[12]="run";
+		g_application_add_main_option((GApplication*)app,ps.args[12],'x',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"If window is not active, run command line at new private messages.","COMMAND");
 		ps.args[5]="timestamp";
 		g_application_add_main_option((GApplication*)app,ps.args[5],'t',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Show message timestamp.",nullptr);
 		ps.args[6]="user";
 		g_application_add_main_option((GApplication*)app,ps.args[6],'u',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"User message. Default \"" user_message "\"","STRING");
 		ps.args[9]="visible";
-		g_application_add_main_option((GApplication*)app,ps.args[9],'v',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Send -i MODE (invisible) at start.",nullptr);
+		g_application_add_main_option((GApplication*)app,ps.args[9],'v',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Send MODE -i at start. (remove invisible)",nullptr);
 		ps.args[4]="welcome";
 		g_application_add_main_option((GApplication*)app,ps.args[4],'w',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
 		ps.path=argv[0];
@@ -1972,5 +2006,6 @@ int main (int    argc,
 		if(info_path_name!=nullptr)free(info_path_name);
 		if(log_file!=-1)close(log_file);
 		if(ps.ignor_str!=nullptr){free(ps.ignor_str);free(ignoreds);}
+		if(ps.execute_newmsg!=nullptr)g_free(ps.execute_newmsg);
 	}else puts("openssl error");
 }
