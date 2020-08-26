@@ -214,6 +214,7 @@ const gchar* gtk_entry_buffer_get_text (GtkEntryBuffer *buffer);
 GtkEntryBuffer *gtk_entry_get_buffer (GtkEntry *entry);
 const gchar *gtk_entry_get_text (GtkEntry *entry);
 GtkWidget* gtk_entry_new (void);
+void gtk_entry_set_placeholder_text (GtkEntry *entry, const gchar *text);
 void gtk_entry_set_text (GtkEntry *entry, const gchar *text);
 GType gtk_image_get_type (void) __attribute__((__const__));
 GtkWidget* gtk_image_new_from_icon_name (const gchar *icon_name, GtkIconSize size);

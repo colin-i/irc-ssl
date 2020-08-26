@@ -268,6 +268,7 @@ static void send_data(const char*str,size_t sz){
 }
 #define sendlist "LIST" irc_term
 #define send_list send_data(sendlist,sizeof(sendlist)-1);
+#define send_list_if if(can_send_data)send_list
 static gboolean sendthreadsfunc(gpointer b){
 	send_data(((struct data_len*)b)->data,((struct data_len*)b)->len);
 	pthread_kill( threadid, SIGUSR1);
@@ -1692,7 +1693,7 @@ static void help_popup(GtkWindow*top){
 	gtk_window_get_size (top,&w,&h);
 	gtk_window_set_default_size((GtkWindow*)dialog,w,h);
 	g_signal_connect_data (dialog,"response",G_CALLBACK (gtk_widget_destroy),
-	                       dialog,nullptr,G_CONNECT_SWAPPED);
+	                       nullptr,nullptr,(GConnectFlags)0);
 	//
 	GtkWidget*scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
 	GtkWidget*text = gtk_text_view_new ();
@@ -1758,7 +1759,30 @@ static void clipboard_tev(GtkNotebook*notebook){
 	g_free(text);
 }
 static void channels_sort(){
-	if(can_send_data)send_list
+	send_list_if
+}
+static void chan_reMin_response (GtkDialog *dialog,gint ignored,int*chan_min){
+	(void)ignored;
+	GList*l=gtk_container_get_children((GtkContainer*)gtk_dialog_get_content_area(dialog));
+	const char*text=gtk_entry_get_text((GtkEntry*)l->data);
+	g_list_free(l);
+	*chan_min=atoi(text);
+	send_list_if
+	gtk_widget_destroy(dialog);
+}
+static void chan_reMin(struct stk_s*ps){
+	GtkWidget *dialog = gtk_dialog_new_with_buttons ("Channel Minimum Users",
+			    ps->main_win, (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
+			    "OK",GTK_RESPONSE_NONE,nullptr);
+	GtkWidget*entry = gtk_entry_new();
+	char buf[decimals_in_uint+1+1];//plus another one,chan_min is int,-2bil...
+	sprintf(buf,"%d",ps->chan_min);//is int, "command 0" is not,"command -1" is ok
+	gtk_entry_set_placeholder_text(entry,buf);
+	g_signal_connect_data (dialog,"response",G_CALLBACK (chan_reMin_response),
+	                       &ps->chan_min,nullptr,(GConnectFlags)0);
+	GtkWidget*box=gtk_dialog_get_content_area((GtkDialog*)dialog);
+	gtk_box_pack_start((GtkBox*)box, entry, TRUE, TRUE, 0);
+	gtk_widget_show_all (dialog);
 }
 static void
 activate (GtkApplication* app,
@@ -1849,6 +1873,10 @@ activate (GtkApplication* app,
 	g_signal_connect_data (channels_counted, "toggled",G_CALLBACK(channels_sort),nullptr,nullptr,(GConnectFlags)0);
 	gtk_menu_shell_append ((GtkMenuShell*)menu,(GtkWidget*)channels_counted);gtk_widget_show((GtkWidget*)channels_counted);
 	//
+	menu_item = gtk_menu_item_new_with_label ("Channel Minimum Users");
+	g_signal_connect_data (menu_item, "activate",G_CALLBACK (chan_reMin),ps,nullptr,G_CONNECT_SWAPPED);
+	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
+	//
 	menu_item = gtk_menu_item_new_with_label ("Close Connection");
 	g_signal_connect_data (menu_item, "activate",G_CALLBACK (action_to_close),nullptr,nullptr,(GConnectFlags)0);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
@@ -1903,7 +1931,7 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		ps->separator=150;
 	//
 	if (g_variant_dict_lookup (options,ps->args[3], "i", &ps->refresh)==FALSE)
-		ps->refresh=60;
+		ps->refresh=600;
 	//
 	v=g_variant_dict_lookup_value(options,ps->args[4],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr)
@@ -1978,7 +2006,7 @@ int main (int    argc,
 		ps.args[1]="nick";
 		g_application_add_main_option((GApplication*)app,ps.args[1],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
 		ps.args[3]="refresh";
-		g_application_add_main_option((GApplication*)app,ps.args[3],'f',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Refresh channels interval in seconds. Default 60. Less than 1 to disable.","SECONDS");
+		g_application_add_main_option((GApplication*)app,ps.args[3],'f',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Refresh channels interval in seconds. Default 600. Less than 1 to disable.","SECONDS");
 		ps.args[2]="right";
 		g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Right pane size, default 150","WIDTH");
 		ps.args[12]="run";
