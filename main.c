@@ -284,7 +284,7 @@ static gboolean close_ssl_safe(gpointer ignore){(void)ignore;
 	return FALSE;
 }
 static gboolean close_plain(gpointer ignore){(void)ignore;
-//to call shutdown and send(without send entry) with peace
+//to call shutdown with peace
 	close(plain_socket);plain_socket=-1;
 	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
@@ -1468,13 +1468,16 @@ static void set_combo_box_text(GtkComboBox * box,const char*txt)
 	save_combo_box(list_store);
 	gtk_combo_box_set_active(box, i);
 }
+static void action_to_close(){
+	portindex=portend;
+	if(ssl!=nullptr)SSL_shutdown(ssl);
+	else if(plain_socket!=-1)shutdown(plain_socket,2);
+}
 static gboolean enter_recallback( gpointer ps){
 	const char* t=gtk_entry_get_text ((GtkEntry*)((struct stk_s*)ps)->con_entry);
 	if(strlen(t)>0){
 		if(con_th==0){//con_th!=nullptr){
-			portindex=portend;
-			if(ssl!=nullptr)SSL_shutdown(ssl);
-			else if(plain_socket!=-1)shutdown(plain_socket,2);
+			action_to_close();
 			g_timeout_add(1000,enter_recallback,ps);
 			return FALSE;
 		}
@@ -1819,6 +1822,10 @@ activate (GtkApplication* app,
 	gtk_check_menu_item_set_active(channels_counted,TRUE);
 	g_signal_connect_data (channels_counted, "toggled",G_CALLBACK(channels_sort),nullptr,nullptr,(GConnectFlags)0);
 	gtk_menu_shell_append ((GtkMenuShell*)menu,(GtkWidget*)channels_counted);gtk_widget_show((GtkWidget*)channels_counted);
+	//
+	menu_item = gtk_menu_item_new_with_label ("Close Connection");
+	g_signal_connect_data (menu_item, "activate",G_CALLBACK (action_to_close),nullptr,nullptr,(GConnectFlags)0);
+	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	//
 	g_signal_connect_data (org, "button-press-event",G_CALLBACK (prog_menu_popup),menu,nullptr,G_CONNECT_SWAPPED);
 	//
