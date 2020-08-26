@@ -1768,16 +1768,16 @@ static void chan_reMin_response (GtkDialog *dialog,gint ignored,int*chan_min){
 	g_list_free(l);
 	*chan_min=atoi(text);
 	send_list_if
-	gtk_widget_destroy(dialog);
+	gtk_widget_destroy((GtkWidget*)dialog);
 }
 static void chan_reMin(struct stk_s*ps){
 	GtkWidget *dialog = gtk_dialog_new_with_buttons ("Channel Minimum Users",
 			    ps->main_win, (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
 			    "OK",GTK_RESPONSE_NONE,nullptr);
 	GtkWidget*entry = gtk_entry_new();
-	char buf[decimals_in_uint+1+1];//plus another one,chan_min is int,-2bil...
-	sprintf(buf,"%d",ps->chan_min);//is int, "command 0" is not,"command -1" is ok
-	gtk_entry_set_placeholder_text(entry,buf);
+	char buf[decimals_in_uint+1];
+	sprintf(buf,"%u",ps->chan_min);
+	gtk_entry_set_placeholder_text((GtkEntry*)entry,buf);
 	g_signal_connect_data (dialog,"response",G_CALLBACK (chan_reMin_response),
 	                       &ps->chan_min,nullptr,(GConnectFlags)0);
 	GtkWidget*box=gtk_dialog_get_content_area((GtkDialog*)dialog);
