@@ -1713,7 +1713,10 @@ static void help_popup(struct stk_s*ps){
 	gtk_text_buffer_insert(text_buffer,&it,"\n\nReceived arguments:\n",-1);
 	for(int i=1;i<ps->argc;i++){
 		if(i>1)gtk_text_buffer_insert(text_buffer,&it," ",1);
+		BOOL a=strchr(ps->argv[i],' ')!=nullptr;
+		if(a)gtk_text_buffer_insert(text_buffer,&it,"\"",1);
 		gtk_text_buffer_insert(text_buffer,&it,ps->argv[i],-1);
+		if(a)gtk_text_buffer_insert(text_buffer,&it,"\"",1);
 	}
 	//
 	GtkWidget*box=gtk_dialog_get_content_area((GtkDialog*)dialog);
