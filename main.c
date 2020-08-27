@@ -124,10 +124,11 @@ enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };//connections org,channels
+#define number_of_args 13
 #pragma GCC diagnostic push//is from BOOL+char+BOOL+1=4
 #pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
-	const char*args[13];
+	const char*args[number_of_args];
 	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;char*nknnow;
 	int separator;
@@ -144,6 +145,7 @@ struct stk_s{
 	GtkWidget*trv;unsigned long trvr;
 	char*ignor_str;
 	char*execute_newmsg;GtkWindow*main_win;
+	int argc;char**argv;
 };
 #pragma GCC diagnostic pop
 #define con_nr_1 "SSL or Unencrypted"
@@ -435,21 +437,22 @@ static void pars_chan(char*chan,unsigned int nr){
 		pars_chan_end(&it,chan,nr);
 	}
 }
-static GtkWidget*container_frame_name(){
-	GtkTextView*text = (GtkTextView*)gtk_text_view_new ();
-	gtk_text_view_set_editable(text, FALSE);
-	gtk_text_view_set_wrap_mode (text, GTK_WRAP_WORD_CHAR);
+static GtkWidget*container_frame_name_out(GtkWidget**out){
+	GtkWidget*text = gtk_text_view_new ();
+	gtk_text_view_set_editable((GtkTextView*)text, FALSE);
+	gtk_text_view_set_wrap_mode ((GtkTextView*)text, GTK_WRAP_WORD_CHAR);
 	GtkWidget *scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
 	gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window,
 	                                  GTK_POLICY_EXTERNAL,//NEVER but widh will have the bigger value and cannot rewrap
 	                                  GTK_POLICY_AUTOMATIC);
-	gtk_container_add ((GtkContainer*) scrolled_window,
-	                                       (GtkWidget*) text);
+	gtk_container_add ((GtkContainer*) scrolled_window,text);
 	gtk_container_set_border_width ((GtkContainer*)scrolled_window, 5);
+	if(out!=nullptr)*out=text;
 	return scrolled_window;
 }
+#define container_frame_name container_frame_name_out(nullptr);
 static GtkWidget*container_frame(int sep,GCallback click,gpointer ps){
-	GtkWidget*scrolled_window=container_frame_name();
+	GtkWidget*scrolled_window=container_frame_name
 	//
 	GtkWidget *tree=gtk_tree_view_new();
 	GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
@@ -589,7 +592,7 @@ static BOOL name_join_isnew(struct stk_s*ps,char*n){
 	return TRUE;
 }
 static GtkWidget* name_join_nb(char*t,GtkNotebook*nb){
-	GtkWidget*scrl=container_frame_name();
+	GtkWidget*scrl=container_frame_name
 	GtkWidget*close;GtkWidget*mn=add_new_tab(scrl,t,&close,nb,name_on_menu,TRUE);
 	g_signal_connect_data (close, "clicked",G_CALLBACK (close_name),mn,nullptr,G_CONNECT_SWAPPED);//not "(GClosureNotify)gtk_widget_destroy" because at restart clear will be trouble
 	return scrl;
@@ -1685,21 +1688,34 @@ static gboolean prog_menu_popup (GtkMenu*menu,GdkEvent*evn){
 	gtk_menu_popup_at_pointer(menu,evn);
 	return FALSE;
 }
-static void help_popup(GtkWindow*top){
+static void help_popup(struct stk_s*ps){
 	GtkWidget *dialog = gtk_dialog_new_with_buttons ("Organize Connections",
-			    top, (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
+			    ps->main_win, (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
 			    "OK",GTK_RESPONSE_NONE,nullptr);
 	int w;int h;
-	gtk_window_get_size (top,&w,&h);
+	gtk_window_get_size (ps->main_win,&w,&h);
 	gtk_window_set_default_size((GtkWindow*)dialog,w,h);
 	g_signal_connect_data (dialog,"response",G_CALLBACK (gtk_widget_destroy),
 	                       nullptr,nullptr,(GConnectFlags)0);
 	//
-	GtkWidget*scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
-	GtkWidget*text = gtk_text_view_new ();
-	gtk_text_view_set_editable((GtkTextView*)text, FALSE);
+	GtkWidget*text;
+	GtkWidget*scrolled_window = container_frame_name_out(&text);
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer ((GtkTextView*)text);
 	gtk_text_buffer_set_text (text_buffer,help_text,sizeof(help_text)-1);
+	//
+	GtkTextIter it;
+	gtk_text_buffer_get_end_iter(text_buffer,&it);
+	gtk_text_buffer_insert(text_buffer,&it,"\n\nArguments:\n",-1);
+	for(size_t i=0;i<number_of_args;i++){
+		gtk_text_buffer_insert(text_buffer,&it," ",1);
+		gtk_text_buffer_insert(text_buffer,&it,ps->args[i],-1);
+	}
+	gtk_text_buffer_insert(text_buffer,&it,"\n\nReceived arguments:\n",-1);
+	for(int i=1;i<ps->argc;i++){
+		gtk_text_buffer_insert(text_buffer,&it," ",1);
+		gtk_text_buffer_insert(text_buffer,&it,ps->argv[i],-1);
+	}
+	//
 	gtk_container_add ( (GtkContainer*)scrolled_window, text);
 	GtkWidget*box=gtk_dialog_get_content_area((GtkDialog*)dialog);
 	gtk_box_pack_start((GtkBox*)box, scrolled_window, TRUE, TRUE, 0);
@@ -1831,7 +1847,7 @@ activate (GtkApplication* app,
 	g_signal_connect_data (menu_item, "activate",G_CALLBACK (organize_connections),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	menu_item = gtk_menu_item_new_with_label ("Help");
-	g_signal_connect_data (menu_item, "activate",G_CALLBACK (help_popup),window,nullptr,G_CONNECT_SWAPPED);
+	g_signal_connect_data (menu_item, "activate",G_CALLBACK (help_popup),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	//
 	menu_item = gtk_menu_item_new_with_label ("Channels");
@@ -2023,6 +2039,7 @@ int main (int    argc,
 		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
 		//  if(han>0)
+		ps.argc=argc;ps.argv=argv;
 		g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
 		if(ps.nick!=nullptr)g_free(ps.nick);
 		if(ps.welcome!=nullptr)g_free(ps.welcome);
