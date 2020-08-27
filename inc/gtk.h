@@ -197,6 +197,7 @@ GtkWidget* gtk_check_menu_item_new_with_label (const gchar *label);
 void gtk_check_menu_item_set_active (GtkCheckMenuItem *check_menu_item, gboolean is_active);
 GtkClipboard *gtk_clipboard_get (GdkAtom selection);
 void gtk_clipboard_set_text (GtkClipboard *clipboard,const gchar *text,gint len);
+gint gtk_combo_box_get_active (GtkComboBox *combo_box);
 GtkTreeModel*gtk_combo_box_get_model (GtkComboBox *combo_box);
 void gtk_combo_box_set_active (GtkComboBox *combo_box, gint index_);
 void gtk_combo_box_text_append_text (GtkComboBoxText *combo_box, const gchar *text);

@@ -124,7 +124,7 @@ enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };//connections org,channels
-#define number_of_args 14
+#define number_of_args 15
 #pragma GCC diagnostic push//is from BOOL+char+BOOL+1=4
 #pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
@@ -147,6 +147,7 @@ struct stk_s{
 	char*execute_newmsg;GtkWindow*main_win;
 	int argc;char**argv;
 	int autoconnect;
+	GtkComboBox*con_cbt;struct ajoin*ajoins;char*ajoins_mem;size_t ajoins_sum;
 };
 #pragma GCC diagnostic pop
 #define con_nr_1 "SSL or Unencrypted"
@@ -178,7 +179,12 @@ static int log_file=-1;
 static char**ignoreds={nullptr};
 static BOOL can_send_data=FALSE;
 #define info_list_end_str " channels listed\n"
-enum{autoconnect_id,dimensions_id,chan_min_id,connection_number_id,ignore_id,log_id,nick_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id};
+enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,connection_number_id,ignore_id,log_id,nick_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id};
+static char*dummy=nullptr;
+struct ajoin{
+	int c;//against get_active
+	char**chans;
+};
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -536,36 +542,40 @@ static GtkWidget*add_new_tab(GtkWidget*frame,char*title,GtkWidget**cls,GtkNotebo
 	*cls=close;
 	return is_name?menu_item:t;
 }
+static void send_join(char*item_text,size_t i,GtkNotebook*notebook){
+	BOOL b=TRUE;
+	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
+	if(list!=nullptr){
+		GList*lst=list;
+		do{
+			GtkWidget*menu_item=(GtkWidget*)list->data;
+			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
+			if(strcmp(item_text,d)==0){
+				gtk_notebook_set_current_page(notebook,gtk_notebook_page_num(notebook,get_pan_from_menu(menu_item)));
+				b=FALSE;
+				break;
+			}
+		}while((list=g_list_next(list))!=nullptr);
+		g_list_free(lst);
+	}
+	if(b){
+		char buf[4+channm_sz+irc_term_sz]="JOIN ";
+		memcpy(buf+5,item_text,i);
+		memcpy(buf+5+i,irc_term,irc_term_sz);
+		send_data(buf,5+irc_term_sz+i);
+	}
+}
 static gboolean chan_join (GtkTreeView *tree,GdkEvent*ignored,GtkNotebook*notebook){
 	(void)ignored;
 	GtkTreeSelection *sel=gtk_tree_view_get_selection(tree);
 	GtkTreeIter iterator;
 	if(gtk_tree_selection_get_selected (sel,nullptr,&iterator)){//can be no channel
-		char buf[4+channm_sz+irc_term_sz]="JOIN ";char*item_text;
+		char*item_text;
 		gtk_tree_model_get ((GtkTreeModel*)channels, &iterator, LIST_ITEM, &item_text, -1);
 		for(size_t i=0;;i++){
 			if(item_text[i]==' '){
-				BOOL b=TRUE;
-				GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
-				if(list!=nullptr){
-					GList*lst=list;
-					item_text[i]='\0';
-					do{
-						GtkWidget*menu_item=(GtkWidget*)list->data;
-						const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
-						if(strcmp(item_text,d)==0){
-							gtk_notebook_set_current_page(notebook,gtk_notebook_page_num(notebook,get_pan_from_menu(menu_item)));
-							b=FALSE;
-							break;
-						}
-					}while((list=g_list_next(list))!=nullptr);
-					g_list_free(lst);
-				}
-				if(b){
-					memcpy(buf+5,item_text,i);
-					memcpy(buf+5+i,irc_term,irc_term_sz);
-					send_data(buf,5+irc_term_sz+i);
-				}
+				item_text[i]='\0';
+				send_join(item_text,i,notebook);
 				break;
 			}
 		}
@@ -1138,6 +1148,14 @@ static void info_list_end(){
 	char buf[digits_in_uint+sizeof(info_list_end_str)];
 	addattextmain(buf,(size_t)sprintf(buf,"%u%s",gtk_tree_model_iter_n_children((GtkTreeModel*)channels,nullptr),info_list_end_str));
 }
+static void send_autojoin(struct stk_s*ps){
+	for(size_t i=0;i<ps->ajoins_sum;i++)
+		if(ps->ajoins[i].c==gtk_combo_box_get_active(ps->con_cbt)){
+			for(size_t j=0;ps->ajoins[i].chans[j]!=nullptr;j++)
+				send_join(ps->ajoins[i].chans[j],strlen(ps->ajoins[i].chans[j]),ps->notebook);
+			break;
+		}
+}
 static gboolean incsafe(gpointer ps){
 	#pragma GCC diagnostic push
 	#pragma GCC diagnostic ignored "-Wcast-qual"
@@ -1232,11 +1250,13 @@ static gboolean incsafe(gpointer ps){
 				}
 				e=strstr(b,"CHANTYPES=");
 				if(e!=nullptr)sscanf(e+10,"%4s",chantypes);
-			}else if(d==254)//RPL_LUSERCHANNELS
-			//this not getting after first recv
-			//another solution can be after motd (later)
-			//or after 1 second, not beautiful
+			}else if(d==254){//RPL_LUSERCHANNELS
+				send_autojoin((struct stk_s*)ps);
+				//this not getting after first recv
+				//another solution can be after motd (later)
+				//or after 1 second, not beautiful
 				send_list
+			}
 		}
 	}else showmsg=FALSE;
 	if(showmsg){
@@ -1849,6 +1869,7 @@ activate (GtkApplication* app,
 	GtkWidget*entext=gtk_bin_get_child((GtkBin*)en);
 	ps->con_entry=entext;//this for timeouts
 	ps->con_entry_act=g_signal_connect_data (entext, "activate",G_CALLBACK (enter_callback),ps,nullptr,G_CONNECT_SWAPPED);
+	ps->con_cbt=(GtkComboBox*)en;
 	//
 	GtkWidget*con=gtk_button_new();
 	GtkWidget*conimg=gtk_image_new_from_icon_name ("go-next",GTK_ICON_SIZE_MENU);
@@ -1935,6 +1956,69 @@ activate (GtkApplication* app,
 	g_signal_connect_data (ps->notebook, "switch-page",G_CALLBACK (nb_switch_page),ps->sen_entry,nullptr,(GConnectFlags)0);//this,before show,was critical;
 	info_path_name_restore((GtkComboBoxText*)en,entext,ps);
 }
+static void parse_autojoin(struct stk_s*ps){
+	for(size_t i=0;;i++){
+		BOOL b=ps->ajoins_mem[i]=='\0';
+		if(ps->ajoins_mem[i]==' '||b){
+			ps->ajoins_sum++;
+			if(b)break;
+			else ps->ajoins_mem[i]='\0';
+		}
+	}
+	//
+	ps->ajoins=(struct ajoin*)malloc(ps->ajoins_sum*sizeof(ajoin));
+	if(ps->ajoins==nullptr){ps->ajoins_sum=0;g_free(ps->ajoins_mem);return;}
+	size_t j=0;size_t k=0;
+	for(size_t i=0;;){
+		for(;ps->ajoins_mem[j]!='\0';j++){
+			if(ps->ajoins_mem[j]==','){
+				ps->ajoins_mem[j]='\0';
+				break;
+			}
+		}
+		ps->ajoins[i].c=atoi(&ps->ajoins_mem[k]);
+		j++;k=j;
+		size_t m=0;
+		for(;;j++){
+			BOOL b=ps->ajoins_mem[j]=='\0';
+			if(ps->ajoins_mem[j]==','||b){
+				m++;
+				if(b)break;else ps->ajoins_mem[j]='\0';
+			}
+		}
+		ps->ajoins[i].chans=(char**)malloc(sizeof(char*)*(m+1));
+		if(ps->ajoins[i].chans==nullptr)ps->ajoins[i].chans=&dummy;
+		else{
+			j=k;
+			for(size_t l=0;;){
+				if(ps->ajoins_mem[j]=='\0'){
+					ps->ajoins[i].chans[l]=&ps->ajoins_mem[k];
+					l++;if(l==m){ps->ajoins[i].chans[l]=nullptr;break;}
+					k=j+1;
+				}
+				j++;
+			}
+		}
+		i++;if(i==ps->ajoins_sum)break;
+		j++;k=j;
+	}
+}
+static void parse_ignore(GVariant*v,struct stk_s*ps){
+	const char*a=g_variant_get_string(v,nullptr);
+	size_t n=2;
+	for(size_t i=0;a[i]!='\0';i++)
+		if(a[i]==',')n++;
+	char**b=(char**)malloc(n*sizeof(char*));
+	if(b!=nullptr){
+		ps->ignor_str=g_variant_dup_string(v,nullptr);//get is not the same pointer as argv[n],is always utf-8
+		ignoreds=b;
+		size_t k=0;size_t j=0;
+		for(size_t i=0;a[i]!='\0';i++)
+			if(a[i]==','){ignoreds[k]=&ps->ignor_str[j];j=i+1;k++;}
+		ignoreds[k]=&ps->ignor_str[j];
+		ignoreds[k+1]=nullptr;
+	}
+}
 static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	int nr;
 	if (g_variant_dict_lookup (options,ps->args[connection_number_id], "i", &nr)){//if 0 this is false here
@@ -1954,10 +2038,8 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		g_free(result);
 	}else ps->dim[0]=-1;//this is default at gtk
 	//
-	GVariant*v=g_variant_dict_lookup_value(options,ps->args[nick_id],G_VARIANT_TYPE_STRING);
-	if(v!=nullptr){
-		ps->nick=g_variant_dup_string(v,nullptr);//get is not the same pointer as argv[n],is always utf-8
-	}else ps->nick=nullptr;
+	if (g_variant_dict_lookup (options,ps->args[nick_id],"s",&ps->nick)==FALSE)
+		ps->nick=nullptr;
 	//
 	if (g_variant_dict_lookup (options,ps->args[right_id], "i", &ps->separator)==FALSE)
 		ps->separator=150;
@@ -1965,56 +2047,40 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	if (g_variant_dict_lookup (options,ps->args[refresh_id], "i", &ps->refresh)==FALSE)
 		ps->refresh=600;
 	//
-	v=g_variant_dict_lookup_value(options,ps->args[welcome_id],G_VARIANT_TYPE_STRING);
-	if(v!=nullptr)
-		ps->welcome=g_variant_dup_string(v,nullptr);
-	else ps->welcome=nullptr;
+	if(g_variant_dict_lookup(options,ps->args[welcome_id],"s",&ps->welcome)==FALSE)
+		ps->welcome=nullptr;
 	//
 	ps->timestamp=g_variant_dict_contains(options,ps->args[timestamp_id]);
 	//
-	v=g_variant_dict_lookup_value(options,ps->args[user_id],G_VARIANT_TYPE_STRING);
-	if(v!=nullptr){
-		ps->user_irc=g_variant_dup_string(v,nullptr);
-		ps->user_irc_free=TRUE;
-	}else{ps->user_irc=user_message;ps->user_irc_free=FALSE;}
+	if(g_variant_dict_lookup(options,ps->args[user_id],"s",&ps->user_irc))
+		ps->user_irc_free=TRUE;//-Wstring-compare tells the result is unspecified against a #define
+	else{ps->user_irc=user_message;ps->user_irc_free=FALSE;}
 	//
 	if (g_variant_dict_lookup (options,ps->args[chan_min_id], "i", &ps->chan_min)==FALSE)
 		ps->chan_min=250;
 	//
 	ps->visible=(BOOL)g_variant_dict_contains(options,ps->args[visible_id]);
 	//
-	const char*a;
-	v=g_variant_dict_lookup_value(options,ps->args[log_id],G_VARIANT_TYPE_STRING);
+	GVariant*v=g_variant_dict_lookup_value(options,ps->args[log_id],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr){
-		a=g_variant_get_string(v,nullptr);
+		const char*a=g_variant_get_string(v,nullptr);
 		log_file=open(a,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR);
 	}
 	//
 	v=g_variant_dict_lookup_value(options,ps->args[ignore_id],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr){
-		a=g_variant_get_string(v,nullptr);
-		size_t n=2;
-		for(size_t i=0;a[i]!='\0';i++)
-			if(a[i]==',')n++;
-		char**b=(char**)malloc(n*sizeof(char*));
-		if(b!=nullptr){
-			ps->ignor_str=g_variant_dup_string(v,nullptr);
-			ignoreds=b;
-			size_t k=0;size_t j=0;
-			for(size_t i=0;a[i]!='\0';i++)
-				if(a[i]==','){ignoreds[k]=&ps->ignor_str[j];j=i+1;k++;}
-			ignoreds[k]=&ps->ignor_str[j];
-			ignoreds[k+1]=nullptr;
-		}
+		parse_ignore(v,ps);
 	}else ps->ignor_str=nullptr;
 	//
-	v=g_variant_dict_lookup_value(options,ps->args[run_id],G_VARIANT_TYPE_STRING);
-	if(v!=nullptr)
-		ps->execute_newmsg=g_variant_dup_string(v,nullptr);
-	else ps->execute_newmsg=nullptr;
+	if(g_variant_dict_lookup(options,ps->args[run_id],"s",&ps->execute_newmsg)==FALSE)
+		ps->execute_newmsg=nullptr;
 	//
 	if (g_variant_dict_lookup (options,ps->args[autoconnect_id], "i", &ps->autoconnect)==FALSE)
 		ps->autoconnect=-1;
+	//
+	ps->ajoins_sum=0;
+	if(g_variant_dict_lookup(options,ps->args[autojoin_id],"s",&ps->ajoins_mem))
+		parse_autojoin(ps);
 	return -1;
 }
 int main (int    argc,
@@ -2030,6 +2096,8 @@ int main (int    argc,
 		//if(app!=nullptr){
 		ps.args[autoconnect_id]="autoconnect";
 		g_application_add_main_option((GApplication*)app,ps.args[autoconnect_id],'a',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Autoconnect to connection by index.","INDEX");
+		ps.args[autojoin_id]="autojoin";
+		g_application_add_main_option((GApplication*)app,ps.args[autojoin_id],'j',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Autojoin channels on connection index. e.g. \"2,#a,#b 4,#b,#z\"","\"I1,C1,C2...CN I2... IN...\"");
 		ps.args[dimensions_id]="dimensions";
 		g_application_add_main_option((GApplication*)app,ps.args[dimensions_id],'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
 		ps.args[chan_min_id]="chan_min";
@@ -2072,5 +2140,6 @@ int main (int    argc,
 		if(log_file!=-1)close(log_file);
 		if(ps.ignor_str!=nullptr){free(ps.ignor_str);free(ignoreds);}
 		if(ps.execute_newmsg!=nullptr)g_free(ps.execute_newmsg);
+		if(ps.ajoins_sum>0)free(ps.ajoins_mem);
 	}else puts("openssl error");
 }
