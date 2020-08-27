@@ -124,12 +124,12 @@ enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };//connections org,channels
-#define number_of_args 13
+#define number_of_args 14
 #pragma GCC diagnostic push//is from BOOL+char+BOOL+1=4
 #pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
 	const char*args[number_of_args];
-	int dim[2];char*path;GtkComboBoxText*cbt;GtkTreeView*tv;
+	int dim[2];GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;char*nknnow;
 	int separator;
 	GtkWidget*con_entry;gulong con_entry_act;GtkWidget*sen_entry;gulong sen_entry_act;
@@ -146,6 +146,7 @@ struct stk_s{
 	char*ignor_str;
 	char*execute_newmsg;GtkWindow*main_win;
 	int argc;char**argv;
+	int autoconnect;
 };
 #pragma GCC diagnostic pop
 #define con_nr_1 "SSL or Unencrypted"
@@ -177,6 +178,7 @@ static int log_file=-1;
 static char**ignoreds={nullptr};
 static BOOL can_send_data=FALSE;
 #define info_list_end_str " channels listed\n"
+enum{autoconnect_id,dimensions_id,chan_min_id,connection_number_id,ignore_id,log_id,nick_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id};
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -1559,8 +1561,8 @@ static BOOL info_path_name_set(char*a){
 	}
 	return FALSE;
 }
-static BOOL info_path_name_restore(GtkComboBoxText*cbt,char*nm){
-	if(info_path_name_set(nm)){
+static void info_path_name_restore(GtkComboBoxText*cbt,GtkWidget*entext,struct stk_s*ps){
+	if(info_path_name_set(ps->argv[0])){
 		int f=open(info_path_name,O_RDONLY);
 		if(f!=-1){
 			size_t sz=(size_t)lseek(f,0,SEEK_END);
@@ -1580,13 +1582,16 @@ static BOOL info_path_name_restore(GtkComboBoxText*cbt,char*nm){
 					r[sz]='\0';
 					gtk_combo_box_text_append_text(cbt,a);
 					free(r);
-					gtk_combo_box_set_active((GtkComboBox*)cbt,0);
-					return FALSE;
+					if(ps->autoconnect!=-1){
+						gtk_combo_box_set_active((GtkComboBox*)cbt,ps->autoconnect);//void
+						gtk_widget_activate(entext);
+					}else gtk_combo_box_set_active((GtkComboBox*)cbt,0);
+					return;
 				}
 			}
 		}
 	}
-	return TRUE;
+	gtk_entry_set_text ((GtkEntry*)entext,":");
 }
 static int organize_connections_ini(GtkTreeView*tv,GtkTreeModel**mod,GtkTreeIter*it){
 	GtkTreeSelection *sel=gtk_tree_view_get_selection(tv);
@@ -1769,7 +1774,8 @@ b = gtk_radio_menu_item_get_group((GtkRadioMenuItem*)a);\
 if (d->con_type==n)gtk_check_menu_item_set_active ((GtkCheckMenuItem*)a, TRUE);\
 gtk_menu_shell_append (c,a)
 static void con_click(GtkWidget*en){
-	gtk_widget_activate(en);}
+	gtk_widget_activate(en);
+}
 static void clipboard_tev(GtkNotebook*notebook){
 	GtkWidget*pg=gtk_notebook_get_nth_page(notebook,gtk_notebook_get_current_page(notebook));
 	const char*a=gtk_notebook_get_menu_label_text(notebook,pg);
@@ -1841,7 +1847,6 @@ activate (GtkApplication* app,
 	sigaddset(&threadset, SIGUSR1);
 	GtkWidget*en=gtk_combo_box_text_new_with_entry();
 	GtkWidget*entext=gtk_bin_get_child((GtkBin*)en);
-	if(info_path_name_restore((GtkComboBoxText*)en,ps->path))gtk_entry_set_text ((GtkEntry*)entext,":");
 	ps->con_entry=entext;//this for timeouts
 	ps->con_entry_act=g_signal_connect_data (entext, "activate",G_CALLBACK (enter_callback),ps,nullptr,G_CONNECT_SWAPPED);
 	//
@@ -1928,10 +1933,11 @@ activate (GtkApplication* app,
 	GtkWidget*info=gtk_image_new_from_icon_name ("dialog-information",GTK_ICON_SIZE_MENU);
 	gtk_notebook_set_action_widget(ps->notebook,info,GTK_PACK_END);
 	g_signal_connect_data (ps->notebook, "switch-page",G_CALLBACK (nb_switch_page),ps->sen_entry,nullptr,(GConnectFlags)0);//this,before show,was critical;
+	info_path_name_restore((GtkComboBoxText*)en,entext,ps);
 }
 static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	int nr;
-	if (g_variant_dict_lookup (options,ps->args[7], "i", &nr)){//if 0 this is false here
+	if (g_variant_dict_lookup (options,ps->args[connection_number_id], "i", &nr)){//if 0 this is false here
 		if(nr<1||nr>con_nr_max){
 			printf("%s must be from " con_nr_nrs " interval, \"%i\" given.\n",ps->args[7],nr);
 			return 0;
@@ -1940,7 +1946,7 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	}else ps->con_type=1;
 	//
 	char*result;
-	if(g_variant_dict_lookup (options, ps->args[0], "s", &result)){//missing argument is not reaching here
+	if(g_variant_dict_lookup (options, ps->args[dimensions_id], "s", &result)){//missing argument is not reaching here
 		char*b=strchr(result,'x');
 		if(b!=nullptr){*b='\0';b++;}
 		ps->dim[0]=atoi(result);
@@ -1948,41 +1954,43 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		g_free(result);
 	}else ps->dim[0]=-1;//this is default at gtk
 	//
-	GVariant*v=g_variant_dict_lookup_value(options,ps->args[1],G_VARIANT_TYPE_STRING);
+	GVariant*v=g_variant_dict_lookup_value(options,ps->args[nick_id],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr){
 		ps->nick=g_variant_dup_string(v,nullptr);//get is not the same pointer as argv[n],is always utf-8
 	}else ps->nick=nullptr;
 	//
-	if (g_variant_dict_lookup (options,ps->args[2], "i", &ps->separator)==FALSE)
+	if (g_variant_dict_lookup (options,ps->args[right_id], "i", &ps->separator)==FALSE)
 		ps->separator=150;
 	//
-	if (g_variant_dict_lookup (options,ps->args[3], "i", &ps->refresh)==FALSE)
+	if (g_variant_dict_lookup (options,ps->args[refresh_id], "i", &ps->refresh)==FALSE)
 		ps->refresh=600;
 	//
-	v=g_variant_dict_lookup_value(options,ps->args[4],G_VARIANT_TYPE_STRING);
+	v=g_variant_dict_lookup_value(options,ps->args[welcome_id],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr)
 		ps->welcome=g_variant_dup_string(v,nullptr);
 	else ps->welcome=nullptr;
 	//
-	ps->timestamp=g_variant_dict_contains(options,ps->args[5]);
+	ps->timestamp=g_variant_dict_contains(options,ps->args[timestamp_id]);
 	//
-	v=g_variant_dict_lookup_value(options,ps->args[6],G_VARIANT_TYPE_STRING);
+	v=g_variant_dict_lookup_value(options,ps->args[user_id],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr){
 		ps->user_irc=g_variant_dup_string(v,nullptr);
 		ps->user_irc_free=TRUE;
 	}else{ps->user_irc=user_message;ps->user_irc_free=FALSE;}
 	//
-	if (g_variant_dict_lookup (options,ps->args[8], "i", &ps->chan_min)==FALSE)
+	if (g_variant_dict_lookup (options,ps->args[chan_min_id], "i", &ps->chan_min)==FALSE)
 		ps->chan_min=250;
 	//
+	ps->visible=(BOOL)g_variant_dict_contains(options,ps->args[visible_id]);
+	//
 	const char*a;
-	v=g_variant_dict_lookup_value(options,ps->args[10],G_VARIANT_TYPE_STRING);
+	v=g_variant_dict_lookup_value(options,ps->args[log_id],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr){
 		a=g_variant_get_string(v,nullptr);
 		log_file=open(a,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR);
 	}
 	//
-	v=g_variant_dict_lookup_value(options,ps->args[11],G_VARIANT_TYPE_STRING);
+	v=g_variant_dict_lookup_value(options,ps->args[ignore_id],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr){
 		a=g_variant_get_string(v,nullptr);
 		size_t n=2;
@@ -2000,12 +2008,13 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		}
 	}else ps->ignor_str=nullptr;
 	//
-	v=g_variant_dict_lookup_value(options,ps->args[12],G_VARIANT_TYPE_STRING);
+	v=g_variant_dict_lookup_value(options,ps->args[run_id],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr)
 		ps->execute_newmsg=g_variant_dup_string(v,nullptr);
 	else ps->execute_newmsg=nullptr;
 	//
-	ps->visible=(BOOL)g_variant_dict_contains(options,ps->args[9]);
+	if (g_variant_dict_lookup (options,ps->args[autoconnect_id], "i", &ps->autoconnect)==FALSE)
+		ps->autoconnect=-1;
 	return -1;
 }
 int main (int    argc,
@@ -2019,33 +2028,34 @@ int main (int    argc,
 		GtkApplication *app;
 		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
 		//if(app!=nullptr){
-		ps.args[0]="dimensions";
-		g_application_add_main_option((GApplication*)app,ps.args[0],'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
-		ps.args[8]="chan_min";
-		g_application_add_main_option((GApplication*)app,ps.args[8],'m',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Minimum users to list a channel(at \"322\"). Default 250.","NR");
-		ps.args[7]="connection_number";
-		g_application_add_main_option((GApplication*)app,ps.args[7],'c',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ", 4=" con_nr_4 ". Default value is 1.",con_nr_nrs);
-		ps.args[11]="ignore";
-		g_application_add_main_option((GApplication*)app,ps.args[11],'i',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Ignore private messages from nicknames.","S1,S2...SN");//_FILENAME
-		ps.args[10]="log";
-		g_application_add_main_option((GApplication*)app,ps.args[10],'l',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Log private chat to filename.","FILENAME");//_FILENAME
-		ps.args[1]="nick";
-		g_application_add_main_option((GApplication*)app,ps.args[1],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
-		ps.args[3]="refresh";
-		g_application_add_main_option((GApplication*)app,ps.args[3],'f',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Refresh channels interval in seconds. Default 600. Less than 1 to disable.","SECONDS");
-		ps.args[2]="right";
-		g_application_add_main_option((GApplication*)app,ps.args[2],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Right pane size, default 150","WIDTH");
-		ps.args[12]="run";
-		g_application_add_main_option((GApplication*)app,ps.args[12],'x',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"If window is not active, run command line at new private messages.","COMMAND");
-		ps.args[5]="timestamp";
-		g_application_add_main_option((GApplication*)app,ps.args[5],'t',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Show message timestamp.",nullptr);
-		ps.args[6]="user";
-		g_application_add_main_option((GApplication*)app,ps.args[6],'u',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"User message. Default \"" user_message "\"","STRING");
-		ps.args[9]="visible";
-		g_application_add_main_option((GApplication*)app,ps.args[9],'v',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Send MODE -i at start. (remove invisible)",nullptr);
-		ps.args[4]="welcome";
-		g_application_add_main_option((GApplication*)app,ps.args[4],'w',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
-		ps.path=argv[0];
+		ps.args[autoconnect_id]="autoconnect";
+		g_application_add_main_option((GApplication*)app,ps.args[autoconnect_id],'a',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Autoconnect to connection by index.","INDEX");
+		ps.args[dimensions_id]="dimensions";
+		g_application_add_main_option((GApplication*)app,ps.args[dimensions_id],'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
+		ps.args[chan_min_id]="chan_min";
+		g_application_add_main_option((GApplication*)app,ps.args[chan_min_id],'m',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Minimum users to list a channel(at \"322\"). Default 250.","NR");
+		ps.args[connection_number_id]="connection_number";
+		g_application_add_main_option((GApplication*)app,ps.args[connection_number_id],'c',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ", 4=" con_nr_4 ". Default value is 1.",con_nr_nrs);
+		ps.args[ignore_id]="ignore";
+		g_application_add_main_option((GApplication*)app,ps.args[ignore_id],'i',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Ignore private messages from nicknames.","S1,S2...SN");//_FILENAME
+		ps.args[log_id]="log";
+		g_application_add_main_option((GApplication*)app,ps.args[log_id],'l',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Log private chat to filename.","FILENAME");//_FILENAME
+		ps.args[nick_id]="nick";
+		g_application_add_main_option((GApplication*)app,ps.args[nick_id],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
+		ps.args[refresh_id]="refresh";
+		g_application_add_main_option((GApplication*)app,ps.args[refresh_id],'f',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Refresh channels interval in seconds. Default 600. Less than 1 to disable.","SECONDS");
+		ps.args[right_id]="right";
+		g_application_add_main_option((GApplication*)app,ps.args[right_id],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Right pane size, default 150","WIDTH");
+		ps.args[run_id]="run";
+		g_application_add_main_option((GApplication*)app,ps.args[run_id],'x',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"If window is not active, run command line at new private messages.","COMMAND");
+		ps.args[timestamp_id]="timestamp";
+		g_application_add_main_option((GApplication*)app,ps.args[timestamp_id],'t',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Show message timestamp.",nullptr);
+		ps.args[user_id]="user";
+		g_application_add_main_option((GApplication*)app,ps.args[user_id],'u',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"User message. Default \"" user_message "\"","STRING");
+		ps.args[visible_id]="visible";
+		g_application_add_main_option((GApplication*)app,ps.args[visible_id],'v',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Send MODE -i at start. (remove invisible)",nullptr);
+		ps.args[welcome_id]="welcome";
+		g_application_add_main_option((GApplication*)app,ps.args[welcome_id],'w',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
 		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
 		//  if(han>0)
