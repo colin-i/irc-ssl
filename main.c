@@ -1707,16 +1707,15 @@ static void help_popup(struct stk_s*ps){
 	gtk_text_buffer_get_end_iter(text_buffer,&it);
 	gtk_text_buffer_insert(text_buffer,&it,"\n\nArguments:\n",-1);
 	for(size_t i=0;i<number_of_args;i++){
-		gtk_text_buffer_insert(text_buffer,&it," ",1);
+		if(i>0)gtk_text_buffer_insert(text_buffer,&it," ",1);
 		gtk_text_buffer_insert(text_buffer,&it,ps->args[i],-1);
 	}
 	gtk_text_buffer_insert(text_buffer,&it,"\n\nReceived arguments:\n",-1);
 	for(int i=1;i<ps->argc;i++){
-		gtk_text_buffer_insert(text_buffer,&it," ",1);
+		if(i>1)gtk_text_buffer_insert(text_buffer,&it," ",1);
 		gtk_text_buffer_insert(text_buffer,&it,ps->argv[i],-1);
 	}
 	//
-	gtk_container_add ( (GtkContainer*)scrolled_window, text);
 	GtkWidget*box=gtk_dialog_get_content_area((GtkDialog*)dialog);
 	gtk_box_pack_start((GtkBox*)box, scrolled_window, TRUE, TRUE, 0);
 	gtk_widget_show_all (dialog);
