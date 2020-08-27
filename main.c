@@ -172,10 +172,11 @@ static unsigned int maximummodes=0;
 #define show_from_clause(a,b,c) if(icmpAmemBstr(a,b))show_msg=c;
 #define show_to_clause(a) if(show_msg==a)show_msg=RPL_NONE;
 static int show_msg=RPL_NONE;
-#define decimals_in_uint 10
+#define digits_in_uint 10
 static int log_file=-1;
 static char**ignoreds={nullptr};
 static BOOL can_send_data=FALSE;
+#define info_list_end_str " channels listed\n"
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -699,7 +700,7 @@ static BOOL get_chan_alpha(const char*chan,char*c,GtkTreeIter*it,char**text){
 static BOOL chan_change_nr(const char*chan,int v){
 	GtkTreeIter it;
 	//chan_min hidding
-	char c[channm_sz+1+decimals_in_uint];char*text;
+	char c[channm_sz+1+digits_in_uint];char*text;
 	BOOL b;
 	gboolean ac=gtk_check_menu_item_get_active(channels_counted);
 	if(ac){b=get_chan_counted(chan,c,&it,&text);}
@@ -1108,7 +1109,7 @@ static void line_switch(char*n,GtkWidget*from,GtkWidget*to,const char*msg){
 }
 static void names_end(GtkWidget*p,char*chan){
 	gtk_widget_set_has_tooltip(p,FALSE);
-	char c[channm_sz+1+decimals_in_uint];
+	char c[channm_sz+1+digits_in_uint];
 	GtkTreeIter it;char*text;
 	BOOL b;
 	gboolean ac=gtk_check_menu_item_get_active(channels_counted);
@@ -1131,6 +1132,10 @@ static void names_end(GtkWidget*p,char*chan){
 		gtk_list_store_set(channels, &it, LIST_ITEM, c, -1);
 	}
 }
+static void info_list_end(){
+	char buf[digits_in_uint+sizeof(info_list_end_str)];
+	addattextmain(buf,(size_t)sprintf(buf,"%u%s",gtk_tree_model_iter_n_children((GtkTreeModel*)channels,nullptr),info_list_end_str));
+}
 static gboolean incsafe(gpointer ps){
 	#pragma GCC diagnostic push
 	#pragma GCC diagnostic ignored "-Wcast-qual"
@@ -1146,7 +1151,7 @@ static gboolean incsafe(gpointer ps){
 	if(sscanf(a,"%*s %7s",com)==1){
 		size_t ln=strlen(com);
 		char*b=strchr(a,' ')+1+ln;if(*b==' ')b++;
-		char channm[channm_sz+1+decimals_in_uint];//+ to set the "chan nr" at join on the same string
+		char channm[channm_sz+1+digits_in_uint];//+ to set the "chan nr" at join on the same string
 		char nicknm[namenul_sz];
 		char c;
 		if(strcmp(com,"PRIVMSG")==0){
@@ -1186,7 +1191,10 @@ static gboolean incsafe(gpointer ps){
 					if((int)e>=((struct stk_s*)ps)->chan_min)
 						pars_chan(channm,e);
 			}else if(d==321)gtk_list_store_clear(channels);//RPL_LISTSTART
-			else if(d==323){show_to_clause(RPL_LIST)}//RPL_LISTEND
+			else if(d==323){//RPL_LISTEND
+				show_to_clause(RPL_LIST)
+				info_list_end();
+			}
 			else if(d==RPL_NAMREPLY){
 				if(show_msg!=RPL_NAMREPLY)showmsg=FALSE;
 				if(sscanf(b,"%*s %*c " channame_scan,channm)==1){
@@ -1793,7 +1801,7 @@ static void chan_reMin(struct stk_s*ps){
 			    ps->main_win, (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
 			    "OK",GTK_RESPONSE_NONE,nullptr);
 	GtkWidget*entry = gtk_entry_new();
-	char buf[decimals_in_uint+1];
+	char buf[digits_in_uint+1];
 	sprintf(buf,"%u",ps->chan_min);
 	gtk_entry_set_placeholder_text((GtkEntry*)entry,buf);
 	g_signal_connect_data (dialog,"response",G_CALLBACK (chan_reMin_response),
@@ -1965,7 +1973,7 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	}else{ps->user_irc=user_message;ps->user_irc_free=FALSE;}
 	//
 	if (g_variant_dict_lookup (options,ps->args[8], "i", &ps->chan_min)==FALSE)
-		ps->chan_min=100;
+		ps->chan_min=250;
 	//
 	const char*a;
 	v=g_variant_dict_lookup_value(options,ps->args[10],G_VARIANT_TYPE_STRING);
@@ -2014,7 +2022,7 @@ int main (int    argc,
 		ps.args[0]="dimensions";
 		g_application_add_main_option((GApplication*)app,ps.args[0],'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
 		ps.args[8]="chan_min";
-		g_application_add_main_option((GApplication*)app,ps.args[8],'m',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Minimum users to list a channel(at \"322\"). Default 100.","NR");
+		g_application_add_main_option((GApplication*)app,ps.args[8],'m',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Minimum users to list a channel(at \"322\"). Default 250.","NR");
 		ps.args[7]="connection_number";
 		g_application_add_main_option((GApplication*)app,ps.args[7],'c',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ", 4=" con_nr_4 ". Default value is 1.",con_nr_nrs);
 		ps.args[11]="ignore";
