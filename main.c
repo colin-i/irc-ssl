@@ -2138,10 +2138,10 @@ int main (int    argc,
 		g_object_unref (app);
 		if(info_path_name!=nullptr)free(info_path_name);
 		if(log_file!=-1)close(log_file);
-		if(ps.ignor_str!=nullptr){free(ps.ignor_str);free(ignoreds);}
+		if(ps.ignor_str!=nullptr){g_free(ps.ignor_str);free(ignoreds);}
 		if(ps.execute_newmsg!=nullptr)g_free(ps.execute_newmsg);
 		if(ps.ajoins_sum>0){
-			free(ps.ajoins_mem);
+			g_free(ps.ajoins_mem);
 			for(size_t i=0;i<ps.ajoins_sum;i++)if(ps.ajoins[i].chans!=&dummy)
 				free(ps.ajoins[i].chans);
 			free(ps.ajoins);
