@@ -2097,7 +2097,7 @@ int main (int    argc,
 		ps.args[autoconnect_id]="autoconnect";
 		g_application_add_main_option((GApplication*)app,ps.args[autoconnect_id],'a',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Autoconnect to connection by index.","INDEX");
 		ps.args[autojoin_id]="autojoin";
-		g_application_add_main_option((GApplication*)app,ps.args[autojoin_id],'j',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Autojoin channels on connection index. e.g. \"2,#a,#b 4,#b,#z\"","\"I1,C1,C2...CN I2... IN...\"");
+		g_application_add_main_option((GApplication*)app,ps.args[autojoin_id],'j',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Autojoin channels on connection index. e.g. \"2,#a,#b 4,#b,#z\"","\"I1,C1,C2...CN I2... ... IN...\"");
 		ps.args[dimensions_id]="dimensions";
 		g_application_add_main_option((GApplication*)app,ps.args[dimensions_id],'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
 		ps.args[chan_min_id]="chan_min";
