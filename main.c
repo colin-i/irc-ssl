@@ -1527,10 +1527,10 @@ static gboolean enter_recallback( gpointer ps){
 	g_signal_handler_unblock(((struct stk_s*)ps)->con_entry,((struct stk_s*)ps)->con_entry_act);
 	return FALSE;
 }
-static gboolean enter_callback( gpointer ps){
+static void enter_callback( gpointer ps){
 	//block this ENTER
 	g_signal_handler_block(((struct stk_s*)ps)->con_entry,((struct stk_s*)ps)->con_entry_act);
-	return enter_recallback(ps);
+	enter_recallback(ps);
 }
 static BOOL info_path_name_set_val(const char*a,char*b,size_t i,size_t j){
 	info_path_name=(char*)malloc(i+j+6);
