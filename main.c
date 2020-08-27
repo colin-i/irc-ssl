@@ -1966,7 +1966,7 @@ static void parse_autojoin(struct stk_s*ps){
 		}
 	}
 	//
-	ps->ajoins=(struct ajoin*)malloc(ps->ajoins_sum*sizeof(ajoin));
+	ps->ajoins=(struct ajoin*)malloc(ps->ajoins_sum*sizeof(struct ajoin));
 	if(ps->ajoins==nullptr){ps->ajoins_sum=0;g_free(ps->ajoins_mem);return;}
 	size_t j=0;size_t k=0;
 	for(size_t i=0;;){
