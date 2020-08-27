@@ -2140,6 +2140,11 @@ int main (int    argc,
 		if(log_file!=-1)close(log_file);
 		if(ps.ignor_str!=nullptr){free(ps.ignor_str);free(ignoreds);}
 		if(ps.execute_newmsg!=nullptr)g_free(ps.execute_newmsg);
-		if(ps.ajoins_sum>0)free(ps.ajoins_mem);
+		if(ps.ajoins_sum>0){
+			free(ps.ajoins_mem);
+			for(size_t i=0;i<ps.ajoins_sum;i++)if(ps.ajoins[i].chans!=&dummy)
+				free(ps.ajoins[i].chans);
+			free(ps.ajoins);
+		}
 	}else puts("openssl error");
 }
