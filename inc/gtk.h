@@ -162,6 +162,7 @@ void g_list_free (GList *list);
 GList* g_list_last (GList *list);
 #define g_list_next(list) ((list) ? (((GList *)(list))->next) : nullptr)
 gpointer g_object_ref (gpointer object);
+void g_object_set (gpointer object, const gchar *first_property_name, ...) __attribute__((__sentinel__));
 void g_object_unref (gpointer object);
 gulong g_signal_connect_data (gpointer instance,const gchar *detailed_signal,GCallback c_handler,gpointer data,GClosureNotify destroy_data,GConnectFlags connect_flags);
 void g_signal_handler_block (gpointer instance, gulong handler_id);
@@ -278,6 +279,7 @@ void gtk_text_view_set_wrap_mode (GtkTextView *text_view, GtkWrapMode wrap_mode)
 void gtk_text_view_set_editable (GtkTextView *text_view,gboolean setting);
 void gtk_tree_model_get (GtkTreeModel *tree_model, GtkTreeIter *iter, ...);
 gboolean gtk_tree_model_get_iter_first(GtkTreeModel *tree_model, GtkTreeIter *iter);
+gboolean gtk_tree_model_get_iter_from_string (GtkTreeModel *tree_model, GtkTreeIter *iter, const gchar *path_string);
 GtkTreePath *gtk_tree_model_get_path (GtkTreeModel *tree_model,GtkTreeIter *iter);
 gint gtk_tree_model_iter_n_children (GtkTreeModel *tree_model, GtkTreeIter *iter);
 gboolean gtk_tree_model_iter_next (GtkTreeModel *tree_model, GtkTreeIter *iter);

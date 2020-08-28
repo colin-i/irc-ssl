@@ -147,8 +147,9 @@ struct stk_s{
 	char*execute_newmsg;GtkWindow*main_win;
 	int argc;char**argv;
 	int autoconnect;
-	GtkComboBox*con_cbt;struct ajoin*ajoins;char*ajoins_mem;size_t ajoins_sum;
+	struct ajoin*ajoins;char*ajoins_mem;size_t ajoins_sum;
 	char*password;
+	GtkListStore*org_tree_list;
 };
 #pragma GCC diagnostic pop
 #define con_nr_1 "SSL or Unencrypted"
@@ -1152,7 +1153,7 @@ static void info_list_end(){
 }
 static void send_autojoin(struct stk_s*ps){
 	for(size_t i=0;i<ps->ajoins_sum;i++)
-		if(ps->ajoins[i].c==gtk_combo_box_get_active(ps->con_cbt)){
+		if(ps->ajoins[i].c==gtk_combo_box_get_active((GtkComboBox*)ps->cbt)){
 			for(size_t j=0;ps->ajoins[i].chans[j]!=nullptr;j++)
 				send_join(ps->ajoins[i].chans[j],strlen(ps->ajoins[i].chans[j]),ps->notebook);
 			break;
@@ -1615,13 +1616,16 @@ static void info_path_name_restore(GtkComboBoxText*cbt,GtkWidget*entext,struct s
 	}
 	gtk_entry_set_text ((GtkEntry*)entext,":");
 }
-static int organize_connections_ini(GtkTreeView*tv,GtkTreeModel**mod,GtkTreeIter*it){
-	GtkTreeSelection *sel=gtk_tree_view_get_selection(tv);
-	gtk_tree_selection_get_selected (sel,mod,it);
-	GtkTreePath * path = gtk_tree_model_get_path ( *mod , it ) ;
+static int get_pos_from_model(GtkTreeModel*mod,GtkTreeIter*it){
+	GtkTreePath * path = gtk_tree_model_get_path ( mod , it ) ;
 	int i= (gtk_tree_path_get_indices ( path ))[0] ;
 	gtk_tree_path_free(path);
 	return i;
+}
+static int organize_connections_ini(GtkTreeView*tv,GtkTreeModel**mod,GtkTreeIter*it){
+	GtkTreeSelection *sel=gtk_tree_view_get_selection(tv);
+	gtk_tree_selection_get_selected (sel,mod,it);
+	return get_pos_from_model(*mod,it);
 }
 static void organize_connections_dialog (GtkDialog *dialog, gint response, struct stk_s*ps){
 	GtkTreeModel*mod;GtkTreeIter it;
@@ -1661,6 +1665,15 @@ static void organize_connections_dialog (GtkDialog *dialog, gint response, struc
 		gtk_widget_destroy((GtkWidget*)dialog);
 	}
 }
+static void cell_edited_callback(struct stk_s*ps,gchar *path,gchar *new_text){
+	GtkTreeIter iter;
+	gtk_tree_model_get_iter_from_string((GtkTreeModel*)ps->org_tree_list,&iter,path);
+	gtk_list_store_set(ps->org_tree_list, &iter, LIST_ITEM, new_text, -1);
+	int i=get_pos_from_model(ps->org_tree_list, &iter);
+	GtkTreeModel*mdl=gtk_combo_box_get_model((GtkComboBox*)ps->cbt);
+	gtk_tree_model_iter_nth_child(mdl,&iter,nullptr,i);
+	gtk_list_store_set((GtkListStore*)mdl, &iter, LIST_ITEM, new_text, -1);
+}
 static void organize_connections (struct stk_s*ps){
 	GtkTreeModel * list = gtk_combo_box_get_model((GtkComboBox*)ps->cbt);
 	GtkTreeIter iterFrom;
@@ -1683,9 +1696,12 @@ static void organize_connections (struct stk_s*ps){
 		GtkListStore *store;
 		gtk_tree_view_set_headers_visible((GtkTreeView*)tree,FALSE);
 		renderer = gtk_cell_renderer_text_new();
+		g_object_set(renderer, "editable", TRUE, nullptr);
+		store= gtk_list_store_new(N_COLUMNS, G_TYPE_STRING);
+		ps->org_tree_list=store;
+		g_signal_connect_data (renderer, "edited",G_CALLBACK (cell_edited_callback),ps,nullptr,G_CONNECT_SWAPPED);
 		column = gtk_tree_view_column_new_with_attributes("", renderer, "text", LIST_ITEM, nullptr);
 		gtk_tree_view_append_column((GtkTreeView*)tree, column);
-		store= gtk_list_store_new(N_COLUMNS, G_TYPE_STRING);
 		gtk_tree_view_set_model((GtkTreeView*)tree, (GtkTreeModel*)store);
 		g_object_unref(store);
 		//
@@ -1871,14 +1887,14 @@ activate (GtkApplication* app,
 	GtkWidget*entext=gtk_bin_get_child((GtkBin*)en);
 	ps->con_entry=entext;//this for timeouts
 	ps->con_entry_act=g_signal_connect_data (entext, "activate",G_CALLBACK (enter_callback),ps,nullptr,G_CONNECT_SWAPPED);
-	ps->con_cbt=(GtkComboBox*)en;
+	ps->cbt=(GtkComboBoxText*)en;
 	//
 	GtkWidget*con=gtk_button_new();
 	GtkWidget*conimg=gtk_image_new_from_icon_name ("go-next",GTK_ICON_SIZE_MENU);
 	gtk_button_set_image((GtkButton*)con,conimg);
 	g_signal_connect_data (con, "clicked",G_CALLBACK (con_click),entext,nullptr,G_CONNECT_SWAPPED);
 	//
-	GtkWidget *org=gtk_button_new_with_label("\u22EE");ps->cbt=(GtkComboBoxText*)en;
+	GtkWidget *org=gtk_button_new_with_label("\u22EE");
 	GtkWidget *menu = gtk_menu_new ();
 	//
 	GtkWidget *menu_item = gtk_menu_item_new_with_label ("Organize Connections");
