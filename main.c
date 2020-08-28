@@ -124,7 +124,7 @@ enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };//connections org,channels
-#define number_of_args 15
+#define number_of_args 16
 #pragma GCC diagnostic push//is from BOOL+char+BOOL+1=4
 #pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
@@ -148,6 +148,7 @@ struct stk_s{
 	int argc;char**argv;
 	int autoconnect;
 	GtkComboBox*con_cbt;struct ajoin*ajoins;char*ajoins_mem;size_t ajoins_sum;
+	char*password;
 };
 #pragma GCC diagnostic pop
 #define con_nr_1 "SSL or Unencrypted"
@@ -179,7 +180,7 @@ static int log_file=-1;
 static char**ignoreds={nullptr};
 static BOOL can_send_data=FALSE;
 #define info_list_end_str " channels listed\n"
-enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,connection_number_id,ignore_id,log_id,nick_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id};
+enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,connection_number_id,ignore_id,log_id,nick_id,password_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id};
 static char*dummy=nullptr;
 struct ajoin{
 	int c;//against get_active
@@ -355,9 +356,10 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int
 		if(psz>=password_sz)return FALSE;
 		memcpy(psw,indata+i,psz);psw[psz]='\0';
 		sz-=(size_t)(left+1-indata);indata=left+1;
-	}else *psw='\0';
+	}else if(ps->password!=nullptr)strcpy(psw,ps->password);
+	else *psw='\0';
 	if(nonick){
-		if(ps->nick!=nullptr)memcpy(nkn,ps->nick,strlen(ps->nick)+1);
+		if(ps->nick!=nullptr)strcpy(nkn,ps->nick);
 		else{
 			const char def_n[]="guest_abc";
 			memcpy(nkn,def_n,sizeof(def_n));
@@ -2081,6 +2083,9 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	ps->ajoins_sum=0;
 	if(g_variant_dict_lookup(options,ps->args[autojoin_id],"s",&ps->ajoins_mem))
 		parse_autojoin(ps);
+	//
+	if (g_variant_dict_lookup (options,ps->args[password_id],"s",&ps->password)==FALSE)
+		ps->password=nullptr;
 	return -1;
 }
 int main (int    argc,
@@ -2110,6 +2115,8 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[log_id],'l',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Log private chat to filename.","FILENAME");//_FILENAME
 		ps.args[nick_id]="nick";
 		g_application_add_main_option((GApplication*)app,ps.args[nick_id],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
+		ps.args[password_id]="password";
+		g_application_add_main_option((GApplication*)app,ps.args[password_id],'p',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default password (blank overwrite with \"@host...\", the format is at the g.u.i. help)","PASSWORD");
 		ps.args[refresh_id]="refresh";
 		g_application_add_main_option((GApplication*)app,ps.args[refresh_id],'f',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Refresh channels interval in seconds. Default 600. Less than 1 to disable.","SECONDS");
 		ps.args[right_id]="right";
