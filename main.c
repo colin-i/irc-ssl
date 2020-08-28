@@ -1660,7 +1660,7 @@ static void organize_connections_dialog (GtkDialog *dialog, gint response, struc
 			gtk_list_store_swap((GtkListStore*)mdl,&it,&i2);
 		}
 	}
-	else{// if(response==0){
+	else{// response==0 || X button is GTK_RESPONSE_DELETE_EVENT
 		save_combo_box(gtk_combo_box_get_model((GtkComboBox*)ps->cbt));
 		gtk_widget_destroy((GtkWidget*)dialog);
 	}
@@ -1669,7 +1669,7 @@ static void cell_edited_callback(struct stk_s*ps,gchar *path,gchar *new_text){
 	GtkTreeIter iter;
 	gtk_tree_model_get_iter_from_string((GtkTreeModel*)ps->org_tree_list,&iter,path);
 	gtk_list_store_set(ps->org_tree_list, &iter, LIST_ITEM, new_text, -1);
-	int i=get_pos_from_model(ps->org_tree_list, &iter);
+	int i=get_pos_from_model((GtkTreeModel*)ps->org_tree_list, &iter);
 	GtkTreeModel*mdl=gtk_combo_box_get_model((GtkComboBox*)ps->cbt);
 	gtk_tree_model_iter_nth_child(mdl,&iter,nullptr,i);
 	gtk_list_store_set((GtkListStore*)mdl, &iter, LIST_ITEM, new_text, -1);
@@ -1684,11 +1684,11 @@ static void organize_connections (struct stk_s*ps){
 		if(gtk_tree_model_iter_n_children (list,nullptr)>1)
 			dialog = gtk_dialog_new_with_buttons ("Organize Connections",
 			    top, (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
-			    "Move _Up",2,"Move D_own",3,"_Delete",1,"Do_ne",0,nullptr);
+			    "Move _Up",2,"Move D_own",3,"D_elete",1,"_Done",0,nullptr);
 		else
 			dialog = gtk_dialog_new_with_buttons ("Organize Connections",
 			    top, (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
-			    "_Delete",1,"Do_ne",0,nullptr);
+			    "D_elete",1,"_Done",0,nullptr);
 		GtkWidget *tree=gtk_tree_view_new();ps->tv=(GtkTreeView*)tree;
 		//
 		GtkCellRenderer *renderer;
@@ -1730,7 +1730,7 @@ static void organize_connections (struct stk_s*ps){
 		dialog = gtk_dialog_new_with_buttons ("Organize Connections",
 			(GtkWindow *)gtk_widget_get_toplevel ((GtkWidget *)ps->cbt),
 			(GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
-			"Do_ne",0,nullptr);
+			"_Done",0,nullptr);
 	}
 	g_signal_connect_data (dialog, "response",G_CALLBACK (organize_connections_dialog),ps,nullptr,(GConnectFlags) 0);
 	gtk_widget_show_all (dialog);
@@ -1742,7 +1742,7 @@ static gboolean prog_menu_popup (GtkMenu*menu,GdkEvent*evn){
 static void help_popup(struct stk_s*ps){
 	GtkWidget *dialog = gtk_dialog_new_with_buttons ("Organize Connections",
 			    ps->main_win, (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
-			    "OK",GTK_RESPONSE_NONE,nullptr);
+			    "_OK",GTK_RESPONSE_NONE,nullptr);
 	int w;int h;
 	gtk_window_get_size (ps->main_win,&w,&h);
 	gtk_window_set_default_size((GtkWindow*)dialog,w,h);
@@ -1831,19 +1831,20 @@ static void clipboard_tev(GtkNotebook*notebook){
 static void channels_sort(){
 	send_list_if
 }
-static void chan_reMin_response (GtkDialog *dialog,gint ignored,int*chan_min){
-	(void)ignored;
-	GList*l=gtk_container_get_children((GtkContainer*)gtk_dialog_get_content_area(dialog));
-	const char*text=gtk_entry_get_text((GtkEntry*)l->data);
-	g_list_free(l);
-	*chan_min=atoi(text);
-	send_list_if
+static void chan_reMin_response (GtkDialog *dialog,gint response,int*chan_min){
+	if(response==GTK_RESPONSE_OK){
+		GList*l=gtk_container_get_children((GtkContainer*)gtk_dialog_get_content_area(dialog));
+		const char*text=gtk_entry_get_text((GtkEntry*)l->data);
+		g_list_free(l);
+		*chan_min=atoi(text);
+		send_list_if
+	}
 	gtk_widget_destroy((GtkWidget*)dialog);
 }
 static void chan_reMin(struct stk_s*ps){
 	GtkWidget *dialog = gtk_dialog_new_with_buttons ("Channel Minimum Users",
 			    ps->main_win, (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
-			    "OK",GTK_RESPONSE_NONE,nullptr);
+			    "_OK",GTK_RESPONSE_OK,nullptr);
 	GtkWidget*entry = gtk_entry_new();
 	char buf[digits_in_uint+1];
 	sprintf(buf,"%u",ps->chan_min);
