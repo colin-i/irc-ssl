@@ -1064,7 +1064,7 @@ static BOOL talk_user(char*n){
 if(ps->execute_newmsg!=nullptr)\
 	if(gtk_window_is_active(ps->main_win)==FALSE)\
 		g_spawn_command_line_async(ps->execute_newmsg,nullptr);
-static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps){
+static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps,BOOL is_privmsg){
 	BOOL novel=TRUE;
 	GtkNotebook*nb=ps->notebook;
 	GList*list=gtk_container_get_children((GtkContainer*)name_on_menu);
@@ -1088,7 +1088,7 @@ static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps){
 		if(talk_user(n)){
 			GtkWidget*scrl=name_join_nb(n,nb);addatnames(n,msg,scrl);
 			alert(gtk_notebook_get_tab_label(nb,scrl),nb);
-			if(ps->welcome!=nullptr)send_msg(ps->nknnow,n,ps->welcome,scrl);
+			if(is_privmsg&&ps->welcome!=nullptr)send_msg(ps->nknnow,n,ps->welcome,scrl);
 			exec_nm
 		}
 	}
@@ -1177,11 +1177,12 @@ static gboolean incsafe(gpointer ps){
 		char channm[channm_sz+1+digits_in_uint];//+ to set the "chan nr" at join on the same string
 		char nicknm[namenul_sz];
 		char c;
-		if(strcmp(com,"PRIVMSG")==0){
+		BOOL is_privmsg=strcmp(com,"PRIVMSG")==0;
+		if(is_privmsg||strcmp(com,"NOTICE")==0){
 			if(nick_extract(a,nicknm)){
 				if(is_channel(b)){
 					if(sscanf(b,channame_scan " %c",channm,&c)==2)pars_pmsg_chan(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
-				}else if(sscanf(b,name_scan " %c",channm,&c)==2)pars_pmsg_name(nicknm,b+strlen(channm)+2,(struct stk_s*)ps);
+				}else if(sscanf(b,name_scan " %c",channm,&c)==2)pars_pmsg_name(nicknm,b+strlen(channm)+2,(struct stk_s*)ps,is_privmsg);
 			}
 		}else if(strcmp(com,"JOIN")==0){
 			int resp=nick_and_chan(a,b,nicknm,channm,((struct stk_s*)ps)->nknnow);
@@ -1256,7 +1257,7 @@ static gboolean incsafe(gpointer ps){
 			}else if(d==254){//RPL_LUSERCHANNELS
 				send_autojoin((struct stk_s*)ps);
 				//this not getting after first recv
-				//another solution can be after motd (later)
+				//another solution can be after 376 RPL_ENDOFMOTD
 				//or after 1 second, not beautiful
 				send_list
 			}
