@@ -1275,7 +1275,7 @@ static gboolean incsafe(gpointer ps){
 					b++;if(sscanf(b,channame_scan " %c",channm,&c)==2)
 						pars_err(channm,b+strlen(channm)+2);
 				}
-			}
+			}else if(d==0)showmsg=FALSE;//"abc"
 		}
 	}else showmsg=FALSE;
 	if(showmsg){
