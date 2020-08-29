@@ -102,9 +102,9 @@ Launch the program with --help argument for more info.\n\
 \n\
 Connection format is [[nickname:]password@]hostname[:port1[-portn]].\n\
 e.g. newNick:abc@127.0.0.1:6665-6669"
-#define channm_sz 201
-//"up to 200 characters"
-#define channame_scan "%200s"
+#define channm_sz 51
+//"up to fifty (50) characters"
+#define channame_scan "%50s"
 #define namenul_sz 10//9 char
 #define name_scan1 "%9"
 #define name_scan name_scan1 "s"
@@ -613,7 +613,7 @@ static GtkWidget* name_join_nb(char*t,GtkNotebook*nb){
 	g_signal_connect_data (close, "clicked",G_CALLBACK (close_name),mn,nullptr,G_CONNECT_SWAPPED);//not "(GClosureNotify)gtk_widget_destroy" because at restart clear will be trouble
 	return scrl;
 }
-#define letter_start(a) ('A'<=*a&&*a<='Z')||('a'<=*a&&*a<='z')
+#define nickname_start(a) ('A'<=*a&&*a<='}')
 static gboolean name_join(GtkTreeView*tree,GdkEvent*ignored,struct stk_s*ps){
 	(void)ignored;
 	GtkTreeSelection *sel=gtk_tree_view_get_selection(tree);
@@ -622,7 +622,7 @@ static gboolean name_join(GtkTreeView*tree,GdkEvent*ignored,struct stk_s*ps){
 	char*item_text;
 	gtk_tree_model_get (gtk_tree_view_get_model(tree), &iterator, LIST_ITEM, &item_text, -1);
 	//there are 4<A ` i saw once and one>z
-	char*a=letter_start(item_text)?item_text:item_text+1;
+	char*a=nickname_start(item_text)?item_text:item_text+1;
 	if(name_join_isnew(ps,a))
 		gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,name_join_nb(a,ps->notebook)));
 	g_free(item_text);
@@ -756,7 +756,7 @@ static void pars_join_user(char*channm,char*nicknm){
 	for(;;){
 		char*text;
 		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
-		if(letter_start(text)==FALSE||strcmp(nicknm,text)>0){
+		if(strcmp(nicknm,text)>0||nickname_start(text)==FALSE){
 			g_free(text);
 			GtkTreeIter i;
 			gtk_list_store_insert_after(lst,&i,&it);
@@ -795,7 +795,7 @@ static BOOL get_iter_unmodes(GtkListStore*lst,GtkTreeIter*it,char*nk){
 		gtk_tree_model_iter_n_children((GtkTreeModel*)lst,nullptr)-1);
 	do{
 		gtk_tree_model_get ((GtkTreeModel*)lst, it, 0, &txt, -1);
-		if(letter_start(txt)==FALSE){g_free(txt);return FALSE;}
+		if(nickname_start(txt)==FALSE){g_free(txt);return FALSE;}
 		int a=strcmp(nk,txt);
 		g_free(txt);
 		if(a==0)return TRUE;
@@ -810,7 +810,7 @@ static char get_iter_modes(GtkListStore*lst,GtkTreeIter*it,char*nk,BOOL notop){
 	char lastmod=*txt^1;//to be dif at first compare
 	unsigned int modes=0;
 	for(;;){
-		if(letter_start(txt)){g_free(txt);return '\0';}
+		if(nickname_start(txt)){g_free(txt);return '\0';}
 		if(*txt!=lastmod){
 			modes++;lastmod=*txt;
 			if(notop&&modes==maximummodes&&lastmod==*chanmodessigns){g_free(txt);return '\0';}
@@ -858,7 +858,7 @@ static void add_name_lowuser(GtkListStore*lst,char*t){
 		gtk_tree_model_iter_nth_child((GtkTreeModel*)lst, &it, nullptr, n-1);
 		do{
 			gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
-			if(letter_start(text)==FALSE||strcmp(t,text)>0){
+			if(strcmp(t,text)>0||nickname_start(text)==FALSE){
 				g_free(text);
 				gtk_list_store_insert_after(lst,&i,&it);
 				gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
@@ -877,7 +877,7 @@ static void add_name_highuser(GtkListStore*lst,char*t){
 	if(gtk_tree_model_get_iter_first((GtkTreeModel*)lst, &it)){
 		do{
 			gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
-			if(letter_start(text)||strcmp(t,text)<0){
+			if(strcmp(t,text)<0||nickname_start(text)){
 				g_free(text);
 				gtk_list_store_insert_before(lst,&i,&it);
 				gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
@@ -890,8 +890,8 @@ static void add_name_highuser(GtkListStore*lst,char*t){
 	gtk_list_store_set(lst, &it, LIST_ITEM, t, -1);
 }
 static void add_name(GtkListStore*lst,char*t){
-	if(letter_start(t)){add_name_lowuser(lst,t);return;}
-	else add_name_highuser(lst,t);
+	if(nickname_start(t)){add_name_lowuser(lst,t);return;}
+	add_name_highuser(lst,t);
 }
 static void pars_names(GtkWidget*pan,char*b,size_t s){
 	GtkListStore*lst=contf_get_list(pan);
