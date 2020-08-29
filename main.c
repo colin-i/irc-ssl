@@ -1219,7 +1219,7 @@ static gboolean incsafe(gpointer ps){
 			}
 		}else if(strlen(com)!=3)showmsg=FALSE;
 		else{
-			int d=atoi(com);
+			int d=atoi(com);//If no valid conversion could be performed, it returns zero;below,d==0
 			if(d==RPL_LIST){
 				if(show_msg!=RPL_LIST)showmsg=FALSE;
 				unsigned int e;
