@@ -100,7 +100,7 @@ static char*info_path_name=nullptr;
 #define help_text "Most of the parameters are set at start.\n\
 Launch the program with --help argument for more info.\n\
 \n\
-Connection format is [[nickname:]password@]hostname[:port1[-portn]]. Password will be uri unescaped.\n\
+Connection format is [[nickname:]password@]hostname[:port1[-portn]]. Escape @ in password with the uri format (\"%40\").\n\
 e.g. newNick:a%40c@127.0.0.1:6665-6669"
 #define channm_sz 51
 //"up to fifty (50) characters"
@@ -1222,8 +1222,7 @@ static gboolean incsafe(gpointer ps){
 			else if(d==323){//RPL_LISTEND
 				show_to_clause(RPL_LIST)
 				info_list_end();
-			}
-			else if(d==RPL_NAMREPLY){
+			}else if(d==RPL_NAMREPLY){
 				if(show_msg!=RPL_NAMREPLY)showmsg=FALSE;
 				if(sscanf(b,"%*s %*c " channame_scan,channm)==1){
 					GtkWidget*p=chan_pan(channm);
@@ -1238,12 +1237,9 @@ static gboolean incsafe(gpointer ps){
 					GtkWidget*p=chan_pan(channm);
 					if(p!=nullptr)names_end(p,channm);//at a join
 				}
-			}else if(d>400){//Error Replies.
-				b=strchr(b,' ');
-				if(b!=nullptr){
-					b++;if(sscanf(b,channame_scan " %c",channm,&c)==2)
-						pars_err(channm,b+strlen(channm)+2);
-				}
+			}else if(d==332){//RPL_TOPIC
+				if(sscanf(b,name_scan " " channame_scan " %c",nicknm,channm,&c)==3)
+					addatchans("*Topic",b+strlen(nicknm)+1+strlen(channm)+2,chan_pan(channm));
 			}else if(d==319){//RPL_WHOISCHANNELS
 				b=strchr(b,' ');
 				if(b!=nullptr){
@@ -1264,6 +1260,12 @@ static gboolean incsafe(gpointer ps){
 				//another solution can be after 376 RPL_ENDOFMOTD
 				//or after 1 second, not beautiful
 				send_list
+			}else if(d>400){//Error Replies.
+				b=strchr(b,' ');
+				if(b!=nullptr){
+					b++;if(sscanf(b,channame_scan " %c",channm,&c)==2)
+						pars_err(channm,b+strlen(channm)+2);
+				}
 			}
 		}
 	}else showmsg=FALSE;
