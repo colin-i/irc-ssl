@@ -100,8 +100,8 @@ static char*info_path_name=nullptr;
 #define help_text "Most of the parameters are set at start.\n\
 Launch the program with --help argument for more info.\n\
 \n\
-Connection format is [[nickname:]password@]hostname[:port1[-portn]].\n\
-e.g. newNick:abc@127.0.0.1:6665-6669"
+Connection format is [[nickname:]password@]hostname[:port1[-portn]]. Password will be uri unescaped.\n\
+e.g. newNick:a%40c@127.0.0.1:6665-6669"
 #define channm_sz 51
 //"up to fifty (50) characters"
 #define channame_scan "%50s"
@@ -354,8 +354,12 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int
 			}
 		}
 		size_t psz=lsz-i;
-		if(psz>=password_sz)return FALSE;
-		memcpy(psw,indata+i,psz);psw[psz]='\0';
+		char*p=(char*)g_memdup(indata+i,psz+1);
+		p[psz]='\0';
+		char*up=g_uri_unescape_string(p,nullptr);
+		g_free(p);
+		if(strlen(up)>=password_sz){free(up);return FALSE;}
+		strcpy(psw,up);free(up);
 		sz-=(size_t)(left+1-indata);indata=left+1;
 	}else if(ps->password!=nullptr)strcpy(psw,ps->password);
 	else *psw='\0';
