@@ -102,10 +102,12 @@ Launch the program with --help argument for more info.\n\
 \n\
 Connection format is [[nickname:]password@]hostname[:port1[-portn]]. Escape @ in password with the uri format (\"%40\").\n\
 e.g. newNick:a%40c@127.0.0.1:6665-6669"
-#define channm_sz 51
+#define chan_sz 50
+#define channul_sz chan_sz+1
 //"up to fifty (50) characters"
 #define channame_scan "%50s"
-#define namenul_sz 10//9 char
+#define name_sz 9
+#define namenul_sz name_sz+1
 #define name_scan1 "%9"
 #define name_scan name_scan1 "s"
 struct data_len{
@@ -178,15 +180,16 @@ static unsigned int maximummodes=0;
 static int show_msg=RPL_NONE;
 #define digits_in_uint 10
 static int log_file=-1;
-static char**ignoreds={nullptr};
+static char*dummy=nullptr;
+static char**ignoreds=&dummy;
 static BOOL can_send_data=FALSE;
 #define info_list_end_str " channels listed\n"
 enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,connection_number_id,ignore_id,log_id,nick_id,password_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id};
-static char*dummy=nullptr;
 struct ajoin{
 	int c;//against get_active
 	char**chans;
 };
+#define invite_str " invited you to join channel "
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -497,7 +500,7 @@ static void chan_popup(GtkWidget*menuitem,GtkNotebook*nb){
 	gtk_notebook_set_current_page(nb,gtk_notebook_page_num(nb,pan));
 }
 static void close_channel(GtkLabel*t){
-	char buf[4+channm_sz+irc_term_sz]="PART ";
+	char buf[5+chan_sz+irc_term_sz]="PART ";
 	const char*a=gtk_label_get_text(t);
 	size_t n=strlen(a);
 	memcpy(buf+5,a,n);memcpy(&buf[5+n],irc_term,irc_term_sz);
@@ -566,7 +569,7 @@ static void send_join(char*item_text,size_t i,GtkNotebook*notebook){
 		g_list_free(lst);
 	}
 	if(b){
-		char buf[4+channm_sz+irc_term_sz]="JOIN ";
+		char buf[5+chan_sz+irc_term_sz]="JOIN ";
 		memcpy(buf+5,item_text,i);
 		memcpy(buf+5+i,irc_term,irc_term_sz);
 		send_data(buf,5+irc_term_sz+i);
@@ -657,7 +660,7 @@ static void chan_change_nr_gain(GtkTreeIter*iter,char*chn,unsigned int nr){
 	if(gtk_tree_model_iter_previous( (GtkTreeModel*)channels, &it)==FALSE)return;
 	for(;;){
 		char*text;
-		char c[channm_sz];
+		char c[channul_sz];
 		unsigned int n;
 		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
 		sscanf(text,channame_scan " %u",c,&n);
@@ -677,7 +680,7 @@ static void chan_change_nr_loss(GtkTreeIter*iter,char*chn,unsigned int nr){
 	if(gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it)==FALSE)return;
 	for(;;){
 		char*text;
-		char c[channm_sz];
+		char c[channul_sz];
 		unsigned int n;
 		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
 		sscanf(text,channame_scan " %u",c,&n);
@@ -719,7 +722,7 @@ static BOOL get_chan_alpha(const char*chan,char*c,GtkTreeIter*it,char**text){
 static BOOL chan_change_nr(const char*chan,int v){
 	GtkTreeIter it;
 	//chan_min hidding
-	char c[channm_sz+1+digits_in_uint];char*text;
+	char c[chan_sz+1+digits_in_uint+1];char*text;
 	BOOL b;
 	gboolean ac=gtk_check_menu_item_get_active(channels_counted);
 	if(ac){b=get_chan_counted(chan,c,&it,&text);}
@@ -924,7 +927,7 @@ static void pars_mod_set(GtkListStore*lst,char*n,int pos,BOOL plus){
 	if(plus){
 		if(get_iter_unmodes(lst,&it,n)){
 			gtk_list_store_remove(lst,&it);
-			char buf[namenul_sz+1];*buf=chanmodessigns[pos];
+			char buf[1+name_sz+1];*buf=chanmodessigns[pos];
 			strcpy(buf+1,n);
 			add_name_highuser(lst,buf);
 			return;
@@ -933,7 +936,7 @@ static void pars_mod_set(GtkListStore*lst,char*n,int pos,BOOL plus){
 		if(prevmod!='\0'){
 			if(pos<(strchr(chanmodessigns,prevmod)-chanmodessigns)){
 				gtk_list_store_remove(lst,&it);
-				char buf[namenul_sz+1];*buf=chanmodessigns[pos];
+				char buf[1+name_sz+1];*buf=chanmodessigns[pos];
 				strcpy(buf+1,n);
 				add_name_highuser(lst,buf);
 			}
@@ -946,7 +949,7 @@ static void pars_mod_set(GtkListStore*lst,char*n,int pos,BOOL plus){
 				gtk_list_store_remove(lst,&it);
 				add_name_lowuser(lst,n);
 				if(chanmodessigns[spos+1]!='\0'){//can be downgraded
-					char downgraded[6+namenul_sz+irc_term_sz];
+					char downgraded[6+name_sz+irc_term_sz+1];
 					int sz=sprintf(downgraded,"WHOIS %s" irc_term,n);
 					send_data(downgraded,(size_t)sz);
 				}
@@ -1068,7 +1071,7 @@ static BOOL talk_user(char*n){
 if(ps->execute_newmsg!=nullptr)\
 	if(gtk_window_is_active(ps->main_win)==FALSE)\
 		g_spawn_command_line_async(ps->execute_newmsg,nullptr);
-static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps,BOOL is_privmsg){
+static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps,BOOL is_privmsg,const char*frontname){
 	BOOL novel=TRUE;
 	GtkNotebook*nb=ps->notebook;
 	GList*list=gtk_container_get_children((GtkContainer*)name_on_menu);
@@ -1079,7 +1082,7 @@ static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps,BOOL is_privmsg){
 			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
 			if(strcmp(n,d)==0){
 				GtkWidget*scrl=get_pan_from_menu(menu_item);
-				addatnames(n,msg,scrl);
+				addatnames(frontname,msg,scrl);
 				prealert(nb,scrl);
 				novel=FALSE;
 				exec_nm
@@ -1090,7 +1093,7 @@ static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps,BOOL is_privmsg){
 	}
 	if(novel){
 		if(talk_user(n)){
-			GtkWidget*scrl=name_join_nb(n,nb);addatnames(n,msg,scrl);
+			GtkWidget*scrl=name_join_nb(n,nb);addatnames(frontname,msg,scrl);
 			alert(gtk_notebook_get_tab_label(nb,scrl),nb);
 			if(ps->welcome!=nullptr&&is_privmsg)send_msg(ps->nknnow,n,ps->welcome,scrl);
 			exec_nm
@@ -1128,7 +1131,7 @@ static void line_switch(char*n,GtkWidget*from,GtkWidget*to,const char*msg){
 }
 static void names_end(GtkWidget*p,char*chan){
 	gtk_widget_set_has_tooltip(p,FALSE);
-	char c[channm_sz+1+digits_in_uint];
+	char c[chan_sz+1+digits_in_uint+1];
 	GtkTreeIter it;char*text;
 	BOOL b;
 	gboolean ac=gtk_check_menu_item_get_active(channels_counted);
@@ -1153,7 +1156,7 @@ static void names_end(GtkWidget*p,char*chan){
 }
 static void info_list_end(){
 	char buf[digits_in_uint+sizeof(info_list_end_str)];
-	addattextmain(buf,(size_t)sprintf(buf,"%u%s",gtk_tree_model_iter_n_children((GtkTreeModel*)channels,nullptr),info_list_end_str));
+	addattextmain(buf,(size_t)sprintf(buf,"%u" info_list_end_str,gtk_tree_model_iter_n_children((GtkTreeModel*)channels,nullptr)));
 }
 static void send_autojoin(struct stk_s*ps){
 	for(size_t i=0;i<ps->ajoins_sum;i++)
@@ -1178,7 +1181,7 @@ static gboolean incsafe(gpointer ps){
 	if(sscanf(a,"%*s %7s",com)==1){
 		size_t ln=strlen(com);
 		char*b=strchr(a,' ')+1+ln;if(*b==' ')b++;
-		char channm[channm_sz+1+digits_in_uint];//+ to set the "chan nr" at join on the same string
+		char channm[chan_sz+1+digits_in_uint+1];//+ to set the "chan nr" at join on the same string
 		char nicknm[namenul_sz];
 		char c;
 		BOOL is_privmsg=strcmp(com,"PRIVMSG")==0;
@@ -1186,7 +1189,7 @@ static gboolean incsafe(gpointer ps){
 			if(nick_extract(a,nicknm)){
 				if(is_channel(b)){
 					if(sscanf(b,channame_scan " %c",channm,&c)==2)pars_pmsg_chan(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
-				}else if(sscanf(b,name_scan " %c",channm,&c)==2)pars_pmsg_name(nicknm,b+strlen(channm)+2,(struct stk_s*)ps,is_privmsg);
+				}else if(sscanf(b,name_scan " %c",channm,&c)==2)pars_pmsg_name(nicknm,b+strlen(channm)+2,(struct stk_s*)ps,is_privmsg,nicknm);
 			}
 		}else if(strcmp(com,"JOIN")==0){
 			int resp=nick_and_chan(a,b,nicknm,channm,((struct stk_s*)ps)->nknnow);
@@ -1208,6 +1211,12 @@ static gboolean incsafe(gpointer ps){
 			char mod[1+3+1];//"limit of three (3) changes per command for modes that take a parameter."
 			if(sscanf(b,channame_scan " %4s " name_scan,channm,mod,nicknm)==3)
 				pars_mod(channm,mod,nicknm);
+		}else if(strcmp(com,"INVITE")==0){
+			if(nick_extract(a,nicknm)&&sscanf(b,"%*s " channame_scan,channm)==1){
+				char buf[name_sz+sizeof(invite_str)+chan_sz];
+				sprintf(buf,"%s" invite_str "%s",nicknm,channm);
+				pars_pmsg_name(nicknm,buf,(struct stk_s*)ps,TRUE,"*Invite");
+			}
 		}else if(strlen(com)!=3)showmsg=FALSE;
 		else{
 			int d=atoi(com);
@@ -1366,7 +1375,7 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 				g_idle_add(senstartthreadsfunc,ps);
 				int out;sigwait(&threadset,&out);
 				if(ps->visible){
-					char vidata[5+namenul_sz+3+irc_term_sz-1]="MODE ";
+					char vidata[5+name_sz+3+irc_term_sz]="MODE ";
 					memcpy(vidata+5,nkn,nkn_len);
 					size_t c=5+nkn_len;
 					memcpy(vidata+c," -i" irc_term,3+irc_term_sz);
