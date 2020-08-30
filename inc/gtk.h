@@ -174,12 +174,14 @@ typedef struct _GdkAtom *GdkAtom;
 #define GDK_KEY_C 0x043
 #define GDK_KEY_Q 0x051
 #define GDK_KEY_T 0x054
+#define GDK_KEY_X 0x058
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void g_application_add_main_option (GApplication *application, const char *long_name, char short_name, GOptionFlags flags, GOptionArg arg, const char *description, const char *arg_description);
+void g_application_quit (GApplication *application);
 int g_application_run (GApplication *application,int argc,char **argv);
 gint g_date_time_get_minute (GDateTime *datetime);
 gint g_date_time_get_second (GDateTime *datetime);

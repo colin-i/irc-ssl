@@ -1,6 +1,8 @@
 
 #include "inc/stddef.h"
 
+#define EXIT_SUCCESS 0
+
 #ifdef __cplusplus
 extern "C" {
 #endif

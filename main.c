@@ -107,6 +107,7 @@ Keyboard\n\
 Ctrl+T = Tabs popup\n\
 Ctrl+C = Close tab\n\
 Ctrl+Q = Shutdown connection\n\
+Ctrl+X = Exit program\n\
 \n\
 Connection format is [[nickname:]password@]hostname[:port1[-portn]]. Escape @ in password with the uri format (\"%40\").\n\
 e.g. newNick:a%40c@127.0.0.1:6665-6669"
@@ -159,6 +160,7 @@ struct stk_s{
 	struct ajoin*ajoins;char*ajoins_mem;size_t ajoins_sum;
 	char*password;
 	GtkListStore*org_tree_list;
+	GApplication*app;
 };
 #pragma GCC diagnostic pop
 #define con_nr_1 "SSL or Unencrypted"
@@ -1922,7 +1924,7 @@ static void reload_tabs(GtkWidget*menu_from,GtkWidget*menu,GtkNotebook*notebook)
 		g_list_free(lst);
 	}
 }
-static gboolean prog_key_press (GtkNotebook*notebook, GdkEventKey  *event){
+static gboolean prog_key_press (struct stk_s*ps, GdkEventKey  *event){
 	if((event->state&GDK_CONTROL_MASK)!=0&&event->type==GDK_KEY_PRESS){
 		unsigned int K=gdk_keyval_to_upper(event->keyval);
 		if(K==GDK_KEY_T){
@@ -1934,14 +1936,15 @@ static gboolean prog_key_press (GtkNotebook*notebook, GdkEventKey  *event){
 				gtk_widget_destroy((GtkWidget*)list->data);
 			}
 			g_list_free(lst);
-			reload_tabs(chan_menu,menuwithtabs,notebook);
-			reload_tabs(name_on_menu,menuwithtabs,notebook);
-			reload_tabs(name_off_menu,menuwithtabs,notebook);
-			gtk_menu_popup_at_widget((GtkMenu*)menuwithtabs,(GtkWidget*)notebook,GDK_GRAVITY_NORTH_WEST,GDK_GRAVITY_NORTH_WEST,nullptr);
+			reload_tabs(chan_menu,menuwithtabs,ps->notebook);
+			reload_tabs(name_on_menu,menuwithtabs,ps->notebook);
+			reload_tabs(name_off_menu,menuwithtabs,ps->notebook);
+			gtk_menu_popup_at_widget((GtkMenu*)menuwithtabs,(GtkWidget*)ps->notebook,GDK_GRAVITY_NORTH_WEST,GDK_GRAVITY_NORTH_WEST,nullptr);
 		}else if(K==GDK_KEY_C){
-			GtkWidget*pg=gtk_notebook_get_nth_page(notebook,gtk_notebook_get_current_page(notebook));
-			if(is_home(gtk_notebook_get_menu_label_text(notebook,pg))==FALSE)gtk_button_clicked((GtkButton*)tab_close_button(notebook,pg));
+			GtkWidget*pg=gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook));
+			if(is_home(gtk_notebook_get_menu_label_text(ps->notebook,pg))==FALSE)gtk_button_clicked((GtkButton*)tab_close_button(ps->notebook,pg));
 		}else if(K==GDK_KEY_Q)action_to_close();
+		else if(K==GDK_KEY_X)g_application_quit(ps->app);
 	}
 	return FALSE;//propagation seems fine
 }
@@ -1949,6 +1952,7 @@ static void
 activate (GtkApplication* app,
           struct stk_s*ps)
 {
+	ps->app=(GApplication*)app;
 	/* Create a window with a title, and a default size */
 	GtkWidget *window = gtk_application_window_new (app);
 	menuwithtabs=gtk_menu_new();
@@ -2068,7 +2072,7 @@ activate (GtkApplication* app,
 	gtk_notebook_set_action_widget(ps->notebook,info,GTK_PACK_END);
 	g_signal_connect_data (ps->notebook, "switch-page",G_CALLBACK (nb_switch_page),ps->sen_entry,nullptr,(GConnectFlags)0);//this,before show,was critical;
 	info_path_name_restore((GtkComboBoxText*)en,entext,ps);
-	g_signal_connect_data (window, "key-press-event",G_CALLBACK (prog_key_press),ps->notebook,nullptr,G_CONNECT_SWAPPED);
+	g_signal_connect_data (window, "key-press-event",G_CALLBACK (prog_key_press),ps,nullptr,G_CONNECT_SWAPPED);
 }
 static void parse_autojoin(struct stk_s*ps){
 	for(size_t i=0;;i++){
@@ -2268,4 +2272,5 @@ int main (int    argc,
 			free(ps.ajoins);
 		}
 	}else puts("openssl error");
+	return EXIT_SUCCESS;
 }
