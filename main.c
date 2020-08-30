@@ -105,6 +105,7 @@ Send irc commands from the " home_string " tab. Other tabs are sending " priv_ms
 \n\
 Keyboard\n\
 Ctrl+T = Tabs popup\n\
+Ctrl+C = Close tab\n\
 \n\
 Connection format is [[nickname:]password@]hostname[:port1[-portn]]. Escape @ in password with the uri format (\"%40\").\n\
 e.g. newNick:a%40c@127.0.0.1:6665-6669"
@@ -1357,6 +1358,13 @@ static gboolean senstartthreadsfunc(gpointer ps){
 	can_send_data=TRUE;
 	return FALSE;
 }
+static GtkWidget*tab_close_button(GtkNotebook*nb,GtkWidget*pan){
+	GtkWidget*box=gtk_notebook_get_tab_label(nb,pan);
+	GList*l=gtk_container_get_children((GtkContainer*)box);
+	GtkWidget*b=(GtkWidget*)g_list_last(l)->data;
+	g_list_free(l);
+	return b;
+}
 static gboolean senstopthreadsfunc(gpointer ps){
 	can_send_data=FALSE;
 	g_signal_handler_block(((struct stk_s*)ps)->sen_entry,((struct stk_s*)ps)->sen_entry_act);
@@ -1370,10 +1378,7 @@ static gboolean senstopthreadsfunc(gpointer ps){
 		for(;;){
 			GtkWidget*menu_item=(GtkWidget*)list->data;
 			GtkWidget*pan=get_pan_from_menu(menu_item);
-			GtkWidget*box=gtk_notebook_get_tab_label(((struct stk_s*)ps)->notebook,pan);
-			GList*l=gtk_container_get_children((GtkContainer*)box);
-			GtkWidget*b=(GtkWidget*)g_list_last(l)->data;
-			g_list_free(l);
+			GtkWidget*b=tab_close_button(((struct stk_s*)ps)->notebook,pan);
 			g_signal_handler_disconnect(b,g_signal_handler_find(b,G_SIGNAL_MATCH_ID,g_signal_lookup("clicked", gtk_button_get_type()),0, nullptr, nullptr, nullptr));
 			list=g_list_next(list);
 			if(list==nullptr)break;
@@ -1833,14 +1838,14 @@ static BOOL icmpAmemBstr(const char*s1,const char*s2){
 		}else if(a=='\0')return TRUE;
 	}
 }
+#define is_home(a) *a==*home_string
 static void send_activate(GtkEntry*entry,struct stk_s*ps){
 	GtkEntryBuffer*t=gtk_entry_get_buffer(entry);
 	const char*text=gtk_entry_buffer_get_text(t);
 	//
 	GtkWidget*pg=gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook));
 	const char*a=gtk_notebook_get_menu_label_text(ps->notebook,pg);
-	if(*a!=*home_string)send_msg(ps->nknnow,a,text,pg);
-	else{
+	if(is_home(a)){
 		show_from_clause(text,"list",RPL_LIST)
 		else show_from_clause(text,"names",RPL_NAMREPLY)
 		size_t sz=strlen(text);
@@ -1850,7 +1855,7 @@ static void send_activate(GtkEntry*entry,struct stk_s*ps){
 		memcpy(b+sz,irc_term,irc_term_sz);
 		send_data(b,sz+irc_term_sz);
 		free(b);
-	}
+	}else send_msg(ps->nknnow,a,text,pg);
 	gtk_entry_buffer_delete_text(t,0,-1);
 }
 #define menu_con_add_item(n,s,a,b,c,d)\
@@ -1865,7 +1870,7 @@ static void clipboard_tev(GtkNotebook*notebook){
 	GtkWidget*pg=gtk_notebook_get_nth_page(notebook,gtk_notebook_get_current_page(notebook));
 	const char*a=gtk_notebook_get_menu_label_text(notebook,pg);
 	GtkTextBuffer *buffer;
-	if(*a==*home_string)buffer = gtk_text_view_get_buffer(text_view);
+	if(is_home(a))buffer = gtk_text_view_get_buffer(text_view);
 	else if(is_channel(a))buffer=gtk_text_view_get_buffer(contf_get_textv(pg));
 	else buffer=gtk_text_view_get_buffer((GtkTextView*)gtk_bin_get_child((GtkBin*)pg));
 	GtkTextIter start;GtkTextIter end;
@@ -1917,19 +1922,25 @@ static void reload_tabs(GtkWidget*menu_from,GtkWidget*menu,GtkNotebook*notebook)
 	}
 }
 static gboolean prog_key_press (GtkNotebook*notebook, GdkEventKey  *event){
-	if(((event->state&GDK_CONTROL_MASK)!=0)&&(gdk_keyval_to_upper(event->keyval)==GDK_KEY_T)){
-		GList*lst=gtk_container_get_children((GtkContainer*)menuwithtabs);
-		GList*list=lst;
-		for(;;){
-			list=g_list_next(list);
-			if(list==nullptr)break;
-			gtk_widget_destroy((GtkWidget*)list->data);
+	if((event->state&GDK_CONTROL_MASK)!=0&&event->type==GDK_KEY_PRESS){
+		unsigned int K=gdk_keyval_to_upper(event->keyval);
+		if(K==GDK_KEY_T){
+			GList*lst=gtk_container_get_children((GtkContainer*)menuwithtabs);
+			GList*list=lst;
+			for(;;){
+				list=g_list_next(list);
+				if(list==nullptr)break;
+				gtk_widget_destroy((GtkWidget*)list->data);
+			}
+			g_list_free(lst);
+			reload_tabs(chan_menu,menuwithtabs,notebook);
+			reload_tabs(name_on_menu,menuwithtabs,notebook);
+			reload_tabs(name_off_menu,menuwithtabs,notebook);
+			gtk_menu_popup_at_widget((GtkMenu*)menuwithtabs,(GtkWidget*)notebook,GDK_GRAVITY_NORTH_WEST,GDK_GRAVITY_NORTH_WEST,nullptr);
+		}else if(K==GDK_KEY_C){
+			GtkWidget*pg=gtk_notebook_get_nth_page(notebook,gtk_notebook_get_current_page(notebook));
+			if(is_home(gtk_notebook_get_menu_label_text(notebook,pg))==FALSE)gtk_button_clicked((GtkButton*)tab_close_button(notebook,pg));
 		}
-		g_list_free(lst);
-		reload_tabs(chan_menu,menuwithtabs,notebook);
-		reload_tabs(name_on_menu,menuwithtabs,notebook);
-		reload_tabs(name_off_menu,menuwithtabs,notebook);
-		gtk_menu_popup_at_widget((GtkMenu*)menuwithtabs,(GtkWidget*)notebook,GDK_GRAVITY_NORTH_WEST,GDK_GRAVITY_NORTH_WEST,nullptr);
 	}
 	return FALSE;//propagation seems fine
 }

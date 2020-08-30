@@ -75,7 +75,7 @@ typedef enum{
  GSignalMatchType;
 typedef enum {GDK_COLORSPACE_RGB}
  GdkColorspace;
-typedef enum{}
+typedef enum{GDK_KEY_PRESS = 8}
  GdkEventType;
 typedef enum{  GDK_GRAVITY_NORTH_WEST = 1}
  GdkGravity;
@@ -171,6 +171,7 @@ typedef struct _GdkAtom *GdkAtom;
 #define G_VARIANT_TYPE_STRING ((const GVariantType *) "s")
 #define GUINT_TO_POINTER(u) ((gpointer) (guint) (u))
 #define GDK_SELECTION_CLIPBOARD ((GdkAtom)GUINT_TO_POINTER(69))
+#define GDK_KEY_C 0x043
 #define GDK_KEY_T 0x054
 
 #ifdef __cplusplus
@@ -217,6 +218,7 @@ GType gtk_box_get_type (void) __attribute__((__const__));
 GtkWidget* gtk_box_new (GtkOrientation orientation,gint spacing);
 void gtk_box_pack_end (GtkBox *box, GtkWidget *child, gboolean expand, gboolean fill, guint padding);
 void gtk_box_pack_start (GtkBox *box,GtkWidget *child,gboolean expand,gboolean fill,guint padding);
+void gtk_button_clicked (GtkButton *button);
 GType gtk_button_get_type (void) __attribute__((__const__));
 GtkWidget* gtk_button_new (void);
 GtkWidget* gtk_button_new_with_label (const gchar *label);
