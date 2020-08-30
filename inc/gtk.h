@@ -1,8 +1,11 @@
 
 typedef char gchar;
+typedef signed char gint8;
 typedef unsigned char guchar;
+typedef unsigned char guint8;
 typedef int gint;
 typedef gint gboolean;
+typedef unsigned short guint16;
 typedef unsigned int guint;
 typedef unsigned int guint32;
 typedef unsigned int gsize;
@@ -18,6 +21,7 @@ typedef void GVariantDict;
 typedef void GVariantType;
 typedef void GdkEvent;
 typedef void GdkPixbuf;
+typedef void GdkWindow;
 typedef void GtkAdjustment;
 typedef void GtkApplication;
 typedef void GtkBin;
@@ -69,15 +73,20 @@ typedef enum{G_OPTION_FLAG_IN_MAIN = 1 << 1}//  G_OPTION_FLAG_NONE = 0,  G_OPTIO
 typedef enum{
   G_SIGNAL_MATCH_ID = 1 << 0}
  GSignalMatchType;
-typedef enum {
- GDK_COLORSPACE_RGB}
+typedef enum {GDK_COLORSPACE_RGB}
  GdkColorspace;
+typedef enum{}
+ GdkEventType;
+typedef enum{  GDK_GRAVITY_NORTH_WEST = 1}
+ GdkGravity;
 typedef enum{GTK_ORIENTATION_HORIZONTAL,GTK_ORIENTATION_VERTICAL}
  GtkOrientation;
 typedef enum{  GTK_DIALOG_MODAL = 1 << 0, GTK_DIALOG_DESTROY_WITH_PARENT = 1 << 1}//, GTK_DIALOG_USE_HEADER_BAR = 1 << 2
  GtkDialogFlags;
 typedef enum{  GTK_ICON_SIZE_INVALID,  GTK_ICON_SIZE_MENU}
  GtkIconSize;
+typedef enum{GDK_SHIFT_MASK = 1 << 0, GDK_LOCK_MASK = 1 << 1, GDK_CONTROL_MASK = 1 << 2}
+ GdkModifierType;
 typedef enum{  GTK_PACK_START,  GTK_PACK_END}
  GtkPackType;
 typedef enum{  GTK_POLICY_ALWAYS,  GTK_POLICY_AUTOMATIC,  GTK_POLICY_NEVER,  GTK_POLICY_EXTERNAL}
@@ -102,6 +111,22 @@ struct _GSList
   gpointer data;
   GSList *next;
 };
+#pragma GCC diagnostic push//is from BOOL+char+BOOL+1=4
+#pragma GCC diagnostic ignored "-Wpadded"
+typedef struct GdkEventKey {
+  GdkEventType type;
+  GdkWindow *window;
+  gint8 send_event;
+  guint32 time;
+  guint state;
+  guint keyval;
+  gint length;
+  gchar *string;
+  guint16 hardware_keycode;
+  guint8 group;
+  guint is_modifier : 1;
+} GdkEventKey;
+#pragma GCC diagnostic pop
 typedef struct {
     int x, y;
     int width, height;
@@ -146,6 +171,7 @@ typedef struct _GdkAtom *GdkAtom;
 #define G_VARIANT_TYPE_STRING ((const GVariantType *) "s")
 #define GUINT_TO_POINTER(u) ((gpointer) (guint) (u))
 #define GDK_SELECTION_CLIPBOARD ((GdkAtom)GUINT_TO_POINTER(69))
+#define GDK_KEY_T 0x054
 
 #ifdef __cplusplus
 extern "C" {
@@ -181,6 +207,7 @@ gboolean g_variant_dict_lookup (GVariantDict *dict, const gchar *key, const gcha
 GVariant * g_variant_dict_lookup_value (GVariantDict *dict, const gchar *key, const GVariantType *expected_type);
 gchar * g_variant_dup_string (GVariant *value, gsize *length);
 const gchar * g_variant_get_string (GVariant *value, gsize *length);
+guint gdk_keyval_to_upper (guint keyval) __attribute__((__const__));
 GdkPixbuf *gdk_pixbuf_new_from_data (const guchar *data,GdkColorspace colorspace,gboolean has_alpha,int bits_per_sample,int width, int height,int rowstride,GdkPixbufDestroyNotify destroy_fn,gpointer destroy_fn_data);
 void gtk_adjustment_set_value (GtkAdjustment *adjustment, gdouble value);
 GtkApplication * gtk_application_new (const gchar *application_id, GApplicationFlags flags);
@@ -243,6 +270,7 @@ GtkWidget* gtk_menu_item_new_with_label (const gchar *label);
 void gtk_menu_item_set_submenu (GtkMenuItem *menu_item, GtkWidget *submenu);
 GtkWidget* gtk_menu_new (void);
 void gtk_menu_popup_at_pointer (GtkMenu *menu, const GdkEvent *trigger_event);
+void gtk_menu_popup_at_widget (GtkMenu *menu, GtkWidget *widget, GdkGravity widget_anchor, GdkGravity menu_anchor, const GdkEvent *trigger_event);
 void gtk_menu_shell_append (GtkMenuShell *menu_shell, GtkWidget *child);
 gint gtk_notebook_append_page_menu (GtkNotebook *notebook, GtkWidget *child, GtkWidget *tab_label, GtkWidget *menu_label);
 GtkWidget* gtk_notebook_get_action_widget (GtkNotebook *notebook, GtkPackType pack_type);
