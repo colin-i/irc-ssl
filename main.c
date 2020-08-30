@@ -106,6 +106,7 @@ Send irc commands from the " home_string " tab. Other tabs are sending " priv_ms
 Keyboard\n\
 Ctrl+T = Tabs popup\n\
 Ctrl+C = Close tab\n\
+Ctrl+Q = Shutdown connection\n\
 \n\
 Connection format is [[nickname:]password@]hostname[:port1[-portn]]. Escape @ in password with the uri format (\"%40\").\n\
 e.g. newNick:a%40c@127.0.0.1:6665-6669"
@@ -1940,7 +1941,7 @@ static gboolean prog_key_press (GtkNotebook*notebook, GdkEventKey  *event){
 		}else if(K==GDK_KEY_C){
 			GtkWidget*pg=gtk_notebook_get_nth_page(notebook,gtk_notebook_get_current_page(notebook));
 			if(is_home(gtk_notebook_get_menu_label_text(notebook,pg))==FALSE)gtk_button_clicked((GtkButton*)tab_close_button(notebook,pg));
-		}
+		}else if(K==GDK_KEY_Q)action_to_close();
 	}
 	return FALSE;//propagation seems fine
 }
@@ -2041,7 +2042,7 @@ activate (GtkApplication* app,
 	g_signal_connect_data (menu_item, "activate",G_CALLBACK (chan_reMin),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	//
-	menu_item = gtk_menu_item_new_with_label ("Close Connection");
+	menu_item = gtk_menu_item_new_with_label ("Shutdown Connection");
 	g_signal_connect_data (menu_item, "activate",G_CALLBACK (action_to_close),nullptr,nullptr,(GConnectFlags)0);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	//

@@ -172,6 +172,7 @@ typedef struct _GdkAtom *GdkAtom;
 #define GUINT_TO_POINTER(u) ((gpointer) (guint) (u))
 #define GDK_SELECTION_CLIPBOARD ((GdkAtom)GUINT_TO_POINTER(69))
 #define GDK_KEY_C 0x043
+#define GDK_KEY_Q 0x051
 #define GDK_KEY_T 0x054
 
 #ifdef __cplusplus
