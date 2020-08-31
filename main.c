@@ -74,7 +74,7 @@
 #endif
 
 #ifdef HAVE_GTK_GTK_H
-#pragma GCC diagnostic push//there are 3 more ignors in the program
+#pragma GCC diagnostic push//there are 4 more ignors in the program
 #pragma GCC diagnostic ignored "-Weverything"
 #include <gtk/gtk.h>
 #pragma GCC diagnostic pop
@@ -135,7 +135,10 @@ enum {
   N_COLUMNS
 };//connections org,channels
 #define number_of_args 17
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
+#pragma GCC diagnostic pop
 	const char*args[number_of_args];
 	int dim[2];GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;char*nknnow;
@@ -158,6 +161,7 @@ struct stk_s{
 	GtkListStore*org_tree_list;
 	GApplication*app;
 	BOOL user_irc_free;unsigned char con_type;BOOL visible;BOOL show_msgs;
+	char args_short[number_of_args];
 };
 #define con_nr_1 "SSL or Unencrypted"
 #define con_nr_2 "Unencrypted or SSL"
@@ -1812,6 +1816,8 @@ static void help_popup(struct stk_s*ps){
 	for(size_t i=0;i<number_of_args;i++){
 		if(i>0)gtk_text_buffer_insert(text_buffer,&it," ",1);
 		gtk_text_buffer_insert(text_buffer,&it,ps->args[i],-1);
+		gtk_text_buffer_insert(text_buffer,&it,",",1);
+		gtk_text_buffer_insert(text_buffer,&it,&ps->args_short[i],1);
 	}
 	gtk_text_buffer_insert(text_buffer,&it,"\n\nReceived arguments:\n",-1);
 	for(int i=1;i<ps->argc;i++){
@@ -2214,40 +2220,40 @@ int main (int    argc,
 		GtkApplication *app;
 		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
 		//if(app!=nullptr){
-		ps.args[autoconnect_id]="autoconnect";
-		g_application_add_main_option((GApplication*)app,ps.args[autoconnect_id],'a',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Autoconnect to connection by index.","INDEX");
-		ps.args[autojoin_id]="autojoin";
-		g_application_add_main_option((GApplication*)app,ps.args[autojoin_id],'j',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Autojoin channels on connection index. e.g. \"2,#a,#b 4,#b,#z\"","\"I1,C1,C2...CN I2... ... IN...\"");
-		ps.args[dimensions_id]="dimensions";
-		g_application_add_main_option((GApplication*)app,ps.args[dimensions_id],'d',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
-		ps.args[chan_min_id]="chan_min";
-		g_application_add_main_option((GApplication*)app,ps.args[chan_min_id],'m',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Minimum users to list a channel(at \"322\"). Default 250.","NR");
-		ps.args[connection_number_id]="connection_number";
-		g_application_add_main_option((GApplication*)app,ps.args[connection_number_id],'c',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ", 4=" con_nr_4 ". Default value is 1.",con_nr_nrs);
-		ps.args[hide_id]="hide";
-		g_application_add_main_option((GApplication*)app,ps.args[hide_id],'h',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Don't display activity messages at " home_string " tab (join,part,...).",nullptr);
-		ps.args[ignore_id]="ignore";
-		g_application_add_main_option((GApplication*)app,ps.args[ignore_id],'i',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Ignore private messages from nicknames.","S1,S2...SN");//_FILENAME
-		ps.args[log_id]="log";
-		g_application_add_main_option((GApplication*)app,ps.args[log_id],'l',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Log private chat to filename.","FILENAME");//_FILENAME
-		ps.args[nick_id]="nick";
-		g_application_add_main_option((GApplication*)app,ps.args[nick_id],'n',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
-		ps.args[password_id]="password";
-		g_application_add_main_option((GApplication*)app,ps.args[password_id],'p',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default password (blank overwrite with \"@host...\", the format is at the g.u.i. help)","PASSWORD");
-		ps.args[refresh_id]="refresh";
-		g_application_add_main_option((GApplication*)app,ps.args[refresh_id],'f',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Refresh channels interval in seconds. Default 600. Less than 1 to disable.","SECONDS");
-		ps.args[right_id]="right";
-		g_application_add_main_option((GApplication*)app,ps.args[right_id],'r',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Right pane size, default 150","WIDTH");
-		ps.args[run_id]="run";
-		g_application_add_main_option((GApplication*)app,ps.args[run_id],'x',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"If window is not active, run command line at new private messages.","COMMAND");
-		ps.args[timestamp_id]="timestamp";
-		g_application_add_main_option((GApplication*)app,ps.args[timestamp_id],'t',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Show message timestamp.",nullptr);
-		ps.args[user_id]="user";
-		g_application_add_main_option((GApplication*)app,ps.args[user_id],'u',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"User message. Default \"" user_message "\"","STRING");
-		ps.args[visible_id]="visible";
-		g_application_add_main_option((GApplication*)app,ps.args[visible_id],'v',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Send MODE -i at start. (remove invisible)",nullptr);
-		ps.args[welcome_id]="welcome";
-		g_application_add_main_option((GApplication*)app,ps.args[welcome_id],'w',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
+		ps.args[autoconnect_id]="autoconnect";ps.args_short[autoconnect_id]='a';
+		g_application_add_main_option((GApplication*)app,ps.args[autoconnect_id],ps.args_short[autoconnect_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Autoconnect to connection by index.","INDEX");
+		ps.args[autojoin_id]="autojoin";ps.args_short[autojoin_id]='j';
+		g_application_add_main_option((GApplication*)app,ps.args[autojoin_id],ps.args_short[autojoin_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Autojoin channels on connection index. e.g. \"2,#a,#b 4,#b,#z\"","\"I1,C1,C2...CN I2... ... IN...\"");
+		ps.args[dimensions_id]="dimensions";ps.args_short[dimensions_id]='d';
+		g_application_add_main_option((GApplication*)app,ps.args[dimensions_id],ps.args_short[dimensions_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
+		ps.args[chan_min_id]="chan_min";ps.args_short[chan_min_id]='m';
+		g_application_add_main_option((GApplication*)app,ps.args[chan_min_id],ps.args_short[chan_min_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Minimum users to list a channel(at \"322\"). Default 250.","NR");
+		ps.args[connection_number_id]="connection_number";ps.args_short[connection_number_id]='c';
+		g_application_add_main_option((GApplication*)app,ps.args[connection_number_id],ps.args_short[connection_number_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ", 4=" con_nr_4 ". Default value is 1.",con_nr_nrs);
+		ps.args[hide_id]="hide";ps.args_short[hide_id]='h';
+		g_application_add_main_option((GApplication*)app,ps.args[hide_id],ps.args_short[hide_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Don't display activity messages at " home_string " tab (join,part,...).",nullptr);
+		ps.args[ignore_id]="ignore";ps.args_short[ignore_id]='i';
+		g_application_add_main_option((GApplication*)app,ps.args[ignore_id],ps.args_short[ignore_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Ignore private messages from nicknames.","S1,S2...SN");//_FILENAME
+		ps.args[log_id]="log";ps.args_short[log_id]='l';
+		g_application_add_main_option((GApplication*)app,ps.args[log_id],ps.args_short[log_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Log private chat to filename.","FILENAME");//_FILENAME
+		ps.args[nick_id]="nick";ps.args_short[nick_id]='n';
+		g_application_add_main_option((GApplication*)app,ps.args[nick_id],ps.args_short[nick_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
+		ps.args[password_id]="password";ps.args_short[password_id]='p';
+		g_application_add_main_option((GApplication*)app,ps.args[password_id],ps.args_short[password_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default password (blank overwrite with \"@host...\", the format is at the g.u.i. help)","PASSWORD");
+		ps.args[refresh_id]="refresh";ps.args_short[refresh_id]='f';
+		g_application_add_main_option((GApplication*)app,ps.args[refresh_id],ps.args_short[refresh_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Refresh channels interval in seconds. Default 600. Less than 1 to disable.","SECONDS");
+		ps.args[right_id]="right";ps.args_short[right_id]='r';
+		g_application_add_main_option((GApplication*)app,ps.args[right_id],ps.args_short[right_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Right pane size, default 150","WIDTH");
+		ps.args[run_id]="run";ps.args_short[run_id]='x';
+		g_application_add_main_option((GApplication*)app,ps.args[run_id],ps.args_short[run_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"If window is not active, run command line at new private messages.","COMMAND");
+		ps.args[timestamp_id]="timestamp";ps.args_short[timestamp_id]='t';
+		g_application_add_main_option((GApplication*)app,ps.args[timestamp_id],ps.args_short[timestamp_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Show message timestamp.",nullptr);
+		ps.args[user_id]="user";ps.args_short[user_id]='u';
+		g_application_add_main_option((GApplication*)app,ps.args[user_id],ps.args_short[user_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"User message. Default \"" user_message "\"","STRING");
+		ps.args[visible_id]="visible";ps.args_short[visible_id]='v';
+		g_application_add_main_option((GApplication*)app,ps.args[visible_id],ps.args_short[visible_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Send MODE -i at start. (remove invisible)",nullptr);
+		ps.args[welcome_id]="welcome";ps.args_short[welcome_id]='w';
+		g_application_add_main_option((GApplication*)app,ps.args[welcome_id],ps.args_short[welcome_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
 		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
 		//  if(han>0)

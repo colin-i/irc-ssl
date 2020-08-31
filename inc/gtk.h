@@ -111,7 +111,7 @@ struct _GSList
   gpointer data;
   GSList *next;
 };
-#pragma GCC diagnostic push//is from BOOL+char+BOOL+1=4
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpadded"
 typedef struct GdkEventKey {
   GdkEventType type;
