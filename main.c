@@ -74,7 +74,7 @@
 #endif
 
 #ifdef HAVE_GTK_GTK_H
-#pragma GCC diagnostic push//there are 4 more ignors in the program
+#pragma GCC diagnostic push//there are 3 more ignors in the program
 #pragma GCC diagnostic ignored "-Weverything"
 #include <gtk/gtk.h>
 #pragma GCC diagnostic pop
@@ -134,9 +134,7 @@ enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };//connections org,channels
-#define number_of_args 16
-#pragma GCC diagnostic push//is from BOOL+char+BOOL+1=4
-#pragma GCC diagnostic ignored "-Wpadded"
+#define number_of_args 17
 struct stk_s{
 	const char*args[number_of_args];
 	int dim[2];GtkComboBoxText*cbt;GtkTreeView*tv;
@@ -148,10 +146,8 @@ struct stk_s{
 	GtkNotebook*notebook;
 	struct data_len*dl;
 	char*welcome;gboolean timestamp;
-	const char*user_irc;BOOL user_irc_free;
-	unsigned char con_type;
+	const char*user_irc;
 	int chan_min;//0 gtk parse handle arguments!
-	BOOL visible;
 	GtkWidget*trv;unsigned long trvr;
 	char*ignor_str;
 	char*execute_newmsg;GtkWindow*main_win;
@@ -161,8 +157,8 @@ struct stk_s{
 	char*password;
 	GtkListStore*org_tree_list;
 	GApplication*app;
+	BOOL user_irc_free;unsigned char con_type;BOOL visible;BOOL show_msgs;
 };
-#pragma GCC diagnostic pop
 #define con_nr_1 "SSL or Unencrypted"
 #define con_nr_2 "Unencrypted or SSL"
 #define con_nr_3 "SSL"
@@ -193,7 +189,7 @@ static char*dummy=nullptr;
 static char**ignoreds=&dummy;
 static BOOL can_send_data=FALSE;
 #define info_list_end_str " channels listed\n"
-enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,connection_number_id,ignore_id,log_id,nick_id,password_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id};
+enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,connection_number_id,hide_id,ignore_id,log_id,nick_id,password_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id};
 struct ajoin{
 	int c;//against get_active
 	char**chans;
@@ -1207,7 +1203,7 @@ static gboolean incsafe(gpointer ps){
 	if(a[s-1]=='\r')s--;
 	a[s]='\0';
 	//
-	BOOL showmsg=TRUE;
+	BOOL showmsg=((struct stk_s*)ps)->show_msgs;
 	char com[8];
 	if(sscanf(a,"%*s %7s",com)==1){
 		size_t ln=strlen(com);
@@ -1250,6 +1246,7 @@ static gboolean incsafe(gpointer ps){
 			}
 		}else if(strlen(com)!=3)showmsg=FALSE;
 		else{
+			showmsg=TRUE;
 			int d=atoi(com);//If no valid conversion could be performed, it returns zero;below,d==0
 			if(d==RPL_LIST){
 				if(show_msg!=RPL_LIST)showmsg=FALSE;
@@ -2202,6 +2199,8 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	//
 	if (g_variant_dict_lookup (options,ps->args[password_id],"s",&ps->password)==FALSE)
 		ps->password=nullptr;
+	//
+	ps->show_msgs=g_variant_dict_contains(options,ps->args[hide_id])==FALSE;
 	return -1;
 }
 int main (int    argc,
@@ -2225,6 +2224,8 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[chan_min_id],'m',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Minimum users to list a channel(at \"322\"). Default 250.","NR");
 		ps.args[connection_number_id]="connection_number";
 		g_application_add_main_option((GApplication*)app,ps.args[connection_number_id],'c',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ", 4=" con_nr_4 ". Default value is 1.",con_nr_nrs);
+		ps.args[hide_id]="hide";
+		g_application_add_main_option((GApplication*)app,ps.args[hide_id],'h',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Don't display activity messages at " home_string " tab (join,part,...).",nullptr);
 		ps.args[ignore_id]="ignore";
 		g_application_add_main_option((GApplication*)app,ps.args[ignore_id],'i',G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Ignore private messages from nicknames.","S1,S2...SN");//_FILENAME
 		ps.args[log_id]="log";
