@@ -122,7 +122,7 @@ e.g. newNick:a%40c@127.0.0.1:6665-6669"
 struct data_len{
 	const char*data;size_t len;
 };
-static long threadid;static sigset_t threadset;
+static pthread_t threadid;static sigset_t threadset;
 static GtkWidget*chan_menu;
 static GtkWidget*name_on_menu;static GtkWidget*name_off_menu;
 #define send_prv1 priv_msg_str " "

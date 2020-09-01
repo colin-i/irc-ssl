@@ -44,7 +44,7 @@ AC_MSG_CHECKING([-Weverything])
 AC_COMPILE_IFELSE(
    [AC_LANG_SOURCE([])],
    [AC_MSG_RESULT([yes])
-	start_cflgs="$start_cflgs -Weverything"],
+	start_cflgs="$start_cflgs -Weverything -Werror"],
    [AC_MSG_RESULT([no])]
 )
 
