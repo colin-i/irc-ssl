@@ -17,12 +17,15 @@ AC_ARG_ENABLE(cpp,
 AM_CONDITIONAL(CPP, test x"$cpp" = x"true")
 
 #
+
 AC_DEFINE_UNQUOTED(HOMEDIR,[$(echo "\"$(cd ~; pwd)/\"")],[~ cannot be "q q"])
 AC_PROG_CC
 AC_CHECK_HEADERS(libgen.h limits.h fcntl.h netdb.h netinet/in.h openssl/ssl.h pthread.h signal.h stdio.h stdlib.h string.h sys/socket.h time.h unistd.h)
+
+start_cflgs="$CFLAGS"
+
 PKG_CHECK_MODULES([GTK], [gtk+-3.0],[
 
-user_was_set_cflg="$CFLAGS"
 CFLAGS="$GTK_CFLAGS"
 X_PROGRAM="#include<gtk/gtk.h>"
 AC_MSG_CHECKING([gtk/gtk.h])
@@ -32,12 +35,24 @@ AC_COMPILE_IFELSE(
    [AC_MSG_RESULT([no])
     AC_SUBST([GTK_CFLAGS], '')]
 )
-CFLAGS="$user_was_set_cflg"
+#CFLAGS="$start_cflgs"
 
 ], [AC_MSG_ERROR("pkg check modules failed for gtk")])
 
+CFLAGS="-Werror=unknown-warning-option -Weverything"
+AC_MSG_CHECKING([-Weverything])
+AC_COMPILE_IFELSE(
+   [AC_LANG_SOURCE([])],
+   [AC_MSG_RESULT([yes])
+	start_cflgs="$start_cflgs -Weverything"],
+   [AC_MSG_RESULT([no])]
+)
+
+CFLAGS="$start_cflgs"
+
 AS_IF([test x"$cpp" = x"false"],[
   AC_CHECK_HEADERS(stdbool.h stddef.h)])
+
 #
 
 AM_INIT_AUTOMAKE
