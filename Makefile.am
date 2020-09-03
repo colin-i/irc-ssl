@@ -8,17 +8,12 @@ if CPP
 sirc_CPPFLAGS = -x c++ -Wno-old-style-cast -Wno-c++98-compat -Wno-c++98-compat-pedantic
 endif
 
-allinfofilecommand:
-	if [ ! -e ./.@PROJ@info ]; then touch ./.@PROJ@info; fi
-
-all: all-am allinfofilecommand
-
 setinfofilecommand:
-	if [ ! -e ~/.@PROJ@info ]; then touch ~/.@PROJ@info; fi
+	if [ ! -e "`cat ./bash_home`/.@PROJ@info" ]; then cp "./.@PROJ@info" "`cat ./bash_home`/" --preserve=ownership; fi
 
 install: install-am setinfofilecommand
 
 reminfofilecommand:
-	if [ -e ~/.@PROJ@info ]; then rm ~/.@PROJ@info; fi
+	if [ -e "`cat ./bash_home`/.@PROJ@info" ]; then rm "`cat ./bash_home`/.@PROJ@info"; fi
 
 uninstall: uninstall-am reminfofilecommand

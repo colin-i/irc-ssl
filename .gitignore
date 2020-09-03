@@ -7,3 +7,4 @@ config.log
 config.status
 Makefile
 *sirc*
+bash_home

@@ -60,3 +60,6 @@ AM_INIT_AUTOMAKE
 AC_CONFIG_FILES([Makefile])
 
 AC_OUTPUT
+
+echo >"./.${PROJ}info"
+echo ~>./bash_home
