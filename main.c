@@ -1112,8 +1112,8 @@ static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps,BOOL is_privmsg,const
 				GtkWidget*scrl=get_pan_from_menu(menu_item);
 				addatnames(frontname,msg,scrl);
 				prealert(nb,scrl);
+				if(is_privmsg)exec_nm
 				novel=FALSE;
-				exec_nm
 				break;
 			}
 			list=g_list_next(list);
@@ -1125,8 +1125,10 @@ static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps,BOOL is_privmsg,const
 		if(talk_user(n)){
 			GtkWidget*scrl=name_join_nb(n,nb);addatnames(frontname,msg,scrl);
 			alert(gtk_notebook_get_tab_label(nb,scrl),nb);
-			if(ps->welcome!=nullptr&&is_privmsg)send_msg(ps->nknnow,n,ps->welcome,scrl);
-			exec_nm
+			if(is_privmsg){
+				if(ps->welcome!=nullptr)send_msg(ps->nknnow,n,ps->welcome,scrl);
+				exec_nm
+			}
 		}
 	}
 }
