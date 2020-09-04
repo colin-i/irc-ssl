@@ -134,7 +134,7 @@ enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };//connections org,channels
-#define number_of_args 17
+#define number_of_args 19
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
@@ -148,7 +148,7 @@ struct stk_s{
 	unsigned int refreshid;
 	GtkNotebook*notebook;
 	struct data_len*dl;
-	char*welcome;gboolean timestamp;
+	char*welcome;
 	const char*user_irc;
 	int chan_min;//0 gtk parse handle arguments!
 	GtkWidget*trv;unsigned long trvr;
@@ -160,7 +160,8 @@ struct stk_s{
 	char*password;
 	GtkListStore*org_tree_list;
 	GApplication*app;
-	BOOL user_irc_free;unsigned char con_type;BOOL visible;BOOL show_msgs;
+	gboolean maximize;gboolean minimize;gboolean visible;gboolean timestamp;
+	BOOL user_irc_free;unsigned char con_type;BOOL show_msgs;
 	char args_short[number_of_args];
 };
 #define con_nr_1 "SSL or Unencrypted"
@@ -193,7 +194,7 @@ static char*dummy=nullptr;
 static char**ignoreds=&dummy;
 static BOOL can_send_data=FALSE;
 #define info_list_end_str " channels listed\n"
-enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,connection_number_id,hide_id,ignore_id,log_id,nick_id,password_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id};
+enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,connection_number_id,hide_id,ignore_id,log_id,maximize_id,minimize_id,nick_id,password_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id};
 struct ajoin{
 	int c;//against get_active
 	char**chans;
@@ -2068,6 +2069,10 @@ activate (GtkApplication* app,
 	gtk_box_pack_start((GtkBox*)box,(GtkWidget*)ps->notebook,TRUE,TRUE,0);
 	gtk_box_pack_start((GtkBox*)box,ps->sen_entry,FALSE,FALSE,0);
 	gtk_container_add ((GtkContainer*)window, box);
+	//
+	if(ps->maximize)gtk_window_maximize((GtkWindow*)window);
+	if(ps->minimize)gtk_window_iconify((GtkWindow*)window);
+	//
 	gtk_widget_show_all (window);
 	ps->main_win=(GtkWindow*)window;
 	//
@@ -2180,7 +2185,7 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	if (g_variant_dict_lookup (options,ps->args[chan_min_id], "i", &ps->chan_min)==FALSE)
 		ps->chan_min=250;
 	//
-	ps->visible=(BOOL)g_variant_dict_contains(options,ps->args[visible_id]);
+	ps->visible=g_variant_dict_contains(options,ps->args[visible_id]);
 	//
 	GVariant*v=g_variant_dict_lookup_value(options,ps->args[log_id],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr){
@@ -2207,6 +2212,10 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		ps->password=nullptr;
 	//
 	ps->show_msgs=g_variant_dict_contains(options,ps->args[hide_id])==FALSE;
+	//
+	ps->maximize=g_variant_dict_contains(options,ps->args[maximize_id]);
+	//
+	ps->minimize=g_variant_dict_contains(options,ps->args[minimize_id]);
 	return -1;
 }
 int main (int    argc,
@@ -2236,6 +2245,10 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[ignore_id],ps.args_short[ignore_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Ignore private messages from nicknames.","S1,S2...SN");//_FILENAME
 		ps.args[log_id]="log";ps.args_short[log_id]='l';
 		g_application_add_main_option((GApplication*)app,ps.args[log_id],ps.args_short[log_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Log private chat to filename.","FILENAME");//_FILENAME
+		ps.args[maximize_id]="maximize";ps.args_short[maximize_id]='z';
+		g_application_add_main_option((GApplication*)app,ps.args[maximize_id],ps.args_short[maximize_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Maximize window at launch.",nullptr);
+		ps.args[minimize_id]="minimize";ps.args_short[minimize_id]='y';
+		g_application_add_main_option((GApplication*)app,ps.args[minimize_id],ps.args_short[minimize_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Minimize(iconify) window at launch.",nullptr);
 		ps.args[nick_id]="nick";ps.args_short[nick_id]='n';
 		g_application_add_main_option((GApplication*)app,ps.args[nick_id],ps.args_short[nick_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
 		ps.args[password_id]="password";ps.args_short[password_id]='p';
