@@ -61,5 +61,8 @@ AC_CONFIG_FILES([Makefile])
 
 AC_OUTPUT
 
-echo -n >"./.${PROJ}info"
+##set -v
+#the connections. no need to remove them between ./configure
+if [[ ! -e "./.${PROJ}info" ]]; then echo -n >"./.${PROJ}info"; fi
+#sudo make will change ~
 echo ~>./bash_home
