@@ -1673,12 +1673,10 @@ static void info_path_name_restore(GtkComboBoxText*cbt,GtkWidget*entext,struct s
 						gtk_combo_box_set_active((GtkComboBox*)cbt,ps->autoconnect);//void
 						gtk_widget_activate(entext);
 					}else gtk_combo_box_set_active((GtkComboBox*)cbt,0);
-					return;
 				}
 			}
 		}
 	}
-	gtk_entry_set_text ((GtkEntry*)entext,":");
 }
 static int get_pos_from_model(GtkTreeModel*mod,GtkTreeIter*it){
 	GtkTreePath * path = gtk_tree_model_get_path ( mod , it ) ;
