@@ -322,7 +322,7 @@ static gboolean close_plain(gpointer ignore){(void)ignore;
 /* ---------------------------------------------------------- *
  * create_socket() creates the socket & TCP-connect to server *
  * ---------------------------------------------------------- */
-static void create_socket(char*hostname,int port) {
+static void create_socket(char*hostname,unsigned short port) {
 	struct hostent *host = gethostbyname(hostname);
 	struct sockaddr_in dest_addr;
 	if ( host != nullptr ) {
@@ -349,7 +349,7 @@ static void create_socket(char*hostname,int port) {
 	else
 		main_text_s("Error: Cannot resolve hostname.\n");
 }
-static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int**pr,size_t*pl,struct stk_s*ps) {
+static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,unsigned short**pr,size_t*pl,struct stk_s*ps) {
 	size_t sz=strlen(indata);
 	//
 	const char*left=strchr(indata,'@');BOOL nonick=TRUE;
@@ -392,7 +392,7 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int
 		memcpy(hostname, indata, sz);
 		hostname[sz]='\0';
 		if(ptr==nullptr){
-			*pr=(int*)malloc(2*sizeof(int));
+			*pr=(unsigned short*)malloc(2*sizeof(unsigned short));
 			if(*pr==nullptr)return FALSE;
 			(*pr)[0]=6667;(*pr)[1]=6667;*pl=0;
 			return TRUE;
@@ -400,17 +400,17 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int
 		ptr++;
 		size_t i=1;
 		for(size_t j=0;ptr[j]!='\0';j++)if(ptr[j]==',')i++;
-		int*por=(int*)malloc(i*2*sizeof(int));
+		unsigned short*por=(unsigned short*)malloc(i*2*sizeof(unsigned short));
 		if(por!=nullptr){
 			size_t j=0;size_t k=0;
 			for(;;){
 				BOOL end=ptr[j]=='\0';
 				if(ptr[j]==','||end){
-					int n=sscanf(ptr,"%u-%u",&por[k],&por[k+1]);
+					int n=sscanf(ptr,"%hu-%hu",&por[k],&por[k+1]);
 					if(n==0){free(por);return FALSE;}
 					if(n==1)por[k+1]=por[k];
 					if(por[k]>por[k+1]){
-						int z=por[k];
+						unsigned short z=por[k];
 						por[k]=por[k+1];por[k+1]=z;}
 					k+=2;
 					if(end){*pl=i*2-2;*pr=por;return TRUE;}
@@ -1506,7 +1506,7 @@ static BOOL con_plain(char*psw,char*nkn,struct stk_s*ps){
 static void proced(struct stk_s*ps){
 	char hostname[hostname_sz];
 	char psw[password_sz];char nkn[namenul_sz];
-	int*ports;size_t port_last;
+	unsigned short*ports;size_t port_last;
 	if(parse_host_str(ps->text,hostname,psw,nkn,&ports,&port_last,ps)) {
 		main_text_s("Connecting...\n");
 		GSList*lst=con_group;unsigned char n=con_nr_max;
@@ -1516,7 +1516,7 @@ static void proced(struct stk_s*ps){
 		}
 		size_t port_i=0;
 		for(;;){
-			int port1=ports[port_i];int port2=ports[port_i+1];
+			unsigned short port1=ports[port_i];unsigned short port2=ports[port_i+1];
 			for(;;){
 				create_socket(hostname,port1);
 				if(plain_socket != -1){
