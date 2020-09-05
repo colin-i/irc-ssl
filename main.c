@@ -99,6 +99,7 @@ static int portindex;static int portend;
 static char*info_path_name=nullptr;
 #define home_string "*Home"
 #define priv_msg_str "PRIVMSG"
+#define not_msg_str "NOTICE"
 #define help_text "Most of the parameters are set at start.\n\
 Launch the program with --help argument for more info.\n\
 Send irc commands from the " home_string " tab. Other tabs are sending " priv_msg_str " messages.\n\
@@ -125,8 +126,6 @@ struct data_len{
 static pthread_t threadid;static sigset_t threadset;
 static GtkWidget*chan_menu;
 static GtkWidget*name_on_menu;static GtkWidget*name_off_menu;
-#define send_prv1 priv_msg_str " "
-#define send_prv2 " :"
 static unsigned int alert_counter=0;
 static GtkCheckMenuItem*show_time;static GtkCheckMenuItem*channels_counted;
 #define user_message "USER guest tolmoon tolsun :Ronnie Reagan"
@@ -134,7 +133,7 @@ enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };//connections org,channels
-#define number_of_args 19
+#define number_of_args 20
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
@@ -160,7 +159,8 @@ struct stk_s{
 	char*password;
 	GtkListStore*org_tree_list;
 	GApplication*app;
-	gboolean maximize;gboolean minimize;gboolean visible;gboolean timestamp;
+	gboolean maximize;gboolean minimize;gboolean visible;
+	gboolean timestamp;gboolean wnotice;
 	BOOL user_irc_free;unsigned char con_type;BOOL show_msgs;
 	char args_short[number_of_args];
 };
@@ -194,7 +194,7 @@ static char*dummy=nullptr;
 static char**ignoreds=&dummy;
 static BOOL can_send_data=FALSE;
 #define info_list_end_str " channels listed\n"
-enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,connection_number_id,hide_id,ignore_id,log_id,maximize_id,minimize_id,nick_id,password_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id};
+enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,connection_number_id,hide_id,ignore_id,log_id,maximize_id,minimize_id,nick_id,password_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id,welcomeNotice_id};
 struct ajoin{
 	int c;//against get_active
 	char**chans;
@@ -1057,14 +1057,15 @@ static BOOL is_channel(const char*c){
 	for(int i=0;;i++)if(chantypes[i]==*c)return TRUE;
 		else if(chantypes[i]=='\0')return FALSE;
 }
-static void send_msg(char*usednick,const char*a,const char*text,GtkWidget*pg){
-	size_t len=sizeof(send_prv1)-1;size_t wid=sizeof(send_prv2)-1;
+static void send_msg_type(char*usednick,const char*a,const char*text,GtkWidget*pg,const char*msg_irc_type){
+	const char s_msg[]=" :";
+	size_t len=strlen(msg_irc_type);size_t wid=sizeof(s_msg)-1;
 	size_t dim=strlen(a);size_t sz=strlen(text);
 	char*b=(char*)malloc(len+dim+wid+sz+irc_term_sz);
 	if(b==nullptr)return;
-	memcpy(b,send_prv1,len);
+	memcpy(b,msg_irc_type,len);
 	memcpy(b+len,a,dim);size_t spc=len+dim;
-	memcpy(b+spc,send_prv2,wid);spc+=wid;
+	memcpy(b+spc,s_msg,wid);spc+=wid;
 	memcpy(b+spc,text,sz);sz+=spc;
 	if(is_channel(a))addatchans(usednick,text,pg);
 	else addatnames(usednick,text,pg);
@@ -1072,6 +1073,7 @@ static void send_msg(char*usednick,const char*a,const char*text,GtkWidget*pg){
 	send_data(b,sz+irc_term_sz);
 	free(b);
 }
+#define send_msg(usednick,a,text,pg) send_msg_type(usednick,a,text,pg,priv_msg_str " ")
 static void pars_pmsg_chan(char*n,char*c,char*msg,GtkNotebook*nb){
 	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
 	GList*lst=list;
@@ -1126,7 +1128,10 @@ static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps,BOOL is_privmsg,const
 			GtkWidget*scrl=name_join_nb(n,nb);addatnames(frontname,msg,scrl);
 			alert(gtk_notebook_get_tab_label(nb,scrl),nb);
 			if(is_privmsg){
-				if(ps->welcome!=nullptr)send_msg(ps->nknnow,n,ps->welcome,scrl);
+				if(ps->welcome!=nullptr){
+					if(ps->wnotice)send_msg_type(ps->nknnow,n,ps->welcome,scrl,not_msg_str " ");
+					else send_msg(ps->nknnow,n,ps->welcome,scrl);
+				}
 				exec_nm
 			}
 		}
@@ -1219,7 +1224,7 @@ static gboolean incsafe(gpointer ps){
 		char nicknm[namenul_sz];
 		char c;
 		BOOL is_privmsg=strcmp(com,priv_msg_str)==0;
-		if(is_privmsg||strcmp(com,"NOTICE")==0){
+		if(is_privmsg||strcmp(com,not_msg_str)==0){
 			if(nick_extract(a,nicknm)){
 				if(is_channel(b)){
 					if(sscanf(b,channame_scan " %c",channm,&c)==2)pars_pmsg_chan(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
@@ -2218,6 +2223,8 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	ps->maximize=g_variant_dict_contains(options,ps->args[maximize_id]);
 	//
 	ps->minimize=g_variant_dict_contains(options,ps->args[minimize_id]);
+	//
+	ps->wnotice=g_variant_dict_contains(options,ps->args[welcomeNotice_id]);
 	return -1;
 }
 int main (int    argc,
@@ -2269,6 +2276,8 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[visible_id],ps.args_short[visible_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Send MODE -i at start. (remove invisible)",nullptr);
 		ps.args[welcome_id]="welcome";ps.args_short[welcome_id]='w';
 		g_application_add_main_option((GApplication*)app,ps.args[welcome_id],ps.args_short[welcome_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
+		ps.args[welcomeNotice_id]="welcome-notice";ps.args_short[welcomeNotice_id]='e';
+		g_application_add_main_option((GApplication*)app,ps.args[welcomeNotice_id],ps.args_short[welcomeNotice_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Welcome message sent as a " not_msg_str " instead of " priv_msg_str ".",nullptr);
 		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
 		//  if(han>0)
