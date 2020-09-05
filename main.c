@@ -85,7 +85,7 @@
 static GtkTextView *text_view;static GtkWidget*home_page;static GtkListStore*channels;
 static SSL *ssl=nullptr;static int plain_socket=-1;
 static int con_th=-1;//static GThread*con_th=nullptr;
-static int portindex;static int portend;
+static BOOL closeporting;
 #define ssl_con_try "Trying with SSL.\n"
 #define ssl_con_plain "Trying unencrypted.\n"
 #define irc_bsz 64
@@ -110,7 +110,7 @@ Ctrl+C = Close tab\n\
 Ctrl+Q = Shutdown connection\n\
 Ctrl+X = Exit program\n\
 \n\
-Connection format is [[nickname:]password@]hostname[:port1[-portn]]. Escape @ in password with the uri format (\"%40\").\n\
+Connection format is [[nickname:]password@]hostname[:port1[-portn][,portm...]]. Escape @ in password with the uri format (\"%40\").\n\
 e.g. newNick:a%40c@127.0.0.1:6665-6669"
 #define chan_sz 50
 #define channul_sz chan_sz+1
@@ -349,7 +349,7 @@ static void create_socket(char*hostname,int port) {
 	else
 		main_text_s("Error: Cannot resolve hostname.\n");
 }
-static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int*sens,struct stk_s*ps) {
+static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int**pr,size_t*pl,struct stk_s*ps) {
 	size_t sz=strlen(indata);
 	//
 	const char*left=strchr(indata,'@');BOOL nonick=TRUE;
@@ -392,25 +392,33 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,int
 		memcpy(hostname, indata, sz);
 		hostname[sz]='\0';
 		if(ptr==nullptr){
-			portindex=6667;portend=6667;
+			*pr=(int*)malloc(2*sizeof(int));
+			if(*pr==nullptr)return FALSE;
+			(*pr)[0]=6667;(*pr)[1]=6667;*pl=0;
 			return TRUE;
 		}
 		ptr++;
-		const char*mid=strchr(ptr,'-');
-		if(mid==nullptr){
-			portindex=atoi(ptr);portend=portindex;
-			return portindex<0x10000;
+		size_t i=1;
+		for(size_t j=0;ptr[j]!='\0';j++)if(ptr[j]==',')i++;
+		int*por=(int*)malloc(i*2*sizeof(int));
+		if(por!=nullptr){
+			size_t j=0;size_t k=0;
+			for(;;){
+				BOOL end=ptr[j]=='\0';
+				if(ptr[j]==','||end){
+					int n=sscanf(ptr,"%u-%u",&por[k],&por[k+1]);
+					if(n==0){free(por);return FALSE;}
+					if(n==1)por[k+1]=por[k];
+					if(por[k]>por[k+1]){
+						int z=por[k];
+						por[k]=por[k+1];por[k+1]=z;}
+					k+=2;
+					if(end){*pl=i*2-2;*pr=por;return TRUE;}
+					ptr=&ptr[j+1];
+				}
+				j++;
+			}
 		}
-		char portnum[6];
-		size_t p1sz=(size_t)(mid-ptr);
-		if(p1sz>=6)return FALSE;
-		memcpy(portnum,ptr,p1sz);portnum[p1sz]='\0';
-		portindex=atoi(portnum);
-		portend=atoi(mid+1);
-		if(portend>0xffFF)return FALSE;
-		if(portindex<=portend)*sens=1;
-		else *sens=-1;
-		return TRUE;
 	}
 	return FALSE;
 }
@@ -1497,43 +1505,52 @@ static BOOL con_plain(char*psw,char*nkn,struct stk_s*ps){
 }
 static void proced(struct stk_s*ps){
 	char hostname[hostname_sz];
-	int sens;char psw[password_sz];char nkn[namenul_sz];
-	if(parse_host_str(ps->text,hostname,psw,nkn,&sens,ps)) {
+	char psw[password_sz];char nkn[namenul_sz];
+	int*ports;size_t port_last;
+	if(parse_host_str(ps->text,hostname,psw,nkn,&ports,&port_last,ps)) {
 		main_text_s("Connecting...\n");
 		GSList*lst=con_group;unsigned char n=con_nr_max;
 		for(;;){
 			if(gtk_check_menu_item_get_active((GtkCheckMenuItem*)lst->data))break;
 			lst=lst->next;n--;
 		}
+		size_t port_i=0;
 		for(;;){
-			create_socket(hostname,portindex);
-			if(plain_socket != -1){
-				BOOL r;
-				if(n==1){
-					r=con_ssl(psw,nkn,ps);
-					if(r==FALSE){
-						close_plain_safe
-						create_socket(hostname,portindex);
-						if(plain_socket != -1)
-							r=con_plain(psw,nkn,ps);
-					}
-				}else if(n==2){
-					r=con_plain(psw,nkn,ps);
-					if(r==FALSE){
-						close_plain_safe
-						create_socket(hostname,portindex);
-						if(plain_socket != -1)
-							r=con_ssl(psw,nkn,ps);
-					}
-				}else if(n==3)r=con_ssl(psw,nkn,ps);
-				else
-					r=con_plain(psw,nkn,ps);
-				close_plain_safe
-				if(r)break;
+			int port1=ports[port_i];int port2=ports[port_i+1];
+			for(;;){
+				create_socket(hostname,port1);
+				if(plain_socket != -1){
+					BOOL r;
+					if(n==1){
+						r=con_ssl(psw,nkn,ps);
+						if(r==FALSE){
+							close_plain_safe
+							create_socket(hostname,port1);
+							if(plain_socket != -1)
+								r=con_plain(psw,nkn,ps);
+						}
+					}else if(n==2){
+						r=con_plain(psw,nkn,ps);
+						if(r==FALSE){
+							close_plain_safe
+							create_socket(hostname,port1);
+							if(plain_socket != -1)
+								r=con_ssl(psw,nkn,ps);
+						}
+					}else if(n==3)r=con_ssl(psw,nkn,ps);
+					else
+						r=con_plain(psw,nkn,ps);
+					close_plain_safe
+					if(r)break;
+				}
+				if(closeporting)break;
+				if(port1==port2)break;
+				port1++;
 			}
-			if(portindex==portend)break;
-			portindex+=sens;
+			if(port_i==port_last)break;
+			port_i+=2;
 		}
+		free(ports);
 		main_text_s("Disconnected.\n");
 	}else main_text_s("Error: Wrong input. For format, press the vertical ellipsis button and then Help.\n");
 }
@@ -1596,7 +1613,7 @@ static void set_combo_box_text(GtkComboBox * box,const char*txt)
 	gtk_combo_box_set_active(box, i);
 }
 static void action_to_close(){
-	portindex=portend;
+	closeporting=TRUE;
 	if(ssl!=nullptr)SSL_shutdown(ssl);
 	else if(plain_socket!=-1)shutdown(plain_socket,2);
 }
@@ -1610,7 +1627,7 @@ static gboolean enter_recallback( gpointer ps){
 		}
 		set_combo_box_text((GtkComboBox*)gtk_widget_get_ancestor(((struct stk_s*)ps)->con_entry,gtk_combo_box_text_get_type()),t);
 		((struct stk_s*)ps)->text=t;
-		con_th = pthread_create( &threadid, nullptr, worker,ps);
+		closeporting=FALSE;con_th = pthread_create( &threadid, nullptr, worker,ps);
 	}
 	//unblock this ENTER
 	g_signal_handler_unblock(((struct stk_s*)ps)->con_entry,((struct stk_s*)ps)->con_entry_act);
