@@ -409,11 +409,8 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,uns
 					int n=sscanf(ptr,"%hu-%hu",&por[k],&por[k+1]);
 					if(n==0){free(por);return FALSE;}
 					if(n==1)por[k+1]=por[k];
-					if(por[k]>por[k+1]){
-						unsigned short z=por[k];
-						por[k]=por[k+1];por[k+1]=z;}
-					k+=2;
 					if(end){*pl=i*2-2;*pr=por;return TRUE;}
+					k+=2;
 					ptr=&ptr[j+1];
 				}
 				j++;
@@ -1556,7 +1553,8 @@ static void proced(struct stk_s*ps){
 					}
 					if(close_intention)break;
 					if(port1==port2)break;
-					port1++;
+					if(port1<port2)port1++;
+					else port1--;
 				}
 				if(port_i==port_last)break;
 				port_i+=2;
