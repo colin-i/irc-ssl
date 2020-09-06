@@ -1359,25 +1359,43 @@ static void start_old_clear(GtkWidget*w,GtkNotebook*nb){
 		g_list_free(lst);
 	}
 }
-static gboolean senstartthreadsfunc(gpointer ps){
-	g_signal_handler_unblock(((struct stk_s*)ps)->sen_entry,((struct stk_s*)ps)->sen_entry_act);
-	//
-	if(((struct stk_s*)ps)->refresh>0)
-		((struct stk_s*)ps)->refreshid=g_timeout_add(1000*(unsigned int)((struct stk_s*)ps)->refresh,refresh_callback,nullptr);
-	//
-	start_old_clear(chan_menu,((struct stk_s*)ps)->notebook);
-	g_signal_handler_unblock(((struct stk_s*)ps)->trv,((struct stk_s*)ps)->trvr);
-	//
-	pthread_kill( threadid, SIGUSR1);
-	can_send_data=TRUE;
-	return FALSE;
-}
 static GtkWidget*tab_close_button(GtkNotebook*nb,GtkWidget*pan){
 	GtkWidget*box=gtk_notebook_get_tab_label(nb,pan);
 	GList*l=gtk_container_get_children((GtkContainer*)box);
 	GtkWidget*b=(GtkWidget*)g_list_last(l)->data;
 	g_list_free(l);
 	return b;
+}
+static void close_buttons_handler(GtkNotebook*nb,void(*fn)(GtkWidget*)){
+	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
+	if(list!=nullptr){
+		GList*ls=list;for(;;){
+			GtkWidget*menu_item=(GtkWidget*)list->data;GtkWidget*pan=get_pan_from_menu(menu_item);
+			GtkWidget*b=tab_close_button(nb,pan);
+			fn(b);
+			list=g_list_next(list);
+			if(list==nullptr)break;
+		}g_list_free(ls);
+	}
+}
+static void close_buttons_enable(GtkWidget*b){
+	g_signal_handler_unblock(b,g_signal_handler_find(b,G_SIGNAL_MATCH_ID,g_signal_lookup("clicked", gtk_button_get_type()),0, nullptr, nullptr, nullptr));
+}
+static gboolean senstartthreadsfunc(gpointer ps){
+	g_signal_handler_unblock(((struct stk_s*)ps)->sen_entry,((struct stk_s*)ps)->sen_entry_act);
+	//
+	if(((struct stk_s*)ps)->refresh>0)
+		((struct stk_s*)ps)->refreshid=g_timeout_add(1000*(unsigned int)((struct stk_s*)ps)->refresh,refresh_callback,nullptr);
+	//
+	close_buttons_handler(((struct stk_s*)ps)->notebook,close_buttons_enable);
+	g_signal_handler_unblock(((struct stk_s*)ps)->trv,((struct stk_s*)ps)->trvr);
+	//
+	pthread_kill( threadid, SIGUSR1);
+	can_send_data=TRUE;
+	return FALSE;
+}
+static void close_buttons_disable(GtkWidget*b){
+	g_signal_handler_block(b,g_signal_handler_find(b,G_SIGNAL_MATCH_ID,g_signal_lookup("clicked", gtk_button_get_type()),0, nullptr, nullptr, nullptr));
 }
 static gboolean senstopthreadsfunc(gpointer ps){
 	can_send_data=FALSE;
@@ -1386,16 +1404,7 @@ static gboolean senstopthreadsfunc(gpointer ps){
 	if(((struct stk_s*)ps)->refresh>0)
 		g_source_remove(((struct stk_s*)ps)->refreshid);
 	//
-	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
-	if(list!=nullptr){
-		GList*ls=list;for(;;){
-			GtkWidget*menu_item=(GtkWidget*)list->data;GtkWidget*pan=get_pan_from_menu(menu_item);
-			GtkWidget*b=tab_close_button(((struct stk_s*)ps)->notebook,pan);
-			g_signal_handler_disconnect(b,g_signal_handler_find(b,G_SIGNAL_MATCH_ID,g_signal_lookup("clicked", gtk_button_get_type()),0, nullptr, nullptr, nullptr));
-			list=g_list_next(list);
-			if(list==nullptr)break;
-		}g_list_free(ls);
-	}
+	close_buttons_handler(((struct stk_s*)ps)->notebook,close_buttons_disable);
 	g_signal_handler_block(((struct stk_s*)ps)->trv,((struct stk_s*)ps)->trvr);
 	//
 	pthread_kill( threadid, SIGUSR1);

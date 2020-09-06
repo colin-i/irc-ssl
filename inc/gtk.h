@@ -198,7 +198,6 @@ void g_object_set (gpointer object, const gchar *first_property_name, ...) __att
 void g_object_unref (gpointer object);
 gulong g_signal_connect_data (gpointer instance,const gchar *detailed_signal,GCallback c_handler,gpointer data,GClosureNotify destroy_data,GConnectFlags connect_flags);
 void g_signal_handler_block (gpointer instance, gulong handler_id);
-void g_signal_handler_disconnect (gpointer instance, gulong handler_id);
 gulong g_signal_handler_find (gpointer instance,GSignalMatchType mask,guint signal_id,GQuark detail,GClosure *closure,gpointer func,gpointer data);
 void g_signal_handler_unblock (gpointer instance, gulong handler_id);
 guint g_signal_lookup (const gchar *name, GType itype);
