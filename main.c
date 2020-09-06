@@ -1556,7 +1556,7 @@ static void proced(struct stk_s*ps){
 			main_text_s("Disconnected.\n");
 			if(close_intention==FALSE){
 				main_text_s("Will try to reconnect after 10 seconds.\n");
-				for(size_t i=0;i<10;i++){
+				for(unsigned int i=0;i<10;i++){
 					sleep(1);
 					if(close_intention)break;
 				}
