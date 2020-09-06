@@ -85,7 +85,7 @@
 static GtkTextView *text_view;static GtkWidget*home_page;static GtkListStore*channels;
 static SSL *ssl=nullptr;static int plain_socket=-1;
 static int con_th=-1;//static GThread*con_th=nullptr;
-static BOOL closeporting;
+static BOOL close_intention;
 #define ssl_con_try "Trying with SSL.\n"
 #define ssl_con_plain "Trying unencrypted.\n"
 #define irc_bsz 64
@@ -574,7 +574,7 @@ static GtkWidget*add_new_tab(GtkWidget*frame,char*title,GtkWidget**cls,GtkNotebo
 	*cls=close;
 	return is_name?menu_item:t;
 }
-static void send_join(char*item_text,size_t i,GtkNotebook*notebook){
+static BOOL chan_not_joined(char*item_text,GtkNotebook*notebook){
 	BOOL b=TRUE;
 	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
 	if(list!=nullptr){
@@ -592,12 +592,13 @@ static void send_join(char*item_text,size_t i,GtkNotebook*notebook){
 		}
 		g_list_free(lst);
 	}
-	if(b){
-		char buf[5+chan_sz+irc_term_sz]="JOIN ";
-		memcpy(buf+5,item_text,i);
-		memcpy(buf+5+i,irc_term,irc_term_sz);
-		send_data(buf,5+irc_term_sz+i);
-	}
+	return b;
+}
+static void send_join(char*item_text,size_t i){
+	char buf[5+chan_sz+irc_term_sz]="JOIN ";
+	memcpy(buf+5,item_text,i);
+	memcpy(buf+5+i,irc_term,irc_term_sz);
+	send_data(buf,5+irc_term_sz+i);
 }
 static gboolean chan_join (GtkTreeView *tree,GdkEvent*ignored,GtkNotebook*notebook){
 	(void)ignored;
@@ -609,7 +610,7 @@ static gboolean chan_join (GtkTreeView *tree,GdkEvent*ignored,GtkNotebook*notebo
 		for(size_t i=0;;i++){
 			if(item_text[i]==' '){
 				item_text[i]='\0';
-				send_join(item_text,i,notebook);
+				if(chan_not_joined(item_text,notebook))send_join(item_text,i);
 				break;
 			}
 		}
@@ -1209,7 +1210,7 @@ static void send_autojoin(struct stk_s*ps){
 	for(size_t i=0;i<ps->ajoins_sum;i++)
 		if(ps->ajoins[i].c==gtk_combo_box_get_active((GtkComboBox*)ps->cbt)){
 			for(size_t j=0;ps->ajoins[i].chans[j]!=nullptr;j++)
-				send_join(ps->ajoins[i].chans[j],strlen(ps->ajoins[i].chans[j]),ps->notebook);
+				send_join(ps->ajoins[i].chans[j],strlen(ps->ajoins[i].chans[j]));
 			break;
 		}
 }
@@ -1343,7 +1344,7 @@ static gboolean refresh_callback( gpointer ignored){
 	send_list
 	return TRUE;
 }
-static int start_old_clear(GtkWidget*w,GtkNotebook*nb){
+static void start_old_clear(GtkWidget*w,GtkNotebook*nb){
 	GList*list=gtk_container_get_children((GtkContainer*)w);
 	if(list!=nullptr){
 		GList*lst=list;
@@ -1356,22 +1357,15 @@ static int start_old_clear(GtkWidget*w,GtkNotebook*nb){
 			if(list==nullptr)break;
 		}
 		g_list_free(lst);
-		return 1;
 	}
-	return 0;
 }
 static gboolean senstartthreadsfunc(gpointer ps){
-	GtkNotebook*nb=((struct stk_s*)ps)->notebook;
 	g_signal_handler_unblock(((struct stk_s*)ps)->sen_entry,((struct stk_s*)ps)->sen_entry_act);
 	//
 	if(((struct stk_s*)ps)->refresh>0)
 		((struct stk_s*)ps)->refreshid=g_timeout_add(1000*(unsigned int)((struct stk_s*)ps)->refresh,refresh_callback,nullptr);
 	//
-	if(start_old_clear(chan_menu,nb)+start_old_clear(name_on_menu,nb)+start_old_clear(name_off_menu,nb)>0){
-		gtk_widget_hide(gtk_notebook_get_action_widget(nb,GTK_PACK_END));
-		alert_counter=0;
-	}
-	//
+	start_old_clear(chan_menu,((struct stk_s*)ps)->notebook);
 	g_signal_handler_unblock(((struct stk_s*)ps)->trv,((struct stk_s*)ps)->trvr);
 	//
 	pthread_kill( threadid, SIGUSR1);
@@ -1394,16 +1388,13 @@ static gboolean senstopthreadsfunc(gpointer ps){
 	//
 	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
 	if(list!=nullptr){
-		GList*ls=list;
-		for(;;){
-			GtkWidget*menu_item=(GtkWidget*)list->data;
-			GtkWidget*pan=get_pan_from_menu(menu_item);
+		GList*ls=list;for(;;){
+			GtkWidget*menu_item=(GtkWidget*)list->data;GtkWidget*pan=get_pan_from_menu(menu_item);
 			GtkWidget*b=tab_close_button(((struct stk_s*)ps)->notebook,pan);
 			g_signal_handler_disconnect(b,g_signal_handler_find(b,G_SIGNAL_MATCH_ID,g_signal_lookup("clicked", gtk_button_get_type()),0, nullptr, nullptr, nullptr));
 			list=g_list_next(list);
 			if(list==nullptr)break;
-		}
-		g_list_free(ls);
+		}g_list_free(ls);
 	}
 	g_signal_handler_block(((struct stk_s*)ps)->trv,((struct stk_s*)ps)->trvr);
 	//
@@ -1503,55 +1494,74 @@ static BOOL con_plain(char*psw,char*nkn,struct stk_s*ps){
 	BOOL b=irc_start(psw,nkn,ps);
 	return b;
 }
+static void clear_old_chat(GtkNotebook*nb){
+	if(alert_counter>0){
+		gtk_widget_hide(gtk_notebook_get_action_widget(nb,GTK_PACK_END));
+		alert_counter=0;
+	}
+	start_old_clear(chan_menu,nb);
+	start_old_clear(name_on_menu,nb);
+	start_old_clear(name_off_menu,nb);
+}
 static void proced(struct stk_s*ps){
 	char hostname[hostname_sz];
 	char psw[password_sz];char nkn[namenul_sz];
 	unsigned short*ports;size_t port_last;
 	if(parse_host_str(ps->text,hostname,psw,nkn,&ports,&port_last,ps)) {
-		main_text_s("Connecting...\n");
+		clear_old_chat(ps->notebook);
 		GSList*lst=con_group;unsigned char n=con_nr_max;
 		for(;;){
 			if(gtk_check_menu_item_get_active((GtkCheckMenuItem*)lst->data))break;
 			lst=lst->next;n--;
 		}
-		size_t port_i=0;
-		for(;;){
-			unsigned short port1=ports[port_i];unsigned short port2=ports[port_i+1];
+		do{
+			main_text_s("Connecting...\n");
+			size_t port_i=0;
 			for(;;){
-				create_socket(hostname,port1);
-				if(plain_socket != -1){
-					BOOL r;
-					if(n==1){
-						r=con_ssl(psw,nkn,ps);
-						if(r==FALSE){
-							close_plain_safe
-							create_socket(hostname,port1);
-							if(plain_socket != -1)
-								r=con_plain(psw,nkn,ps);
-						}
-					}else if(n==2){
-						r=con_plain(psw,nkn,ps);
-						if(r==FALSE){
-							close_plain_safe
-							create_socket(hostname,port1);
-							if(plain_socket != -1)
-								r=con_ssl(psw,nkn,ps);
-						}
-					}else if(n==3)r=con_ssl(psw,nkn,ps);
-					else
-						r=con_plain(psw,nkn,ps);
-					close_plain_safe
-					if(r)break;
+				unsigned short port1=ports[port_i];unsigned short port2=ports[port_i+1];
+				for(;;){
+					create_socket(hostname,port1);
+					if(plain_socket != -1){
+						BOOL r;
+						if(n==1){
+							r=con_ssl(psw,nkn,ps);
+							if(r==FALSE){
+								close_plain_safe
+								create_socket(hostname,port1);
+								if(plain_socket != -1)
+									r=con_plain(psw,nkn,ps);
+							}
+						}else if(n==2){
+							r=con_plain(psw,nkn,ps);
+							if(r==FALSE){
+								close_plain_safe
+								create_socket(hostname,port1);
+								if(plain_socket != -1)
+									r=con_ssl(psw,nkn,ps);
+							}
+						}else if(n==3)r=con_ssl(psw,nkn,ps);
+						else
+							r=con_plain(psw,nkn,ps);
+						close_plain_safe
+						if(r)break;
+					}
+					if(close_intention)break;
+					if(port1==port2)break;
+					port1++;
 				}
-				if(closeporting)break;
-				if(port1==port2)break;
-				port1++;
+				if(port_i==port_last)break;
+				port_i+=2;
 			}
-			if(port_i==port_last)break;
-			port_i+=2;
-		}
+			main_text_s("Disconnected.\n");
+			if(close_intention==FALSE){
+				main_text_s("Will try to reconnect after 10 seconds.\n");
+				for(size_t i=0;i<10;i++){
+					sleep(1);
+					if(close_intention)break;
+				}
+			}
+		}while(close_intention==FALSE);
 		free(ports);
-		main_text_s("Disconnected.\n");
 	}else main_text_s("Error: Wrong input. For format, press the vertical ellipsis button and then Help.\n");
 }
 static gpointer worker (gpointer ps)
@@ -1613,7 +1623,7 @@ static void set_combo_box_text(GtkComboBox * box,const char*txt)
 	gtk_combo_box_set_active(box, i);
 }
 static void action_to_close(){
-	closeporting=TRUE;
+	close_intention=TRUE;
 	if(ssl!=nullptr)SSL_shutdown(ssl);
 	else if(plain_socket!=-1)shutdown(plain_socket,2);
 }
@@ -1627,7 +1637,7 @@ static gboolean enter_recallback( gpointer ps){
 		}
 		set_combo_box_text((GtkComboBox*)gtk_widget_get_ancestor(((struct stk_s*)ps)->con_entry,gtk_combo_box_text_get_type()),t);
 		((struct stk_s*)ps)->text=t;
-		closeporting=FALSE;con_th = pthread_create( &threadid, nullptr, worker,ps);
+		close_intention=FALSE;con_th = pthread_create( &threadid, nullptr, worker,ps);
 	}
 	//unblock this ENTER
 	g_signal_handler_unblock(((struct stk_s*)ps)->con_entry,((struct stk_s*)ps)->con_entry_act);
