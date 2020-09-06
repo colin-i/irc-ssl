@@ -2087,6 +2087,10 @@ activate (GtkApplication* app,
 	g_signal_connect_data (menu_item, "activate",G_CALLBACK (action_to_close),nullptr,nullptr,(GConnectFlags)0);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	//
+	menu_item = gtk_menu_item_new_with_label ("Exit Program");
+	g_signal_connect_data (menu_item, "activate",G_CALLBACK (g_application_quit),ps->app,nullptr,G_CONNECT_SWAPPED);
+	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
+	//
 	g_signal_connect_data (org, "button-press-event",G_CALLBACK (prog_menu_popup),menu,nullptr,G_CONNECT_SWAPPED);
 	//
 	ps->sen_entry=gtk_entry_new();
