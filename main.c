@@ -111,8 +111,7 @@ Ctrl+Q = Shutdown connection\n\
 Ctrl+X = Exit program\n\
 \n\
 Connection format is [[nickname:]password@]hostname[:port1[-portN][,portM...][;portP...]].\n\
-A semicolon (;) will override the connection type from that point onward.\n\
-e.g. ssl|unencrypted to unencrypted|ssl, unencrypted to ssl, ...\n\
+A semicolon (;) will override the connection type. Before semicolon, ssl or ssl/unencrypted; after semicolon, unencrypted or unencrypted/ssl.\n\
 Escape @ in password with the uri format (\"%40\").\n\
 e.g. newNick:a%40c@127.0.0.1:6665-6669"
 #define chan_sz 50
@@ -204,6 +203,8 @@ struct ajoin{
 };
 #define invite_str " invited you to join channel "
 static GtkWidget*menuwithtabs;
+#define sw_rule 0
+#define uintmax 0xffFFffFF
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -397,7 +398,7 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,uns
 		if(ptr==nullptr){
 			*pr=(unsigned short*)malloc(2*sizeof(unsigned short));
 			if(*pr==nullptr)return FALSE;
-			(*pr)[0]=6667;(*pr)[1]=6667;*pl=0;
+			(*pr)[0]=6667;(*pr)[1]=6667;*pl=sw_rule;*swtch=sw_rule+1;
 			return TRUE;
 		}
 		ptr++;
@@ -405,7 +406,7 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,uns
 		for(size_t j=0;ptr[j]!='\0';j++)if(ptr[j]==','||ptr[j]==';')i++;
 		unsigned short*por=(unsigned short*)malloc(i*2*sizeof(unsigned short));
 		if(por!=nullptr){
-			size_t j=0;size_t k=0;
+			size_t j=0;size_t k=0;*swtch=uintmax;
 			for(;;){
 				BOOL end=ptr[j]=='\0';BOOL sw=ptr[j]==';';
 				if(ptr[j]==','||end||sw){
@@ -1521,7 +1522,8 @@ static void proced(struct stk_s*ps){
 	unsigned short*ports;size_t port_last;size_t swtch;
 	if(parse_host_str(ps->text,hostname,psw,nkn,&ports,&port_last,&swtch,ps)) {
 		clear_old_chat(ps->notebook);
-		GSList*lst=con_group;unsigned char n=con_nr_max;
+		GSList*lst=con_group;
+		unsigned char n=con_nr_max;
 		for(;;){
 			if(gtk_check_menu_item_get_active((GtkCheckMenuItem*)lst->data))break;
 			lst=lst->next;n--;
@@ -1529,6 +1531,7 @@ static void proced(struct stk_s*ps){
 		do{
 			main_text_s("Connecting...\n");
 			size_t port_i=0;
+			if(swtch<=port_last&&(n==2||n==4))n--;
 			for(;;){
 				unsigned short port1=ports[port_i];unsigned short port2=ports[port_i+1];
 				for(;;){
@@ -1564,7 +1567,7 @@ static void proced(struct stk_s*ps){
 				}
 				if(port_i==port_last)break;
 				port_i+=2;
-				if(swtch==port_i){if(n&1)n++;else n--;}
+				if(swtch==port_i)n++;
 			}
 			main_text_s("Disconnected.\n");
 			if(close_intention==FALSE){
