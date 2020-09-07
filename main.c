@@ -110,7 +110,10 @@ Ctrl+C = Close tab\n\
 Ctrl+Q = Shutdown connection\n\
 Ctrl+X = Exit program\n\
 \n\
-Connection format is [[nickname:]password@]hostname[:port1[-portn][,portm...]]. Escape @ in password with the uri format (\"%40\").\n\
+Connection format is [[nickname:]password@]hostname[:port1[-portN][,portM...][;portP...]].\n\
+A semicolon (;) will override the connection type from that point onward.\n\
+e.g. ssl|unencrypted to unencrypted|ssl, unencrypted to ssl, ...\n\
+Escape @ in password with the uri format (\"%40\").\n\
 e.g. newNick:a%40c@127.0.0.1:6665-6669"
 #define chan_sz 50
 #define channul_sz chan_sz+1
@@ -349,7 +352,7 @@ static void create_socket(char*hostname,unsigned short port) {
 	else
 		main_text_s("Error: Cannot resolve hostname.\n");
 }
-static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,unsigned short**pr,size_t*pl,struct stk_s*ps) {
+static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,unsigned short**pr,size_t*pl,size_t*swtch,struct stk_s*ps) {
 	size_t sz=strlen(indata);
 	//
 	const char*left=strchr(indata,'@');BOOL nonick=TRUE;
@@ -399,18 +402,19 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,uns
 		}
 		ptr++;
 		size_t i=1;
-		for(size_t j=0;ptr[j]!='\0';j++)if(ptr[j]==',')i++;
+		for(size_t j=0;ptr[j]!='\0';j++)if(ptr[j]==','||ptr[j]==';')i++;
 		unsigned short*por=(unsigned short*)malloc(i*2*sizeof(unsigned short));
 		if(por!=nullptr){
 			size_t j=0;size_t k=0;
 			for(;;){
-				BOOL end=ptr[j]=='\0';
-				if(ptr[j]==','||end){
+				BOOL end=ptr[j]=='\0';BOOL sw=ptr[j]==';';
+				if(ptr[j]==','||end||sw){
 					int n=sscanf(ptr,"%hu-%hu",&por[k],&por[k+1]);
 					if(n==0){free(por);return FALSE;}
 					if(n==1)por[k+1]=por[k];
 					if(end){*pl=i*2-2;*pr=por;return TRUE;}
 					k+=2;
+					if(sw)*swtch=k;
 					ptr=&ptr[j+1];
 				}
 				j++;
@@ -1514,8 +1518,8 @@ static void clear_old_chat(GtkNotebook*nb){
 static void proced(struct stk_s*ps){
 	char hostname[hostname_sz];
 	char psw[password_sz];char nkn[namenul_sz];
-	unsigned short*ports;size_t port_last;
-	if(parse_host_str(ps->text,hostname,psw,nkn,&ports,&port_last,ps)) {
+	unsigned short*ports;size_t port_last;size_t swtch;
+	if(parse_host_str(ps->text,hostname,psw,nkn,&ports,&port_last,&swtch,ps)) {
 		clear_old_chat(ps->notebook);
 		GSList*lst=con_group;unsigned char n=con_nr_max;
 		for(;;){
@@ -1560,6 +1564,7 @@ static void proced(struct stk_s*ps){
 				}
 				if(port_i==port_last)break;
 				port_i+=2;
+				if(swtch==port_i){if(n&1)n++;else n--;}
 			}
 			main_text_s("Disconnected.\n");
 			if(close_intention==FALSE){
