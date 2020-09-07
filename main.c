@@ -1326,13 +1326,25 @@ static gboolean incsafe(gpointer ps){
 				//or after 1 second, not beautiful
 				send_list
 			}else if(d>400){//Error Replies.
-				if(d==451)action_to_close();//ERR_NOTREGISTERED
-				else{
-					b=strchr(b,' ');
-					if(b!=nullptr){
-						b++;if(sscanf(b,channame_scan " %c",channm,&c)==2)
-							pars_err(channm,b+strlen(channm)+2);
-					}
+				switch(d){
+					//porbably deprecated
+					//case 436://ERR_NICKCOLLISION
+					//case 464://ERR_PASSWDMISMATCH
+					//
+					//rare,not tried
+					//case 463://ERR_NOPERMFORHOST
+					//case 465://ERR_YOUREBANNEDCREEP
+					//
+					case 432://ERR_ERRONEUSNICKNAME
+					case 433://ERR_NICKNAMEINUSE
+						action_to_close();
+						break;
+					default:
+						b=strchr(b,' ');
+						if(b!=nullptr){
+							b++;if(sscanf(b,channame_scan " %c",channm,&c)==2)
+								pars_err(channm,b+strlen(channm)+2);
+						}
 				}
 			}else if(d==0)showmsg=FALSE;//"abc"
 		}
@@ -1521,6 +1533,7 @@ static void proced(struct stk_s*ps){
 	char psw[password_sz];char nkn[namenul_sz];
 	unsigned short*ports;size_t port_last;size_t swtch;
 	if(parse_host_str(ps->text,hostname,psw,nkn,&ports,&port_last,&swtch,ps)) {
+		main_text_s("Connecting...\n");
 		clear_old_chat(ps->notebook);
 		GSList*lst=con_group;
 		unsigned char n=con_nr_max;
@@ -1529,7 +1542,6 @@ static void proced(struct stk_s*ps){
 			lst=lst->next;n--;
 		}
 		do{
-			main_text_s("Connecting...\n");
 			size_t port_i=0;
 			if(swtch<=port_last&&(n==2||n==4))n--;
 			for(;;){
@@ -1569,7 +1581,6 @@ static void proced(struct stk_s*ps){
 				port_i+=2;
 				if(swtch==port_i)n++;
 			}
-			main_text_s("Disconnected.\n");
 			if(close_intention==FALSE){
 				main_text_s("Will try to reconnect after 10 seconds.\n");
 				for(unsigned int i=0;i<10;i++){
@@ -1579,6 +1590,7 @@ static void proced(struct stk_s*ps){
 			}
 		}while(close_intention==FALSE);
 		free(ports);
+		main_text_s("Disconnected.\n");
 	}else main_text_s("Error: Wrong input. For format, press the vertical ellipsis button and then Help.\n");
 }
 static gpointer worker (gpointer ps)
