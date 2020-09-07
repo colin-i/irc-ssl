@@ -1211,6 +1211,11 @@ static void send_autojoin(struct stk_s*ps){
 			break;
 		}
 }
+static void action_to_close(){
+	close_intention=TRUE;
+	if(ssl!=nullptr)SSL_shutdown(ssl);
+	else if(plain_socket!=-1)shutdown(plain_socket,2);
+}
 static gboolean incsafe(gpointer ps){
 	#pragma GCC diagnostic push
 	#pragma GCC diagnostic ignored "-Wcast-qual"
@@ -1316,10 +1321,13 @@ static gboolean incsafe(gpointer ps){
 				//or after 1 second, not beautiful
 				send_list
 			}else if(d>400){//Error Replies.
-				b=strchr(b,' ');
-				if(b!=nullptr){
-					b++;if(sscanf(b,channame_scan " %c",channm,&c)==2)
-						pars_err(channm,b+strlen(channm)+2);
+				if(d==451)action_to_close();//ERR_NOTREGISTERED
+				else{
+					b=strchr(b,' ');
+					if(b!=nullptr){
+						b++;if(sscanf(b,channame_scan " %c",channm,&c)==2)
+							pars_err(channm,b+strlen(channm)+2);
+					}
 				}
 			}else if(d==0)showmsg=FALSE;//"abc"
 		}
@@ -1622,11 +1630,6 @@ static void set_combo_box_text(GtkComboBox * box,const char*txt)
 	gtk_combo_box_text_append_text((GtkComboBoxText*)box,txt);
 	save_combo_box(list_store);
 	gtk_combo_box_set_active(box, i);
-}
-static void action_to_close(){
-	close_intention=TRUE;
-	if(ssl!=nullptr)SSL_shutdown(ssl);
-	else if(plain_socket!=-1)shutdown(plain_socket,2);
 }
 static gboolean enter_recallback( gpointer ps){
 	const char* t=gtk_entry_get_text ((GtkEntry*)((struct stk_s*)ps)->con_entry);
