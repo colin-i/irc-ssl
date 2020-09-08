@@ -204,7 +204,7 @@ struct ajoin{
 #define invite_str " invited you to join channel "
 static GtkWidget*menuwithtabs;
 #define sw_rule 0
-#define uintmax 0xffFFffFF
+#define size_t_max (((unsigned int)1<<(8*sizeof(size_t)-1))-1)+((unsigned int)1<<(8*sizeof(size_t)-1))
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -406,7 +406,7 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,uns
 		for(size_t j=0;ptr[j]!='\0';j++)if(ptr[j]==','||ptr[j]==';')i++;
 		unsigned short*por=(unsigned short*)malloc(i*2*sizeof(unsigned short));
 		if(por!=nullptr){
-			size_t j=0;size_t k=0;*swtch=uintmax;
+			size_t j=0;size_t k=0;*swtch=size_t_max;
 			for(;;){
 				BOOL end=ptr[j]=='\0';BOOL sw=ptr[j]==';';
 				if(ptr[j]==','||end||sw){
