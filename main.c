@@ -195,7 +195,7 @@ static int log_file=-1;
 static char*dummy=nullptr;
 static char**ignoreds=&dummy;
 static BOOL can_send_data=FALSE;
-#define info_list_end_str " channels listed\n"
+#define list_end_str " channels listed\n"
 enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,connection_number_id,hide_id,ignore_id,log_id,maximize_id,minimize_id,nick_id,password_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id,welcomeNotice_id};
 struct ajoin{
 	int c;//against get_active
@@ -775,11 +775,19 @@ static BOOL chan_change_nr(const char*chan,int v){
 	}
 	return FALSE;
 }
+#define listing_test(a,b) if(gtk_widget_get_has_tooltip(a)==FALSE){gtk_list_store_clear(b);gtk_widget_set_has_tooltip(a,TRUE);}
+#define listing_info(a) "Adding " a "..."
+static gboolean home_page_tooltip (GtkWidget*ignored,int ignored2,int ignored3,gboolean ignored4,GtkTooltip*tooltip){
+	(void)ignored;(void)ignored2;(void)ignored3;(void)ignored4;
+	//no gtk_tooltip_get_text, ...set_text is once
+	gtk_tooltip_set_text(tooltip,listing_info("channels"));
+	return TRUE;
+}
 static void pars_join(char*chan,struct stk_s*ps){
 	GtkWidget*pan=chan_pan(chan);
 	if(pan==nullptr){//can be kick and let the channel window
 		pan=container_frame(ps->separator,G_CALLBACK(name_join),ps);
-		gtk_widget_set_tooltip_text(pan,chan);//is also a NAMES flag here
+		gtk_widget_set_tooltip_text(pan,listing_info("names"));//is also a NAMES flag here
 		GtkWidget*close;GtkWidget*lb=add_new_tab(pan,chan,&close,ps->notebook,chan_menu,FALSE);
 		g_signal_connect_data (close, "clicked",G_CALLBACK (close_channel),lb,nullptr,G_CONNECT_SWAPPED);
 	}
@@ -935,10 +943,7 @@ static void add_name(GtkListStore*lst,char*t){
 }
 static void pars_names(GtkWidget*pan,char*b,size_t s){
 	GtkListStore*lst=contf_get_list(pan);
-	if(gtk_widget_get_has_tooltip(pan)==FALSE){
-		gtk_list_store_clear(lst);
-		gtk_widget_set_has_tooltip(pan,TRUE);
-	}
+	listing_test(pan,lst)
 	size_t j=0;
 	for(size_t i=0;i<s;i++){
 		if(b[i]==' '){b[i]='\0';add_name(lst,b+j);b[i]=' ';j=i+1;}
@@ -1204,9 +1209,10 @@ static void names_end(GtkWidget*p,char*chan){
 		gtk_list_store_set(channels, &it, LIST_ITEM, c, -1);
 	}
 }
-static void info_list_end(){
-	char buf[digits_in_uint+sizeof(info_list_end_str)];
-	addattextmain(buf,(size_t)sprintf(buf,"%u" info_list_end_str,gtk_tree_model_iter_n_children((GtkTreeModel*)channels,nullptr)));
+static void list_end(){
+	gtk_widget_set_has_tooltip(home_page,FALSE);
+	char buf[digits_in_uint+sizeof(list_end_str)];
+	addattextmain(buf,(size_t)sprintf(buf,"%u" list_end_str,gtk_tree_model_iter_n_children((GtkTreeModel*)channels,nullptr)));
 }
 static void send_autojoin(struct stk_s*ps){
 	for(size_t i=0;i<ps->ajoins_sum;i++)
@@ -1281,12 +1287,15 @@ static gboolean incsafe(gpointer ps){
 				unsigned int e;
 				//if its >nr ,c is not 2
 				if(sscanf(b,"%*s " channame_scan " %u",channm,&e)==2)
-					if((int)e>=((struct stk_s*)ps)->chan_min)
+					if((int)e>=((struct stk_s*)ps)->chan_min){
+						listing_test(home_page,channels)
 						pars_chan(channm,e);
-			}else if(d==321)gtk_list_store_clear(channels);//RPL_LISTSTART
+					}
+			}
+			//not on ircnet: else if(d==321)gtk_list_store_clear(channels);//RPL_LISTSTART
 			else if(d==323){//RPL_LISTEND
 				show_to_clause(RPL_LIST)
-				info_list_end();
+				list_end();
 			}else if(d==RPL_NAMREPLY){
 				if(show_msg!=RPL_NAMREPLY)showmsg=FALSE;
 				if(sscanf(b,"%*s %*c " channame_scan,channm)==1){
@@ -2028,6 +2037,7 @@ activate (GtkApplication* app,
 	//
 	ps->notebook = (GtkNotebook*)gtk_notebook_new ();
 	home_page=container_frame(ps->separator,G_CALLBACK(chan_join),ps->notebook);
+	g_signal_connect_data (home_page, "query-tooltip",G_CALLBACK (home_page_tooltip),nullptr,nullptr,(GConnectFlags)0);
 	text_view=contf_get_textv(home_page);
 	ps->trv=(GtkWidget*)contf_get_treev(home_page);
 	channels=(GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)ps->trv);

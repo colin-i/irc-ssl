@@ -49,6 +49,7 @@ typedef void GtkTextBuffer;
 typedef void GtkTextMark;
 typedef void GtkTextTagTable;
 typedef void GtkTextView;
+typedef void GtkTooltip;
 typedef void GtkTreeModel;
 typedef void GtkTreePath;
 typedef void GtkTreeSelection;
@@ -311,6 +312,7 @@ void gtk_text_view_get_visible_rect (GtkTreeView *tree_view, GdkRectangle *visib
 GtkWidget * gtk_text_view_new (void);
 void gtk_text_view_set_wrap_mode (GtkTextView *text_view, GtkWrapMode wrap_mode);
 void gtk_text_view_set_editable (GtkTextView *text_view,gboolean setting);
+void gtk_tooltip_set_text (GtkTooltip *tooltip, const gchar *text);
 void gtk_tree_model_get (GtkTreeModel *tree_model, GtkTreeIter *iter, ...);
 gboolean gtk_tree_model_get_iter_first(GtkTreeModel *tree_model, GtkTreeIter *iter);
 gboolean gtk_tree_model_get_iter_from_string (GtkTreeModel *tree_model, GtkTreeIter *iter, const gchar *path_string);
