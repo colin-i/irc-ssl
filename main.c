@@ -145,13 +145,13 @@ struct stk_s{
 	char*nick;const char*text;char*nknnow;
 	int separator;
 	GtkWidget*con_entry;gulong con_entry_act;GtkWidget*sen_entry;gulong sen_entry_act;
-	int refresh;//0 gtk parse handle arguments!
+	int chan_min;//0 gtk parse handle arguments!
+	int refresh;//same
 	unsigned int refreshid;
 	GtkNotebook*notebook;
 	struct data_len*dl;
 	char*welcome;
 	const char*user_irc;
-	int chan_min;//0 gtk parse handle arguments!
 	GtkWidget*trv;unsigned long trvr;
 	char*ignor_str;
 	char*execute_newmsg;GtkWindow*main_win;
@@ -792,7 +792,7 @@ static void pars_join(char*chan,struct stk_s*ps){
 		g_signal_connect_data (close, "clicked",G_CALLBACK (close_channel),lb,nullptr,G_CONNECT_SWAPPED);
 	}
 	gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,pan));
-	if(chan_change_nr(chan,1)==FALSE)if(ps->chan_min<1)pars_chan(chan,1);
+	if(chan_change_nr(chan,1)==FALSE)if(ps->chan_min<=1)pars_chan(chan,1);
 }
 static void pars_join_user(char*channm,char*nicknm){
 	//if(p!=nullptr){
@@ -1210,9 +1210,11 @@ static void names_end(GtkWidget*p,char*chan){
 	}
 }
 static void list_end(){
-	gtk_widget_set_has_tooltip(home_page,FALSE);
-	char buf[digits_in_uint+sizeof(list_end_str)];
-	addattextmain(buf,(size_t)sprintf(buf,"%u" list_end_str,gtk_tree_model_iter_n_children((GtkTreeModel*)channels,nullptr)));
+	if(gtk_widget_get_has_tooltip(home_page)){//can be zero channels and this
+		gtk_widget_set_has_tooltip(home_page,FALSE);
+		char buf[digits_in_uint+sizeof(list_end_str)];
+		addattextmain(buf,(size_t)sprintf(buf,"%u" list_end_str,gtk_tree_model_iter_n_children((GtkTreeModel*)channels,nullptr)));
+	}
 }
 static void send_autojoin(struct stk_s*ps){
 	for(size_t i=0;i<ps->ajoins_sum;i++)
@@ -1287,7 +1289,7 @@ static gboolean incsafe(gpointer ps){
 				unsigned int e;
 				//if its >nr ,c is not 2
 				if(sscanf(b,"%*s " channame_scan " %u",channm,&e)==2)
-					if((int)e>=((struct stk_s*)ps)->chan_min){
+					if(((struct stk_s*)ps)->chan_min<=(int)e){
 						listing_test(home_page,channels)
 						pars_chan(channm,e);
 					}
