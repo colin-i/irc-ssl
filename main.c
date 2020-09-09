@@ -435,7 +435,7 @@ static void pars_chan_insert(GtkTreeIter*it,char*chan,unsigned int nr,int max){
 	pars_chan_end(&i,chan,nr);
 	int n=gtk_tree_model_iter_n_children((GtkTreeModel*)channels,nullptr);
 	if(n>max){
-		gtk_tree_model_iter_nth_child((GtkTreeModel*)channels,&i,nullptr,n-1); 
+		gtk_tree_model_iter_nth_child((GtkTreeModel*)channels,&i,nullptr,n-1);
 		gtk_list_store_remove(channels,&i);
 	}
 }
