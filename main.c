@@ -135,7 +135,7 @@ enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };//connections org,channels
-#define number_of_args 20
+#define number_of_args 21
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
@@ -146,6 +146,7 @@ struct stk_s{
 	int separator;
 	GtkWidget*con_entry;gulong con_entry_act;GtkWidget*sen_entry;gulong sen_entry_act;
 	int chan_min;//0 gtk parse handle arguments!
+	int chans_max;//same
 	int refresh;//same
 	unsigned int refreshid;
 	GtkNotebook*notebook;
@@ -196,7 +197,7 @@ static char*dummy=nullptr;
 static char**ignoreds=&dummy;
 static BOOL can_send_data=FALSE;
 #define list_end_str " channels listed\n"
-enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,connection_number_id,hide_id,ignore_id,log_id,maximize_id,minimize_id,nick_id,password_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id,welcomeNotice_id};
+enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,chans_max_id,connection_number_id,hide_id,ignore_id,log_id,maximize_id,minimize_id,nick_id,password_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id,welcomeNotice_id};
 struct ajoin{
 	int c;//against get_active
 	char**chans;
@@ -428,8 +429,18 @@ static void pars_chan_end(GtkTreeIter*it,char*channm,unsigned int nr){
 	size_t ln=strlen(channm);channm[ln]=' ';sprintf(channm+ln+1,"%u",nr);
 	gtk_list_store_set(channels, it, LIST_ITEM, channm, -1);
 }
-static BOOL pars_chan_counted(char*chan,unsigned int nr){
-	GtkTreeIter it;
+static void pars_chan_insert(GtkTreeIter*it,char*chan,unsigned int nr,int max){
+	GtkTreeIter i;
+	gtk_list_store_insert_before(channels,&i,it);
+	pars_chan_end(&i,chan,nr);
+	int n=gtk_tree_model_iter_n_children((GtkTreeModel*)channels,nullptr);
+	if(n>max){
+		gtk_tree_model_iter_nth_child((GtkTreeModel*)channels,&i,nullptr,n-1); 
+		gtk_list_store_remove(channels,&i);
+	}
+}
+static int pars_chan_counted(char*chan,unsigned int nr,int max){
+	GtkTreeIter it;int sum=0;
 	gboolean valid=gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, &it);
 	while(valid){
 		char*text;
@@ -439,17 +450,15 @@ static BOOL pars_chan_counted(char*chan,unsigned int nr){
 		int a=strcmp(chan,text);
 		g_free(text);
 		if(nr>n||(nr==n&&a<0)){
-			GtkTreeIter i;
-			gtk_list_store_insert_before(channels,&i,&it);
-			pars_chan_end(&i,chan,nr);
-			return FALSE;
+			pars_chan_insert(&it,chan,nr,max);
+			return -1;
 		}
-		valid = gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it);
+		valid = gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it);sum++;
 	}
-	return TRUE;
+	return sum;
 }
-static BOOL pars_chan_alpha(char*chan,unsigned int nr){
-	GtkTreeIter it;
+static int pars_chan_alpha(char*chan,unsigned int nr,int max){
+	GtkTreeIter it;int n=0;
 	gboolean valid=gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, &it);
 	while(valid){
 		char*text;
@@ -458,20 +467,18 @@ static BOOL pars_chan_alpha(char*chan,unsigned int nr){
 		int a=strcmp(chan,text);
 		g_free(text);
 		if(a<0){
-			GtkTreeIter i;
-			gtk_list_store_insert_before(channels,&i,&it);
-			pars_chan_end(&i,chan,nr);
-			return FALSE;
+			pars_chan_insert(&it,chan,nr,max);
+			return -1;
 		}
-		valid = gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it);
+		valid = gtk_tree_model_iter_next( (GtkTreeModel*)channels, &it);n++;
 	}
-	return TRUE;
+	return n;
 }
-static void pars_chan(char*chan,unsigned int nr){
-	BOOL b;
-	if(gtk_check_menu_item_get_active(channels_counted)){b=pars_chan_counted(chan,nr);}
-	else b=pars_chan_alpha(chan,nr);
-	if(b){
+static void pars_chan(char*chan,unsigned int nr,int max){
+	int n;
+	if(gtk_check_menu_item_get_active(channels_counted)){n=pars_chan_counted(chan,nr,max);}
+	else n=pars_chan_alpha(chan,nr,max);
+	if(n>=0&&n<max){
 		GtkTreeIter it;
 		gtk_list_store_append(channels,&it);
 		pars_chan_end(&it,chan,nr);
@@ -783,6 +790,7 @@ static gboolean home_page_tooltip (GtkWidget*ignored,int ignored2,int ignored3,g
 	gtk_tooltip_set_text(tooltip,listing_info("channels"));
 	return TRUE;
 }
+#define test_to_add_chan(ps,a) ps->chan_min<=a
 static void pars_join(char*chan,struct stk_s*ps){
 	GtkWidget*pan=chan_pan(chan);
 	if(pan==nullptr){//can be kick and let the channel window
@@ -792,7 +800,7 @@ static void pars_join(char*chan,struct stk_s*ps){
 		g_signal_connect_data (close, "clicked",G_CALLBACK (close_channel),lb,nullptr,G_CONNECT_SWAPPED);
 	}
 	gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,pan));
-	if(chan_change_nr(chan,1)==FALSE)if(ps->chan_min<=1)pars_chan(chan,1);
+	if(chan_change_nr(chan,1)==FALSE)if(test_to_add_chan(ps,1))pars_chan(chan,1,ps->chans_max);
 }
 static void pars_join_user(char*channm,char*nicknm){
 	//if(p!=nullptr){
@@ -1289,9 +1297,9 @@ static gboolean incsafe(gpointer ps){
 				unsigned int e;
 				//if its >nr ,c is not 2
 				if(sscanf(b,"%*s " channame_scan " %u",channm,&e)==2)
-					if(((struct stk_s*)ps)->chan_min<=(int)e){
+					if(test_to_add_chan(((struct stk_s*)ps),(int)e)){
 						listing_test(home_page,channels)
-						pars_chan(channm,e);
+						pars_chan(channm,e,((struct stk_s*)ps)->chans_max);
 					}
 			}
 			//not on ircnet: else if(d==321)gtk_list_store_clear(channels);//RPL_LISTSTART
@@ -2290,6 +2298,9 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	ps->minimize=g_variant_dict_contains(options,ps->args[minimize_id]);
 	//
 	ps->wnotice=g_variant_dict_contains(options,ps->args[welcomeNotice_id]);
+	//
+	if (g_variant_dict_lookup (options,ps->args[chans_max_id], "i", &ps->chans_max)==FALSE)
+		ps->chans_max=150;
 	return -1;
 }
 int main (int    argc,
@@ -2311,6 +2322,8 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[dimensions_id],ps.args_short[dimensions_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
 		ps.args[chan_min_id]="chan_min";ps.args_short[chan_min_id]='m';
 		g_application_add_main_option((GApplication*)app,ps.args[chan_min_id],ps.args_short[chan_min_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Minimum users to list a channel(at \"322\"). Default 250.","NR");
+		ps.args[chans_max_id]="chans_max";ps.args_short[chans_max_id]='s';
+		g_application_add_main_option((GApplication*)app,ps.args[chans_max_id],ps.args_short[chans_max_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Maximum channels in the list. Default 150.","NR");
 		ps.args[connection_number_id]="connection_number";ps.args_short[connection_number_id]='c';
 		g_application_add_main_option((GApplication*)app,ps.args[connection_number_id],ps.args_short[connection_number_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ", 4=" con_nr_4 ". Default value is 1.",con_nr_nrs);
 		ps.args[hide_id]="hide";ps.args_short[hide_id]='h';
