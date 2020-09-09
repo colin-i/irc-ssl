@@ -74,7 +74,7 @@
 #endif
 
 #ifdef HAVE_GTK_GTK_H
-#pragma GCC diagnostic push//there are 4 more ignors in the program
+#pragma GCC diagnostic push//there are 3 more ignors in the program
 #pragma GCC diagnostic ignored "-Weverything"
 #include <gtk/gtk.h>
 #pragma GCC diagnostic pop
@@ -136,17 +136,14 @@ enum {
   N_COLUMNS
 };//connections org,channels
 #define number_of_args 21
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
-#pragma GCC diagnostic pop
 	const char*args[number_of_args];
 	int dim[2];GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;char*nknnow;
 	int separator;
 	GtkWidget*con_entry;gulong con_entry_act;GtkWidget*sen_entry;gulong sen_entry_act;
+	int chans_max;//n_children is int
 	int chan_min;//0 gtk parse handle arguments!
-	int chans_max;//same
 	int refresh;//same
 	unsigned int refreshid;
 	GtkNotebook*notebook;
