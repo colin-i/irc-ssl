@@ -203,6 +203,7 @@ struct ajoin{
 static GtkWidget*menuwithtabs;
 #define sw_rule 0
 #define size_t_max (((unsigned int)1<<(8*sizeof(size_t)-1))-1)+((unsigned int)1<<(8*sizeof(size_t)-1))
+static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -1935,6 +1936,9 @@ static void send_activate(GtkEntry*entry,struct stk_s*ps){
 		send_data(b,sz+irc_term_sz);
 		free(b);
 	}else send_msg(ps->nknnow,a,text,pg);
+	if(send_entry_list->length==10)g_free(g_queue_pop_head(send_entry_list));
+	g_queue_push_tail(send_entry_list,g_strdup(text));
+	send_entry_list_cursor=nullptr;
 	gtk_entry_buffer_delete_text(t,0,-1);
 }
 #define menu_con_add_item(n,s,a,b,c,d)\
@@ -2001,26 +2005,43 @@ static void reload_tabs(GtkWidget*menu_from,GtkWidget*menu,GtkNotebook*notebook)
 	}
 }
 static gboolean prog_key_press (struct stk_s*ps, GdkEventKey  *event){
-	if((event->state&GDK_CONTROL_MASK)!=0&&event->type==GDK_KEY_PRESS){
-		unsigned int K=gdk_keyval_to_upper(event->keyval);
-		if(K==GDK_KEY_T){
-			GList*lst=gtk_container_get_children((GtkContainer*)menuwithtabs);
-			GList*list=lst;
-			for(;;){
-				list=g_list_next(list);
-				if(list==nullptr)break;
-				gtk_widget_destroy((GtkWidget*)list->data);
+	if(event->type==GDK_KEY_PRESS){
+		if((event->state&GDK_CONTROL_MASK)!=0){
+			unsigned int K=gdk_keyval_to_upper(event->keyval);
+			if(K==GDK_KEY_T){
+				GList*lst=gtk_container_get_children((GtkContainer*)menuwithtabs);
+				GList*list=lst;
+				for(;;){
+					list=g_list_next(list);
+					if(list==nullptr)break;
+					gtk_widget_destroy((GtkWidget*)list->data);
+				}
+				g_list_free(lst);
+				reload_tabs(chan_menu,menuwithtabs,ps->notebook);
+				reload_tabs(name_on_menu,menuwithtabs,ps->notebook);
+				reload_tabs(name_off_menu,menuwithtabs,ps->notebook);
+				gtk_menu_popup_at_widget((GtkMenu*)menuwithtabs,(GtkWidget*)ps->notebook,GDK_GRAVITY_NORTH_WEST,GDK_GRAVITY_NORTH_WEST,nullptr);
+			}else if(K==GDK_KEY_C){
+				GtkWidget*pg=gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook));
+				if(is_home(gtk_notebook_get_menu_label_text(ps->notebook,pg))==FALSE)gtk_button_clicked((GtkButton*)tab_close_button(ps->notebook,pg));
+			}else if(K==GDK_KEY_Q)action_to_close();
+			else if(K==GDK_KEY_X)g_application_quit(ps->app);
+		}else if(event->keyval==GDK_KEY_Up&&gtk_widget_is_focus(ps->sen_entry)){
+			if(send_entry_list_cursor!=send_entry_list->head){
+				send_entry_list_cursor=send_entry_list_cursor==nullptr?
+					send_entry_list->tail
+					:send_entry_list_cursor->prev;
+				gtk_entry_set_text((GtkEntry*)ps->sen_entry,send_entry_list_cursor->data);
+				return TRUE;//lost focus other way
 			}
-			g_list_free(lst);
-			reload_tabs(chan_menu,menuwithtabs,ps->notebook);
-			reload_tabs(name_on_menu,menuwithtabs,ps->notebook);
-			reload_tabs(name_off_menu,menuwithtabs,ps->notebook);
-			gtk_menu_popup_at_widget((GtkMenu*)menuwithtabs,(GtkWidget*)ps->notebook,GDK_GRAVITY_NORTH_WEST,GDK_GRAVITY_NORTH_WEST,nullptr);
-		}else if(K==GDK_KEY_C){
-			GtkWidget*pg=gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook));
-			if(is_home(gtk_notebook_get_menu_label_text(ps->notebook,pg))==FALSE)gtk_button_clicked((GtkButton*)tab_close_button(ps->notebook,pg));
-		}else if(K==GDK_KEY_Q)action_to_close();
-		else if(K==GDK_KEY_X)g_application_quit(ps->app);
+		}else if(event->keyval==GDK_KEY_Down&&gtk_widget_is_focus(ps->sen_entry)){
+			if(send_entry_list_cursor!=nullptr){
+				send_entry_list_cursor=send_entry_list_cursor->next;
+				GtkEntryBuffer*buf=gtk_entry_get_buffer((GtkEntry*)ps->sen_entry);
+				gtk_entry_buffer_delete_text(buf,0,-1);
+				if(send_entry_list_cursor!=nullptr)gtk_entry_buffer_insert_text(buf,0,send_entry_list_cursor->data,-1);
+			}
+		}
 	}
 	return FALSE;//propagation seems fine
 }
@@ -2358,7 +2379,9 @@ int main (int    argc,
 		//  if(han>0)
 		ps.argc=argc;ps.argv=argv;
 		//
+		send_entry_list=g_queue_new();
 		g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
+		g_queue_free_full(send_entry_list,g_free);
 		//
 		if(ps.nick!=nullptr)g_free(ps.nick);
 		if(ps.welcome!=nullptr)g_free(ps.welcome);
