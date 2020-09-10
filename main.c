@@ -2031,7 +2031,7 @@ static gboolean prog_key_press (struct stk_s*ps, GdkEventKey  *event){
 				send_entry_list_cursor=send_entry_list_cursor==nullptr?
 					send_entry_list->tail
 					:send_entry_list_cursor->prev;
-				gtk_entry_set_text((GtkEntry*)ps->sen_entry,send_entry_list_cursor->data);
+				gtk_entry_set_text((GtkEntry*)ps->sen_entry,(const char*)send_entry_list_cursor->data);
 				return TRUE;//lost focus other way
 			}
 		}else if(event->keyval==GDK_KEY_Down&&gtk_widget_is_focus(ps->sen_entry)){
@@ -2039,7 +2039,7 @@ static gboolean prog_key_press (struct stk_s*ps, GdkEventKey  *event){
 				send_entry_list_cursor=send_entry_list_cursor->next;
 				GtkEntryBuffer*buf=gtk_entry_get_buffer((GtkEntry*)ps->sen_entry);
 				gtk_entry_buffer_delete_text(buf,0,-1);
-				if(send_entry_list_cursor!=nullptr)gtk_entry_buffer_insert_text(buf,0,send_entry_list_cursor->data,-1);
+				if(send_entry_list_cursor!=nullptr)gtk_entry_buffer_insert_text(buf,0,(const char*)send_entry_list_cursor->data,-1);
 			}
 		}
 	}

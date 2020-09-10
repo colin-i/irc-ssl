@@ -61,6 +61,7 @@ typedef void* gpointer;
 typedef const void *gconstpointer;
 typedef void (*GCallback)(void);
 typedef void *GClosureNotify;
+typedef void (*GDestroyNotify)(gpointer data);
 typedef void *GdkPixbufDestroyNotify;
 typedef gboolean(*GSourceFunc)(gpointer user_data);
 typedef enum{G_APPLICATION_FLAGS_NONE}
@@ -105,6 +106,13 @@ struct _GList
   gpointer data;
   GList *next;
   GList *prev;
+};
+typedef struct _GQueue GQueue;
+struct _GQueue
+{
+  GList *head;
+  GList *tail;
+  guint length;
 };
 typedef struct _GSList GSList;
 struct _GSList
@@ -176,6 +184,8 @@ typedef struct _GdkAtom *GdkAtom;
 #define GDK_KEY_Q 0x051
 #define GDK_KEY_T 0x054
 #define GDK_KEY_X 0x058
+#define GDK_KEY_Up 0xff52
+#define GDK_KEY_Down 0xff54
 
 #ifdef __cplusplus
 extern "C" {
@@ -197,6 +207,10 @@ gpointer g_memdup (gconstpointer mem, guint byte_size);
 gpointer g_object_ref (gpointer object);
 void g_object_set (gpointer object, const gchar *first_property_name, ...) __attribute__((__sentinel__));
 void g_object_unref (gpointer object);
+void g_queue_free_full (GQueue *queue,GDestroyNotify free_func);
+GQueue *g_queue_new (void);
+gpointer g_queue_pop_head (GQueue *queue);
+void g_queue_push_tail (GQueue *queue,gpointer data);
 gulong g_signal_connect_data (gpointer instance,const gchar *detailed_signal,GCallback c_handler,gpointer data,GClosureNotify destroy_data,GConnectFlags connect_flags);
 void g_signal_handler_block (gpointer instance, gulong handler_id);
 gulong g_signal_handler_find (gpointer instance,GSignalMatchType mask,guint signal_id,GQuark detail,GClosure *closure,gpointer func,gpointer data);
@@ -204,6 +218,7 @@ void g_signal_handler_unblock (gpointer instance, gulong handler_id);
 guint g_signal_lookup (const gchar *name, GType itype);
 gboolean g_source_remove (guint tag);
 gboolean g_spawn_command_line_async (const gchar *command_line, GError **error);
+gchar * g_strdup ( const gchar *str );
 guint g_timeout_add (guint interval, GSourceFunc function, gpointer data);
 char *g_uri_unescape_string (const char *escaped_string, const char *illegal_characters);
 gboolean g_variant_dict_contains (GVariantDict *dict, const gchar *key);
@@ -248,10 +263,12 @@ GtkWidget * gtk_dialog_get_content_area (GtkDialog *dialog);
 GtkWidget* gtk_dialog_new_with_buttons (const gchar *title,  GtkWindow *parent, GtkDialogFlags flags, const gchar *first_button_text, ...) __attribute__((__sentinel__));
 guint gtk_entry_buffer_delete_text (GtkEntryBuffer *buffer, guint position, gint n_chars);
 const gchar* gtk_entry_buffer_get_text (GtkEntryBuffer *buffer);
+guint gtk_entry_buffer_insert_text (GtkEntryBuffer *buffer,guint position,const gchar *chars,gint n_chars);
 GtkEntryBuffer *gtk_entry_get_buffer (GtkEntry *entry);
 const gchar *gtk_entry_get_text (GtkEntry *entry);
 GtkWidget* gtk_entry_new (void);
 void gtk_entry_set_placeholder_text (GtkEntry *entry, const gchar *text);
+void gtk_entry_set_text (GtkEntry *entry, const gchar *text);
 GType gtk_image_get_type (void) __attribute__((__const__));
 GtkWidget* gtk_image_new_from_icon_name (const gchar *icon_name, GtkIconSize size);
 GtkWidget *gtk_label_get_mnemonic_widget (GtkLabel *label);
@@ -339,6 +356,7 @@ gboolean gtk_widget_get_has_tooltip (GtkWidget *widget);
 GtkWidget * gtk_widget_get_parent (GtkWidget *widget);
 GtkWidget* gtk_widget_get_toplevel (GtkWidget *widget);
 void gtk_widget_grab_focus (GtkWidget *widget);
+gboolean gtk_widget_is_focus (GtkWidget *widget);
 void gtk_widget_set_has_tooltip (GtkWidget *widget, gboolean has_tooltip);
 void gtk_widget_set_size_request (GtkWidget *widget,gint width,gint height);
 void gtk_widget_set_tooltip_text (GtkWidget *widget, const gchar *text);
