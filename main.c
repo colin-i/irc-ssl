@@ -2040,6 +2040,7 @@ static gboolean prog_key_press (struct stk_s*ps, GdkEventKey  *event){
 				GtkEntryBuffer*buf=gtk_entry_get_buffer((GtkEntry*)ps->sen_entry);
 				gtk_entry_buffer_delete_text(buf,0,-1);
 				if(send_entry_list_cursor!=nullptr)gtk_entry_buffer_insert_text(buf,0,(const char*)send_entry_list_cursor->data,-1);
+				return TRUE;//is trying to switch focus
 			}
 		}
 	}
