@@ -74,7 +74,7 @@
 #endif
 
 #ifdef HAVE_GTK_GTK_H
-#pragma GCC diagnostic push//there are 3 more ignors in the program
+#pragma GCC diagnostic push//there are 4 more ignors in the program
 #pragma GCC diagnostic ignored "-Weverything"
 #include <gtk/gtk.h>
 #pragma GCC diagnostic pop
@@ -135,8 +135,11 @@ enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };//connections org,channels
-#define number_of_args 21
+#define number_of_args 22
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
+#pragma GCC diagnostic pop
 	const char*args[number_of_args];
 	int dim[2];GtkComboBoxText*cbt;GtkTreeView*tv;
 	char*nick;const char*text;char*nknnow;
@@ -159,6 +162,7 @@ struct stk_s{
 	char*password;
 	GtkListStore*org_tree_list;
 	GApplication*app;
+	unsigned int send_history;
 	gboolean maximize;gboolean minimize;gboolean visible;
 	gboolean timestamp;gboolean wnotice;
 	BOOL user_irc_free;unsigned char con_type;BOOL show_msgs;
@@ -194,7 +198,7 @@ static char*dummy=nullptr;
 static char**ignoreds=&dummy;
 static BOOL can_send_data=FALSE;
 #define list_end_str " channels listed\n"
-enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,chans_max_id,connection_number_id,hide_id,ignore_id,log_id,maximize_id,minimize_id,nick_id,password_id,refresh_id,right_id,run_id,timestamp_id,user_id,visible_id,welcome_id,welcomeNotice_id};
+enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,chans_max_id,connection_number_id,hide_id,ignore_id,log_id,maximize_id,minimize_id,nick_id,password_id,refresh_id,right_id,run_id,send_history_id,timestamp_id,user_id,visible_id,welcome_id,welcomeNotice_id};
 struct ajoin{
 	int c;//against get_active
 	char**chans;
@@ -1936,9 +1940,11 @@ static void send_activate(GtkEntry*entry,struct stk_s*ps){
 		send_data(b,sz+irc_term_sz);
 		free(b);
 	}else send_msg(ps->nknnow,a,text,pg);
-	if(send_entry_list->length==10)g_free(g_queue_pop_head(send_entry_list));
-	g_queue_push_tail(send_entry_list,g_strdup(text));
-	send_entry_list_cursor=nullptr;
+	if(ps->send_history>0){
+		if(send_entry_list->length==ps->send_history)g_free(g_queue_pop_head(send_entry_list));
+		g_queue_push_tail(send_entry_list,g_strdup(text));
+		send_entry_list_cursor=nullptr;
+	}
 	gtk_entry_buffer_delete_text(t,0,-1);
 }
 #define menu_con_add_item(n,s,a,b,c,d)\
@@ -2320,6 +2326,9 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	//
 	if (g_variant_dict_lookup (options,ps->args[chans_max_id], "i", &ps->chans_max)==FALSE)
 		ps->chans_max=150;
+	//
+	if (g_variant_dict_lookup (options,ps->args[send_history_id],"i",&ps->send_history)==FALSE)
+		ps->send_history=10;
 	return -1;
 }
 int main (int    argc,
@@ -2365,6 +2374,8 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[right_id],ps.args_short[right_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Right pane size, default 150","WIDTH");
 		ps.args[run_id]="run";ps.args_short[run_id]='x';
 		g_application_add_main_option((GApplication*)app,ps.args[run_id],ps.args_short[run_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"If window is not active, run command line at new private messages.","COMMAND");
+		ps.args[send_history_id]="send_history";ps.args_short[send_history_id]='o';
+		g_application_add_main_option((GApplication*)app,ps.args[send_history_id],ps.args_short[send_history_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Send history length (up/down at send entry). Default 10.","NR");
 		ps.args[timestamp_id]="timestamp";ps.args_short[timestamp_id]='t';
 		g_application_add_main_option((GApplication*)app,ps.args[timestamp_id],ps.args_short[timestamp_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Show message timestamp.",nullptr);
 		ps.args[user_id]="user";ps.args_short[user_id]='u';
