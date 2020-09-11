@@ -130,7 +130,6 @@ static GtkWidget*chan_menu;
 static GtkWidget*name_on_menu;static GtkWidget*name_off_menu;
 static unsigned int alert_counter=0;
 static GtkCheckMenuItem*show_time;static GtkCheckMenuItem*channels_counted;
-#define user_message "USER guest tolmoon tolsun :Ronnie Reagan"
 enum {
   LIST_ITEM = 0,
   N_COLUMNS
@@ -208,6 +207,15 @@ static GtkWidget*menuwithtabs;
 #define sw_rule 0
 #define size_t_max (((unsigned int)1<<(8*sizeof(size_t)-1))-1)+((unsigned int)1<<(8*sizeof(size_t)-1))
 static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
+#define STR_INDIR(x) #x
+#define INT_CONV_STR(x) STR_INDIR(x)
+#define default_chan_min 250
+#define default_chans_max 150
+#define default_connection_number 1
+#define default_refresh 600
+#define default_send_history 50
+#define default_right 150
+#define default_user "USER guest tolmoon tolsun :Ronnie Reagan"
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -2258,7 +2266,7 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 			return 0;
 		}
 		ps->con_type=(unsigned char)nr;
-	}else ps->con_type=1;
+	}else ps->con_type=default_connection_number;
 	//
 	char*result;
 	if(g_variant_dict_lookup (options, ps->args[dimensions_id], "s", &result)){//missing argument is not reaching here
@@ -2273,10 +2281,10 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		ps->nick=nullptr;
 	//
 	if (g_variant_dict_lookup (options,ps->args[right_id], "i", &ps->separator)==FALSE)
-		ps->separator=150;
+		ps->separator=default_right;
 	//
 	if (g_variant_dict_lookup (options,ps->args[refresh_id], "i", &ps->refresh)==FALSE)
-		ps->refresh=600;
+		ps->refresh=default_refresh;
 	//
 	if(g_variant_dict_lookup(options,ps->args[welcome_id],"s",&ps->welcome)==FALSE)
 		ps->welcome=nullptr;
@@ -2285,10 +2293,10 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	//
 	if(g_variant_dict_lookup(options,ps->args[user_id],"s",&ps->user_irc))
 		ps->user_irc_free=TRUE;//-Wstring-compare tells the result is unspecified against a #define
-	else{ps->user_irc=user_message;ps->user_irc_free=FALSE;}
+	else{ps->user_irc=default_user;ps->user_irc_free=FALSE;}
 	//
 	if (g_variant_dict_lookup (options,ps->args[chan_min_id], "i", &ps->chan_min)==FALSE)
-		ps->chan_min=250;
+		ps->chan_min=default_chan_min;
 	//
 	ps->visible=g_variant_dict_contains(options,ps->args[visible_id]);
 	//
@@ -2325,10 +2333,10 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	ps->wnotice=g_variant_dict_contains(options,ps->args[welcomeNotice_id]);
 	//
 	if (g_variant_dict_lookup (options,ps->args[chans_max_id], "i", &ps->chans_max)==FALSE)
-		ps->chans_max=150;
+		ps->chans_max=default_chans_max;
 	//
 	if (g_variant_dict_lookup (options,ps->args[send_history_id],"i",&ps->send_history)==FALSE)
-		ps->send_history=10;
+		ps->send_history=default_send_history;
 	return -1;
 }
 int main (int    argc,
@@ -2349,11 +2357,11 @@ int main (int    argc,
 		ps.args[dimensions_id]="dimensions";ps.args_short[dimensions_id]='d';
 		g_application_add_main_option((GApplication*)app,ps.args[dimensions_id],ps.args_short[dimensions_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
 		ps.args[chan_min_id]="chan_min";ps.args_short[chan_min_id]='m';
-		g_application_add_main_option((GApplication*)app,ps.args[chan_min_id],ps.args_short[chan_min_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Minimum users to list a channel(at \"322\"). Default 250.","NR");
+		g_application_add_main_option((GApplication*)app,ps.args[chan_min_id],ps.args_short[chan_min_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Minimum users to list a channel(at \"322\"). Default " INT_CONV_STR(default_chan_min) ".","NR");
 		ps.args[chans_max_id]="chans_max";ps.args_short[chans_max_id]='s';
-		g_application_add_main_option((GApplication*)app,ps.args[chans_max_id],ps.args_short[chans_max_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Maximum channels in the list. Default 150.","NR");
+		g_application_add_main_option((GApplication*)app,ps.args[chans_max_id],ps.args_short[chans_max_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Maximum channels in the list. Default " INT_CONV_STR(default_chans_max) ".","NR");
 		ps.args[connection_number_id]="connection_number";ps.args_short[connection_number_id]='c';
-		g_application_add_main_option((GApplication*)app,ps.args[connection_number_id],ps.args_short[connection_number_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ", 4=" con_nr_4 ". Default value is 1.",con_nr_nrs);
+		g_application_add_main_option((GApplication*)app,ps.args[connection_number_id],ps.args_short[connection_number_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ", 4=" con_nr_4 ". Default value is " INT_CONV_STR(default_connection_number) ".",con_nr_nrs);
 		ps.args[hide_id]="hide";ps.args_short[hide_id]='h';
 		g_application_add_main_option((GApplication*)app,ps.args[hide_id],ps.args_short[hide_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Don't display activity messages at " home_string " tab (join,part,...).",nullptr);
 		ps.args[ignore_id]="ignore";ps.args_short[ignore_id]='i';
@@ -2369,17 +2377,17 @@ int main (int    argc,
 		ps.args[password_id]="password";ps.args_short[password_id]='p';
 		g_application_add_main_option((GApplication*)app,ps.args[password_id],ps.args_short[password_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default password (blank overwrite with \"@host...\", the format is at the g.u.i. help)","PASSWORD");
 		ps.args[refresh_id]="refresh";ps.args_short[refresh_id]='f';
-		g_application_add_main_option((GApplication*)app,ps.args[refresh_id],ps.args_short[refresh_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Refresh channels interval in seconds. Default 600. Less than 1 to disable.","SECONDS");
+		g_application_add_main_option((GApplication*)app,ps.args[refresh_id],ps.args_short[refresh_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Refresh channels interval in seconds. Default " INT_CONV_STR(default_refresh) ". Less than 1 to disable.","SECONDS");
 		ps.args[right_id]="right";ps.args_short[right_id]='r';
-		g_application_add_main_option((GApplication*)app,ps.args[right_id],ps.args_short[right_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Right pane size, default 150","WIDTH");
+		g_application_add_main_option((GApplication*)app,ps.args[right_id],ps.args_short[right_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Right pane size, default " INT_CONV_STR(default_right),"WIDTH");
 		ps.args[run_id]="run";ps.args_short[run_id]='x';
 		g_application_add_main_option((GApplication*)app,ps.args[run_id],ps.args_short[run_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"If window is not active, run command line at new private messages.","COMMAND");
 		ps.args[send_history_id]="send_history";ps.args_short[send_history_id]='o';
-		g_application_add_main_option((GApplication*)app,ps.args[send_history_id],ps.args_short[send_history_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Send history length (up/down at send entry). Default 10.","NR");
+		g_application_add_main_option((GApplication*)app,ps.args[send_history_id],ps.args_short[send_history_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Send history length (up/down at send entry). Default " INT_CONV_STR(default_send_history) ".","NR");
 		ps.args[timestamp_id]="timestamp";ps.args_short[timestamp_id]='t';
 		g_application_add_main_option((GApplication*)app,ps.args[timestamp_id],ps.args_short[timestamp_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Show message timestamp.",nullptr);
 		ps.args[user_id]="user";ps.args_short[user_id]='u';
-		g_application_add_main_option((GApplication*)app,ps.args[user_id],ps.args_short[user_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"User message. Default \"" user_message "\"","STRING");
+		g_application_add_main_option((GApplication*)app,ps.args[user_id],ps.args_short[user_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"User message. Default \"" default_user "\"","STRING");
 		ps.args[visible_id]="visible";ps.args_short[visible_id]='v';
 		g_application_add_main_option((GApplication*)app,ps.args[visible_id],ps.args_short[visible_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Send MODE -i at start. (remove invisible)",nullptr);
 		ps.args[welcome_id]="welcome";ps.args_short[welcome_id]='w';
