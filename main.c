@@ -212,7 +212,10 @@ static int log_file=-1;
 static char*dummy=nullptr;
 static char**ignoreds=&dummy;
 static BOOL can_send_data=FALSE;
-#define list_end_str " channels listed\n"
+#define chans_str "channels"
+#define names_str "names"
+#define counting_the_list_size (sizeof(chans_str)>sizeof(names_str)?sizeof(chans_str):sizeof(names_str))
+#define list_end_str " listed\n"
 enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,chans_max_id,connection_number_id,hide_id,ignore_id,log_id,maximize_id,minimize_id,nick_id,password_id,refresh_id,right_id,run_id,send_history_id,timestamp_id,user_id,visible_id,welcome_id,welcomeNotice_id};
 struct ajoin{
 	int c;//against get_active
@@ -232,6 +235,9 @@ static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 #define default_user "USER guest tolmoon tolsun :Ronnie Reagan"
 #define visible_mod "-i"
 #define wait_recon 10
+#define user_error "*Error"
+#define user_topic "*Topic"
+#define user_info "*Info"
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -1188,14 +1194,13 @@ static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps,BOOL is_privmsg,const
 	}
 }
 static void pars_err(char*str,char*msg){
-	const char*er="*Error";
 	GtkWidget*pg=chan_pan(str);
 	if(pg!=nullptr){//e.g. ERR_CHANNELISFULL
-		addatchans(er,msg,pg);
+		addatchans(user_error,msg,pg);
 		return;
 	}
 	pg=name_off_pan(str);
-	if(pg!=nullptr)addatnames(er,msg,pg);
+	if(pg!=nullptr)addatnames(user_error,msg,pg);
 }
 static void line_switch(char*n,GtkWidget*from,GtkWidget*to,const char*msg){
 	GList*list=gtk_container_get_children((GtkContainer*)from);
@@ -1209,7 +1214,7 @@ static void line_switch(char*n,GtkWidget*from,GtkWidget*to,const char*msg){
 				gtk_container_remove((GtkContainer*)from, menu_item);
 				gtk_container_add((GtkContainer*)to, menu_item);
 				g_object_unref(menu_item);//to 1
-				addatnames("^Info",msg,get_pan_from_menu(menu_item));
+				addatnames(user_info,msg,get_pan_from_menu(menu_item));
 				break;
 			}
 			list=g_list_next(list);
@@ -1218,8 +1223,15 @@ static void line_switch(char*n,GtkWidget*from,GtkWidget*to,const char*msg){
 		g_list_free(lst);
 	}
 }
+static void counting_the_list(GtkWidget*w,const char*a){
+	gtk_widget_set_has_tooltip(w,FALSE);
+	char buf[digits_in_uint+counting_the_list_size+sizeof(list_end_str)];
+	size_t n=(size_t)sprintf(buf,"%u %s" list_end_str,gtk_tree_model_iter_n_children((GtkTreeModel*)channels,nullptr),a);
+	if(w==home_page)addattextmain(buf,n);
+	else addatchans(user_info,buf,w);
+}
 static void names_end(GtkWidget*p,char*chan){
-	gtk_widget_set_has_tooltip(p,FALSE);
+	counting_the_list(p,names_str);
 	char c[chan_sz+1+digits_in_uint+1];
 	GtkTreeIter it;char*text;
 	BOOL b;
@@ -1244,11 +1256,8 @@ static void names_end(GtkWidget*p,char*chan){
 	}
 }
 static void list_end(){
-	if(gtk_widget_get_has_tooltip(home_page)){//can be zero channels and this
-		gtk_widget_set_has_tooltip(home_page,FALSE);
-		char buf[digits_in_uint+sizeof(list_end_str)];
-		addattextmain(buf,(size_t)sprintf(buf,"%u" list_end_str,gtk_tree_model_iter_n_children((GtkTreeModel*)channels,nullptr)));
-	}
+	if(gtk_widget_get_has_tooltip(home_page))//can be zero channels and this
+		counting_the_list(home_page,chans_str);
 }
 static void send_autojoin(struct stk_s*ps){
 	for(size_t i=0;i<ps->ajoins_sum;i++)
@@ -1349,7 +1358,7 @@ static gboolean incsafe(gpointer ps){
 				}
 			}else if(d==332){//RPL_TOPIC
 				if(sscanf(b,name_scan " " channame_scan " %c",nicknm,channm,&c)==3)
-					addatchans("*Topic",b+strlen(nicknm)+1+strlen(channm)+2,chan_pan(channm));
+					addatchans(user_topic,b+strlen(nicknm)+1+strlen(channm)+2,chan_pan(channm));
 			}else if(d==319){//RPL_WHOISCHANNELS
 				b=strchr(b,' ');
 				if(b!=nullptr){
