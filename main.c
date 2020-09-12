@@ -100,6 +100,27 @@ static char*info_path_name=nullptr;
 #define home_string "*Home"
 #define priv_msg_str "PRIVMSG"
 #define not_msg_str "NOTICE"
+#define parse_host_left "@"
+#define parse_host_delim ":"
+#define parse_host_ports_delim "-"
+#define parse_host_ports_micro ","
+#define parse_host_ports_macro ";"
+#define parse_host_ports_macro_text "semicolon"
+#define STR_INDIR(x) #x
+#define INT_CONV_STR(x) STR_INDIR(x)
+#define _con_nr_su 1
+#define _con_nr_us 2
+#define _con_nr_s 3
+#define _con_nr_u 4
+#define con_nr_su "SSL or Unencrypted"
+#define con_nr_us "Unencrypted or SSL"
+#define con_nr_s "SSL"
+#define con_nr_u "Unencrypted"
+#define con_nr_min _con_nr_su
+#define con_nr_max _con_nr_u
+#define con_nr_nrs INT_CONV_STR(con_nr_min) "-" INT_CONV_STR(con_nr_max)
+#define con_nr_righttype1 _con_nr_us
+#define con_nr_righttype2 _con_nr_u
 #define help_text "Most of the parameters are set at start.\n\
 Launch the program with --help argument for more info.\n\
 Send irc commands from the " home_string " tab. Other tabs are sending " priv_msg_str " messages.\n\
@@ -110,10 +131,11 @@ Ctrl+C = Close tab\n\
 Ctrl+Q = Shutdown connection\n\
 Ctrl+X = Exit program\n\
 \n\
-Connection format is [[nickname:]password@]hostname[:port1[-portN][,portM...][;portP...]].\n\
-A semicolon (;) will override the connection type. Before semicolon, ssl or ssl/unencrypted; after semicolon, unencrypted or unencrypted/ssl.\n\
-Escape @ in password with the uri format (\"%40\").\n\
-e.g. newNick:a%40c@127.0.0.1:6665-6669"
+Connection format:\n\
+[[nickname" parse_host_delim "]password" parse_host_left "]hostname[" parse_host_delim "port1[" parse_host_ports_delim "portN][" parse_host_ports_micro "portM...][" parse_host_ports_macro "portP...]]\n\
+A " parse_host_ports_macro_text " (" parse_host_ports_macro ") will override the connection type. Before " parse_host_ports_macro_text ", " con_nr_s " or " con_nr_su "; after " parse_host_ports_macro_text ", " con_nr_u " or " con_nr_us ".\n\
+Escape " parse_host_left " in password with the uri format (\"%40\").\n\
+e.g. newNick" parse_host_delim "a%40c" parse_host_left "127.0.0.1" parse_host_delim "7000" parse_host_ports_macro "6660" parse_host_ports_delim "6665" parse_host_ports_micro "6669"
 #define chan_sz 50
 #define channul_sz chan_sz+1
 //"up to fifty (50) characters"
@@ -167,12 +189,6 @@ struct stk_s{
 	BOOL user_irc_free;unsigned char con_type;BOOL show_msgs;
 	char args_short[number_of_args];
 };
-#define con_nr_1 "SSL or Unencrypted"
-#define con_nr_2 "Unencrypted or SSL"
-#define con_nr_3 "SSL"
-#define con_nr_4 "Unencrypted"
-#define con_nr_nrs "1-4"
-#define con_nr_max 4
 static GSList*con_group;
 static const unsigned char icon16[]={
 0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0x00,0x00,0xff,0xff,0xff
@@ -207,15 +223,15 @@ static GtkWidget*menuwithtabs;
 #define sw_rule 0
 #define size_t_max (((unsigned int)1<<(8*sizeof(size_t)-1))-1)+((unsigned int)1<<(8*sizeof(size_t)-1))
 static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
-#define STR_INDIR(x) #x
-#define INT_CONV_STR(x) STR_INDIR(x)
 #define default_chan_min 250
 #define default_chans_max 150
-#define default_connection_number 1
+#define default_connection_number _con_nr_su
 #define default_refresh 600
 #define default_send_history 50
 #define default_right 150
 #define default_user "USER guest tolmoon tolsun :Ronnie Reagan"
+#define visible_mod "-i"
+#define wait_recon 10
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
@@ -367,13 +383,13 @@ static void create_socket(char*hostname,unsigned short port) {
 static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,unsigned short**pr,size_t*pl,size_t*swtch,struct stk_s*ps) {
 	size_t sz=strlen(indata);
 	//
-	const char*left=strchr(indata,'@');BOOL nonick=TRUE;
+	const char*left=strchr(indata,*parse_host_left);BOOL nonick=TRUE;
 	if(left!=nullptr){
 		size_t lsz=(size_t)(left-indata);
 		size_t i=lsz;
 		while(i>0){
 			i--;
-			if(indata[i]==':'){
+			if(indata[i]==*parse_host_delim){
 				if(i>=namenul_sz)return FALSE;
 				if(i>0){
 					memcpy(nkn,indata,i);nkn[i]='\0';nonick=FALSE;
@@ -401,7 +417,7 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,uns
 	}
 	ps->nknnow=nkn;//can be only at this go
 	//
-	const char*ptr=strchr(indata,':');
+	const char*ptr=strchr(indata,*parse_host_delim);
 	if(ptr!=nullptr)sz=(size_t)(ptr-indata);
 	if(sz<hostname_sz){
 		memcpy(hostname, indata, sz);
@@ -414,14 +430,14 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,uns
 		}
 		ptr++;
 		size_t i=1;
-		for(size_t j=0;ptr[j]!='\0';j++)if(ptr[j]==','||ptr[j]==';')i++;
+		for(size_t j=0;ptr[j]!='\0';j++)if(ptr[j]==*parse_host_ports_micro||ptr[j]==*parse_host_ports_macro)i++;
 		unsigned short*por=(unsigned short*)malloc(i*2*sizeof(unsigned short));
 		if(por!=nullptr){
 			size_t j=0;size_t k=0;*swtch=size_t_max;
 			for(;;){
-				BOOL end=ptr[j]=='\0';BOOL sw=ptr[j]==';';
-				if(ptr[j]==','||end||sw){
-					int n=sscanf(ptr,"%hu-%hu",&por[k],&por[k+1]);
+				BOOL end=ptr[j]=='\0';BOOL sw=ptr[j]==*parse_host_ports_macro;
+				if(ptr[j]==*parse_host_ports_micro||end||sw){
+					int n=sscanf(ptr,"%hu" parse_host_ports_delim "%hu",&por[k],&por[k+1]);
 					if(n==0){free(por);return FALSE;}
 					if(n==1)por[k+1]=por[k];
 					if(end){*pl=i*2-2;*pr=por;return TRUE;}
@@ -1479,7 +1495,7 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 					char vidata[5+name_sz+3+irc_term_sz]="MODE ";
 					memcpy(vidata+5,nkn,nkn_len);
 					size_t c=5+nkn_len;
-					memcpy(vidata+c," -i" irc_term,3+irc_term_sz);
+					memcpy(vidata+c," " visible_mod irc_term,3+irc_term_sz);
 					send_safe(vidata,c+3+irc_term_sz);
 				}
 				do{
@@ -1572,14 +1588,14 @@ static void proced(struct stk_s*ps){
 		}
 		do{
 			size_t port_i=0;
-			if(swtch<=port_last&&(n==2||n==4))n--;
+			if(swtch<=port_last&&(n==con_nr_righttype1||n==con_nr_righttype2))n--;
 			for(;;){
 				unsigned short port1=ports[port_i];unsigned short port2=ports[port_i+1];
 				for(;;){
 					create_socket(hostname,port1);
 					if(plain_socket != -1){
 						BOOL r;
-						if(n==1){
+						if(n==_con_nr_su){
 							r=con_ssl(psw,nkn,ps);
 							if(r==FALSE){
 								close_plain_safe
@@ -1587,7 +1603,7 @@ static void proced(struct stk_s*ps){
 								if(plain_socket != -1)
 									r=con_plain(psw,nkn,ps);
 							}
-						}else if(n==2){
+						}else if(n==_con_nr_us){
 							r=con_plain(psw,nkn,ps);
 							if(r==FALSE){
 								close_plain_safe
@@ -1595,7 +1611,7 @@ static void proced(struct stk_s*ps){
 								if(plain_socket != -1)
 									r=con_ssl(psw,nkn,ps);
 							}
-						}else if(n==3)r=con_ssl(psw,nkn,ps);
+						}else if(n==_con_nr_s)r=con_ssl(psw,nkn,ps);
 						else
 							r=con_plain(psw,nkn,ps);
 						close_plain_safe
@@ -1611,8 +1627,8 @@ static void proced(struct stk_s*ps){
 				if(swtch==port_i)n++;
 			}
 			if(close_intention==FALSE){
-				main_text_s("Will try to reconnect after 10 seconds.\n");
-				for(unsigned int i=0;i<10;i++){
+				main_text_s("Will try to reconnect after " INT_CONV_STR(wait_recon) " seconds.\n");
+				for(unsigned int i=0;i<wait_recon;i++){
 					sleep(1);
 					if(close_intention)break;
 				}
@@ -2138,10 +2154,10 @@ activate (GtkApplication* app,
 	GtkWidget*menu_con=gtk_menu_item_new_with_label("Connection Type");
 	GtkMenuShell*menucon=(GtkMenuShell*)gtk_menu_new();
 	con_group=nullptr;
-	menu_con_add_item(1,con_nr_1,menu_item,con_group,menucon,ps);//0x31
-	menu_con_add_item(2,con_nr_2,menu_item,con_group,menucon,ps);
-	menu_con_add_item(3,con_nr_3,menu_item,con_group,menucon,ps);
-	menu_con_add_item(con_nr_max,con_nr_4,menu_item,con_group,menucon,ps);
+	menu_con_add_item(_con_nr_su,con_nr_su,menu_item,con_group,menucon,ps);//0x31
+	menu_con_add_item(_con_nr_us,con_nr_us,menu_item,con_group,menucon,ps);
+	menu_con_add_item(_con_nr_s,con_nr_s,menu_item,con_group,menucon,ps);
+	menu_con_add_item(_con_nr_u,con_nr_u,menu_item,con_group,menucon,ps);
 	gtk_menu_item_set_submenu((GtkMenuItem*)menu_con,(GtkWidget*)menucon);
 	gtk_menu_shell_append ((GtkMenuShell*)menu,menu_con);
 	gtk_widget_show_all(menu_con);
@@ -2261,7 +2277,7 @@ static void parse_ignore(GVariant*v,struct stk_s*ps){
 static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	int nr;
 	if (g_variant_dict_lookup (options,ps->args[connection_number_id], "i", &nr)){//if 0 this is false here
-		if(nr<1||nr>con_nr_max){
+		if(nr<con_nr_min||nr>con_nr_max){
 			printf("%s must be from " con_nr_nrs " interval, \"%i\" given.\n",ps->args[7],nr);
 			return 0;
 		}
@@ -2357,11 +2373,11 @@ int main (int    argc,
 		ps.args[dimensions_id]="dimensions";ps.args_short[dimensions_id]='d';
 		g_application_add_main_option((GApplication*)app,ps.args[dimensions_id],ps.args_short[dimensions_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
 		ps.args[chan_min_id]="chan_min";ps.args_short[chan_min_id]='m';
-		g_application_add_main_option((GApplication*)app,ps.args[chan_min_id],ps.args_short[chan_min_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Minimum users to list a channel(at \"322\"). Default " INT_CONV_STR(default_chan_min) ".","NR");
+		g_application_add_main_option((GApplication*)app,ps.args[chan_min_id],ps.args_short[chan_min_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Minimum users to list a channel(at " STR_INDIR(RPL_LIST) "). Default " INT_CONV_STR(default_chan_min) ".","NR");
 		ps.args[chans_max_id]="chans_max";ps.args_short[chans_max_id]='s';
 		g_application_add_main_option((GApplication*)app,ps.args[chans_max_id],ps.args_short[chans_max_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Maximum channels in the list. Default " INT_CONV_STR(default_chans_max) ".","NR");
 		ps.args[connection_number_id]="connection_number";ps.args_short[connection_number_id]='c';
-		g_application_add_main_option((GApplication*)app,ps.args[connection_number_id],ps.args_short[connection_number_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"1=" con_nr_1 ", 2=" con_nr_2 ", 3=" con_nr_3 ", 4=" con_nr_4 ". Default value is " INT_CONV_STR(default_connection_number) ".",con_nr_nrs);
+		g_application_add_main_option((GApplication*)app,ps.args[connection_number_id],ps.args_short[connection_number_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,INT_CONV_STR(_con_nr_su) "=" con_nr_su ", " INT_CONV_STR(_con_nr_us) "=" con_nr_us ", " INT_CONV_STR(_con_nr_s) "=" con_nr_s ", " INT_CONV_STR(_con_nr_u) "=" con_nr_u ". Default value is " INT_CONV_STR(default_connection_number) ".",con_nr_nrs);
 		ps.args[hide_id]="hide";ps.args_short[hide_id]='h';
 		g_application_add_main_option((GApplication*)app,ps.args[hide_id],ps.args_short[hide_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Don't display activity messages at " home_string " tab (join,part,...).",nullptr);
 		ps.args[ignore_id]="ignore";ps.args_short[ignore_id]='i';
@@ -2375,7 +2391,7 @@ int main (int    argc,
 		ps.args[nick_id]="nick";ps.args_short[nick_id]='n';
 		g_application_add_main_option((GApplication*)app,ps.args[nick_id],ps.args_short[nick_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
 		ps.args[password_id]="password";ps.args_short[password_id]='p';
-		g_application_add_main_option((GApplication*)app,ps.args[password_id],ps.args_short[password_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default password (blank overwrite with \"@host...\", the format is at the g.u.i. help)","PASSWORD");
+		g_application_add_main_option((GApplication*)app,ps.args[password_id],ps.args_short[password_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default password (blank overwrite with \"" parse_host_left "host...\", the format is at the g.u.i. help)","PASSWORD");
 		ps.args[refresh_id]="refresh";ps.args_short[refresh_id]='f';
 		g_application_add_main_option((GApplication*)app,ps.args[refresh_id],ps.args_short[refresh_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Refresh channels interval in seconds. Default " INT_CONV_STR(default_refresh) ". Less than 1 to disable.","SECONDS");
 		ps.args[right_id]="right";ps.args_short[right_id]='r';
@@ -2389,7 +2405,7 @@ int main (int    argc,
 		ps.args[user_id]="user";ps.args_short[user_id]='u';
 		g_application_add_main_option((GApplication*)app,ps.args[user_id],ps.args_short[user_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"User message. Default \"" default_user "\"","STRING");
 		ps.args[visible_id]="visible";ps.args_short[visible_id]='v';
-		g_application_add_main_option((GApplication*)app,ps.args[visible_id],ps.args_short[visible_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Send MODE -i at start. (remove invisible)",nullptr);
+		g_application_add_main_option((GApplication*)app,ps.args[visible_id],ps.args_short[visible_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Send MODE " visible_mod " at start. (remove invisible)",nullptr);
 		ps.args[welcome_id]="welcome";ps.args_short[welcome_id]='w';
 		g_application_add_main_option((GApplication*)app,ps.args[welcome_id],ps.args_short[welcome_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
 		ps.args[welcomeNotice_id]="welcome-notice";ps.args_short[welcomeNotice_id]='e';
