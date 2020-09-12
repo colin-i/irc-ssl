@@ -1337,7 +1337,7 @@ static gboolean incsafe(gpointer ps){
 						pars_chan(channm,e,((struct stk_s*)ps)->chans_max);
 					}
 			}
-			//not on ircnet: else if(d==321)gtk_list_store_clear(channels);//RPL_LISTSTART
+			//not on ircnet: else if(d==321)//RPL_LISTSTART
 			else if(d==323){//RPL_LISTEND
 				show_to_clause(RPL_LIST)
 				list_end();
@@ -1446,9 +1446,13 @@ static void close_buttons_handler(GtkNotebook*nb,void(*fn)(gpointer,gulong)){
 	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
 	if(list!=nullptr){
 		GList*ls=list;for(;;){
-			GtkWidget*menu_item=(GtkWidget*)list->data;GtkWidget*pan=get_pan_from_menu(menu_item);
+			GtkWidget*menu_item=(GtkWidget*)list->data;
+			GtkWidget*pan=get_pan_from_menu(menu_item);
 			GtkWidget*b=tab_close_button(nb,pan);
 			fn(b,g_signal_handler_find(b,G_SIGNAL_MATCH_ID,g_signal_lookup("clicked", gtk_button_get_type()),0, nullptr, nullptr, nullptr));
+			//
+			gtk_widget_set_has_tooltip(pan,FALSE);//in the middle of the messages
+			//
 			list=g_list_next(list);
 			if(list==nullptr)break;
 		}g_list_free(ls);
@@ -1463,6 +1467,8 @@ static gboolean senstartthreadsfunc(gpointer ps){
 	close_buttons_handler(((struct stk_s*)ps)->notebook,g_signal_handler_unblock);
 	g_signal_handler_unblock(((struct stk_s*)ps)->trv,((struct stk_s*)ps)->trvr);
 	//
+	gtk_list_store_clear(channels);
+	//
 	pthread_kill( threadid, SIGUSR1);
 	can_send_data=TRUE;
 	return FALSE;
@@ -1476,6 +1482,8 @@ static gboolean senstopthreadsfunc(gpointer ps){
 	//
 	close_buttons_handler(((struct stk_s*)ps)->notebook,g_signal_handler_block);
 	g_signal_handler_block(((struct stk_s*)ps)->trv,((struct stk_s*)ps)->trvr);
+	//
+	gtk_widget_set_has_tooltip(home_page,FALSE);//in the middle of the messages
 	//
 	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
@@ -1631,6 +1639,7 @@ static void proced(struct stk_s*ps){
 					if(port1<port2)port1++;
 					else port1--;
 				}
+				if(close_intention)break;
 				if(port_i==port_last)break;
 				port_i+=2;
 				if(swtch==port_i)n++;
