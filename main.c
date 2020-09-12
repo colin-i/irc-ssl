@@ -246,7 +246,8 @@ static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 #define user_info "*Info"
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
-#define contf_get_list(pan) (GtkListStore*)gtk_tree_view_get_model(contf_get_treev(pan))
+#define contf_get_model(pan) gtk_tree_view_get_model(contf_get_treev(pan))
+#define contf_get_list(pan) (GtkListStore*)contf_get_model(pan)
 #define contf_get_textv(pan) (GtkTextView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child1((GtkPaned*)pan))
 static void addtimestamp(GtkTextBuffer*text_buffer,GtkTextIter*it){
 	if(gtk_check_menu_item_get_active(show_time)){
@@ -1250,7 +1251,7 @@ static void line_switch(char*n,GtkWidget*from,GtkWidget*to,const char*msg){
 static void counting_the_list(GtkWidget*w,const char*a){
 	gtk_widget_set_has_tooltip(w,FALSE);
 	char buf[digits_in_uint+counting_the_list_size+sizeof(list_end_str)];
-	size_t n=(size_t)sprintf(buf,"%u %s" list_end_str,gtk_tree_model_iter_n_children((GtkTreeModel*)channels,nullptr),a);
+	size_t n=(size_t)sprintf(buf,"%u %s" list_end_str,gtk_tree_model_iter_n_children(contf_get_model(w),nullptr),a);
 	if(w==home_page)addattextmain(buf,n);
 	else addatchans(user_info,buf,w);
 }
