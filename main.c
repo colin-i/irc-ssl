@@ -100,6 +100,7 @@ static char*info_path_name=nullptr;
 #define home_string "*Home"
 #define priv_msg_str "PRIVMSG"
 #define not_msg_str "NOTICE"
+#define mod_msg_str "MODE"
 #define parse_host_left "@"
 #define parse_host_delim ":"
 #define parse_host_ports_delim "-"
@@ -144,6 +145,7 @@ e.g. newNick" parse_host_delim "a%40c" parse_host_left "127.0.0.1" parse_host_de
 #define namenul_sz name_sz+1
 #define name_scan1 "%9"
 #define name_scan name_scan1 "s"
+#define mod_scan "%4s"
 struct data_len{
 	const char*data;size_t len;
 };
@@ -233,7 +235,11 @@ static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 #define default_send_history 50
 #define default_right 150
 #define default_user "USER guest tolmoon tolsun :Ronnie Reagan"
-#define visible_mod "-i"
+#define mod_add_char '+'
+#define mod_remove_char "-"
+#define is_mod_add(a) *a==mod_add_char
+#define visible_char "i"
+#define visible_mod mod_remove_char visible_char
 #define wait_recon 10
 #define user_error "*Error"
 #define user_topic "*Topic"
@@ -1082,8 +1088,26 @@ static void pars_wmod(char*n,char*msg){
 	}
 }
 static void pars_mod(char*c,char*m,char*n){
-	if(*m=='+')pars_mod_sens(TRUE,c,m+1,n);
-	else if(*m=='-')pars_mod_sens(FALSE,c,m+1,n);
+	if(is_mod_add(m))pars_mod_sens(TRUE,c,m+1,n);
+	else if(*m==*mod_remove_char)pars_mod_sens(FALSE,c,m+1,n);
+}
+static void pars_mod_self(struct stk_s*ps,char*mod){
+	if(ps->visible){
+		if(is_mod_add(mod)){
+			mod++;
+			for(size_t i=0;mod[i]!='\0';i++){
+				if(mod[i]==*visible_char){
+					char vidata[5+name_sz+3+irc_term_sz]=mod_msg_str " ";
+					size_t c=strlen(ps->nknnow);
+					memcpy(vidata+5,ps->nknnow,c);
+					c+=5;
+					memcpy(vidata+c," " visible_mod irc_term,3+irc_term_sz);
+					send_data(vidata,c+3+irc_term_sz);
+				}
+			}
+		}
+	}
+	ps->visible=FALSE;
 }
 static gboolean force_focus(gpointer e){
 	gtk_widget_grab_focus((GtkWidget*)e);
@@ -1313,10 +1337,11 @@ static gboolean incsafe(gpointer ps){
 				pars_quit(nicknm);
 				line_switch(nicknm,name_on_menu,name_off_menu,"User Quit");
 			}
-		}else if(strcmp(com,"MODE")==0){
+		}else if(strcmp(com,mod_msg_str)==0){
 			char mod[1+3+1];//"limit of three (3) changes per command for modes that take a parameter."
-			if(sscanf(b,channame_scan " %4s " name_scan,channm,mod,nicknm)==3)
+			if(sscanf(b,channame_scan " " mod_scan " " name_scan,channm,mod,nicknm)==3)
 				pars_mod(channm,mod,nicknm);
+			else if(sscanf(b,"%*s :" mod_scan,mod)==1)pars_mod_self((struct stk_s*)ps,mod);
 		}else if(strcmp(com,"INVITE")==0){
 			if(nick_extract(a,nicknm)&&sscanf(b,"%*s " channame_scan,channm)==1){
 				char buf[name_sz+sizeof(invite_str)+chan_sz];
@@ -1508,13 +1533,6 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 			if(sz>0){//'the traditional "end-of-file" return'
 				g_idle_add(senstartthreadsfunc,ps);
 				int out;sigwait(&threadset,&out);
-				if(ps->visible){
-					char vidata[5+name_sz+3+irc_term_sz]="MODE ";
-					memcpy(vidata+5,nkn,nkn_len);
-					size_t c=5+nkn_len;
-					memcpy(vidata+c," " visible_mod irc_term,3+irc_term_sz);
-					send_safe(vidata,c+3+irc_term_sz);
-				}
 				do{
 					if(sz==bsz&&buf[sz-1]!='\n'){
 						void*re;
@@ -2423,7 +2441,7 @@ int main (int    argc,
 		ps.args[user_id]="user";ps.args_short[user_id]='u';
 		g_application_add_main_option((GApplication*)app,ps.args[user_id],ps.args_short[user_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"User message. Default \"" default_user "\"","STRING");
 		ps.args[visible_id]="visible";ps.args_short[visible_id]='v';
-		g_application_add_main_option((GApplication*)app,ps.args[visible_id],ps.args_short[visible_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Send MODE " visible_mod " at start. (remove invisible)",nullptr);
+		g_application_add_main_option((GApplication*)app,ps.args[visible_id],ps.args_short[visible_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Counter with " mod_msg_str " " visible_mod " if server sends default invisible.",nullptr);
 		ps.args[welcome_id]="welcome";ps.args_short[welcome_id]='w';
 		g_application_add_main_option((GApplication*)app,ps.args[welcome_id],ps.args_short[welcome_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
 		ps.args[welcomeNotice_id]="welcome-notice";ps.args_short[welcomeNotice_id]='e';
