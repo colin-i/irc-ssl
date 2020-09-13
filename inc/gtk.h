@@ -13,7 +13,7 @@ typedef guint32 GQuark;
 typedef gsize GType;
 typedef unsigned long gulong;
 //__extension__  `-pedantic' and other options cause warnings for many GNU C extensions.
-//but still got warning 
+//but still got warning
 typedef signed long long gint64;
 typedef double gdouble;
 typedef void GApplication;
