@@ -2415,7 +2415,7 @@ int main (int    argc,
 		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
 		//if(app!=nullptr){
 		ps.args[autoconnect_id]="autoconnect";ps.args_short[autoconnect_id]='a';
-		const GOptionEntry autoc[]={{ps.args[autoconnect_id],ps.args_short[autoconnect_id],G_OPTION_FLAG_IN_MAIN|G_OPTION_FLAG_OPTIONAL_ARG,G_OPTION_ARG_CALLBACK,(gpointer)autoconnect_callback,"Autoconnect to a autojoin connection (the reminder of unix days % autojoin total). If optional argument is in, autoconnect to that index.","OPTIONAL"}
+		const GOptionEntry autoc[]={{ps.args[autoconnect_id],ps.args_short[autoconnect_id],G_OPTION_FLAG_IN_MAIN|G_OPTION_FLAG_OPTIONAL_ARG,G_OPTION_ARG_CALLBACK,(gpointer)autoconnect_callback,"At [=INDEX] optional value: autoconnect to that index. Else, autoconnect to an autojoin connection (the reminder of unix days % autojoin total).","INDEX"}
 			,{nullptr,'\0',0,(GOptionArg)0,nullptr,nullptr,nullptr}};
 		g_application_add_main_option_entries((GApplication*)app,autoc);
 		ps.args[autojoin_id]="autojoin";ps.args_short[autojoin_id]='j';
