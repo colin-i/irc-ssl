@@ -11,8 +11,11 @@ typedef unsigned int guint32;
 typedef unsigned int gsize;
 typedef guint32 GQuark;
 typedef gsize GType;
-typedef double gdouble;
 typedef unsigned long gulong;
+//__extension__  `-pedantic' and other options cause warnings for many GNU C extensions.
+//but still got warning 
+typedef signed long long gint64;
+typedef double gdouble;
 typedef void GApplication;
 typedef void GDateTime;
 typedef void GError;
@@ -70,8 +73,8 @@ typedef enum{G_CONNECT_SWAPPED = 1 << 1}
 GConnectFlags;//_BEFORE G_CONNECT_AFTER = 1 << 0,
 typedef enum{  G_OPTION_ARG_NONE,  G_OPTION_ARG_STRING,  G_OPTION_ARG_INT,  G_OPTION_ARG_CALLBACK,  G_OPTION_ARG_FILENAME}//,  G_OPTION_ARG_STRING_ARRAY,  G_OPTION_ARG_FILENAME_ARRAY,  G_OPTION_ARG_DOUBLE,  G_OPTION_ARG_INT64
  GOptionArg;
-typedef enum{G_OPTION_FLAG_IN_MAIN = 1 << 1}//  G_OPTION_FLAG_NONE = 0,  G_OPTION_FLAG_HIDDEN = 1 << 0,
- GOptionFlags;//,  G_OPTION_FLAG_REVERSE = 1 << 2,  G_OPTION_FLAG_NO_ARG = 1 << 3,  G_OPTION_FLAG_FILENAME = 1 << 4,  G_OPTION_FLAG_OPTIONAL_ARG = 1 << 5,  G_OPTION_FLAG_NOALIAS = 1 << 6
+typedef enum{G_OPTION_FLAG_IN_MAIN = 1 << 1,G_OPTION_FLAG_OPTIONAL_ARG = 1 << 5}
+ GOptionFlags;
 typedef enum{
   G_SIGNAL_MATCH_ID = 1 << 0}
  GSignalMatchType;
@@ -107,6 +110,18 @@ struct _GList
   GList *next;
   GList *prev;
 };
+typedef struct{
+  const gchar *long_name;
+  gchar        short_name;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
+  gint         flags;
+#pragma GCC diagnostic pop
+  GOptionArg   arg;
+  gpointer arg_data;//GOptionArgFunc
+  const gchar *description;
+  const gchar *arg_description;
+} GOptionEntry;
 typedef struct _GQueue GQueue;
 struct _GQueue
 {
@@ -192,11 +207,14 @@ extern "C" {
 #endif
 
 void g_application_add_main_option (GApplication *application, const char *long_name, char short_name, GOptionFlags flags, GOptionArg arg, const char *description, const char *arg_description);
+void g_application_add_main_option_entries (GApplication *application,const GOptionEntry *entries);
 void g_application_quit (GApplication *application);
 int g_application_run (GApplication *application,int argc,char **argv);
+gint g_date_time_get_hour (GDateTime *datetime);
 gint g_date_time_get_minute (GDateTime *datetime);
 gint g_date_time_get_second (GDateTime *datetime);
 GDateTime * g_date_time_new_now_local (void);
+gint64 g_date_time_to_unix (GDateTime *datetime);
 void g_date_time_unref (GDateTime *datetime);
 void g_free (gpointer mem);
 guint g_idle_add (GSourceFunc function,gpointer data);

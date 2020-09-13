@@ -74,7 +74,7 @@
 #endif
 
 #ifdef HAVE_GTK_GTK_H
-#pragma GCC diagnostic push//there are 4 more ignors in the program
+#pragma GCC diagnostic push//there are 5 more ignors in the program
 #pragma GCC diagnostic ignored "-Weverything"
 #include <gtk/gtk.h>
 #pragma GCC diagnostic pop
@@ -180,7 +180,6 @@ struct stk_s{
 	char*ignor_str;
 	char*execute_newmsg;GtkWindow*main_win;
 	int argc;char**argv;
-	int autoconnect;
 	struct ajoin*ajoins;char*ajoins_mem;size_t ajoins_sum;
 	char*password;
 	GtkListStore*org_tree_list;
@@ -191,6 +190,7 @@ struct stk_s{
 	BOOL user_irc_free;unsigned char con_type;BOOL show_msgs;
 	char args_short[number_of_args];
 };
+static int autoconnect=-1;static BOOL autoconnect_pending=FALSE;
 static GSList*con_group;
 static const unsigned char icon16[]={
 0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0xa2,0xe8,0x00,0x00,0x00,0xff,0xff,0xff
@@ -253,10 +253,10 @@ static void addtimestamp(GtkTextBuffer*text_buffer,GtkTextIter*it){
 	if(gtk_check_menu_item_get_active(show_time)){
 		GDateTime*time_new_now=g_date_time_new_now_local();
 		if(time_new_now!=nullptr){
-			char tm[8];
-			sprintf(tm,"<%02u:%02u>",g_date_time_get_minute(time_new_now),g_date_time_get_second(time_new_now));
-			gtk_text_buffer_insert(text_buffer,it,tm,-1);
+			char tm[1+2+1+2+1+2+1+1];
+			sprintf(tm,"<%u:%02u:%02u>",g_date_time_get_hour(time_new_now),g_date_time_get_minute(time_new_now),g_date_time_get_second(time_new_now));
 			g_date_time_unref(time_new_now);
+			gtk_text_buffer_insert(text_buffer,it,tm,-1);
 		}
 	}
 }
@@ -1802,8 +1802,8 @@ static void info_path_name_restore(GtkComboBoxText*cbt,GtkWidget*entext,struct s
 					r[sz]='\0';
 					gtk_combo_box_text_append_text(cbt,a);
 					free(r);
-					if(ps->autoconnect!=-1){
-						gtk_combo_box_set_active((GtkComboBox*)cbt,ps->autoconnect);//void
+					if(autoconnect!=-1){
+						gtk_combo_box_set_active((GtkComboBox*)cbt,autoconnect);//void
 						gtk_widget_activate(entext);
 					}else gtk_combo_box_set_active((GtkComboBox*)cbt,0);
 				}
@@ -2294,6 +2294,14 @@ static void parse_autojoin(struct stk_s*ps){
 		i++;if(i==ps->ajoins_sum)break;
 		j++;k=j;
 	}
+	if(autoconnect_pending){
+		GDateTime*time_new_now=g_date_time_new_now_local();
+		if(time_new_now!=nullptr){
+			long long s=g_date_time_to_unix(time_new_now);
+			g_date_time_unref(time_new_now);
+			autoconnect=ps->ajoins[(s/60*60*24)%ps->ajoins_sum].c;
+		}
+	}
 }
 static void parse_ignore(GVariant*v,struct stk_s*ps){
 	const char*a=g_variant_get_string(v,nullptr);
@@ -2310,6 +2318,12 @@ static void parse_ignore(GVariant*v,struct stk_s*ps){
 		ignoreds[k]=&ps->ignor_str[j];
 		ignoreds[k+1]=nullptr;
 	}
+}
+static gboolean autoconnect_callback(const gchar *option_name,const gchar *value,gpointer data,GError **error){
+	(void)option_name;(void)data;(void)error;
+	if(value==nullptr)autoconnect_pending=TRUE;
+	else autoconnect=atoi(value);
+	return TRUE;
 }
 static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	int nr;
@@ -2367,9 +2381,6 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	if(g_variant_dict_lookup(options,ps->args[run_id],"s",&ps->execute_newmsg)==FALSE)
 		ps->execute_newmsg=nullptr;
 	//
-	if (g_variant_dict_lookup (options,ps->args[autoconnect_id], "i", &ps->autoconnect)==FALSE)
-		ps->autoconnect=-1;
-	//
 	ps->ajoins_sum=0;
 	if(g_variant_dict_lookup(options,ps->args[autojoin_id],"s",&ps->ajoins_mem))
 		parse_autojoin(ps);
@@ -2404,7 +2415,9 @@ int main (int    argc,
 		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
 		//if(app!=nullptr){
 		ps.args[autoconnect_id]="autoconnect";ps.args_short[autoconnect_id]='a';
-		g_application_add_main_option((GApplication*)app,ps.args[autoconnect_id],ps.args_short[autoconnect_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Autoconnect to connection by index.","INDEX");
+		const GOptionEntry autoc[]={{ps.args[autoconnect_id],ps.args_short[autoconnect_id],G_OPTION_FLAG_IN_MAIN|G_OPTION_FLAG_OPTIONAL_ARG,G_OPTION_ARG_CALLBACK,(gpointer)autoconnect_callback,"Autoconnect to a autojoin connection (the reminder of unix days % autojoin total). If optional argument is in, autoconnect to that index.","OPTIONAL"}
+			,{nullptr,'\0',0,(GOptionArg)0,nullptr,nullptr,nullptr}};
+		g_application_add_main_option_entries((GApplication*)app,autoc);
 		ps.args[autojoin_id]="autojoin";ps.args_short[autojoin_id]='j';
 		g_application_add_main_option((GApplication*)app,ps.args[autojoin_id],ps.args_short[autojoin_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Autojoin channels on connection index. e.g. \"2,#a,#b 4,#b,#z\"","\"I1,C1,C2...CN I2... ... IN...\"");
 		ps.args[dimensions_id]="dimensions";ps.args_short[dimensions_id]='d';
