@@ -1673,6 +1673,7 @@ static void proced(struct stk_s*ps){
 		}while(close_intention==FALSE);
 		free(ports);
 		main_text_s("Disconnected.\n");
+		gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,home_page));
 	}else main_text_s("Error: Wrong input. For format, press the vertical ellipsis button and then Help.\n");
 }
 static gpointer worker (gpointer ps)
