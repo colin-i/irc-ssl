@@ -2300,7 +2300,7 @@ static void parse_autojoin(struct stk_s*ps){
 		if(time_new_now!=nullptr){
 			long long s=g_date_time_to_unix(time_new_now);
 			g_date_time_unref(time_new_now);
-			autoconnect=ps->ajoins[(s/60*60*24)%ps->ajoins_sum].c;
+			autoconnect=ps->ajoins[(s/(60*60*24))%ps->ajoins_sum].c;
 		}
 	}
 }
