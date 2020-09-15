@@ -2465,18 +2465,18 @@ int main (int    argc,
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
 		//  if(han>0)
 		ps.argc=argc;ps.argv=argv;
-		//
 		send_entry_list=g_queue_new();
-		g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
-		g_queue_free_full(send_entry_list,g_free);
 		//
+		g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
+		g_object_unref (app);
+		//
+		g_queue_free_full(send_entry_list,g_free);
 		if(ps.nick!=nullptr)g_free(ps.nick);
 		if(ps.welcome!=nullptr)g_free(ps.welcome);
 		#pragma GCC diagnostic push
 		#pragma GCC diagnostic ignored "-Wcast-qual"		
 		if(ps.user_irc_free)g_free((gpointer)ps.user_irc);
 		#pragma GCC diagnostic pop
-		g_object_unref (app);
 		if(info_path_name!=nullptr)free(info_path_name);
 		if(log_file!=-1)close(log_file);
 		if(ps.ignor_str!=nullptr){g_free(ps.ignor_str);free(ignoreds);}
