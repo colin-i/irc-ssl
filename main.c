@@ -1659,16 +1659,16 @@ static void proced(struct stk_s*ps){
 					else port1--;
 				}
 				if(close_intention)break;
+				else{
+					main_text_s("Will try to reconnect after " INT_CONV_STR(wait_recon) " seconds.\n");
+					for(unsigned int i=0;i<wait_recon;i++){
+						sleep(1);
+						if(close_intention)break;
+					}
+				}
 				if(port_i==port_last)break;
 				port_i+=2;
 				if(swtch==port_i)n++;
-			}
-			if(close_intention==FALSE){
-				main_text_s("Will try to reconnect after " INT_CONV_STR(wait_recon) " seconds.\n");
-				for(unsigned int i=0;i<wait_recon;i++){
-					sleep(1);
-					if(close_intention)break;
-				}
 			}
 		}while(close_intention==FALSE);
 		free(ports);
