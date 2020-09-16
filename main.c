@@ -1609,6 +1609,58 @@ static void clear_old_chat(GtkNotebook*nb){
 	start_old_clear(name_on_menu,nb);
 	start_old_clear(name_off_menu,nb);
 }
+static void proced_core(struct stk_s*ps,char*hostname,char*psw,char*nkn,unsigned short*ports,size_t port_last,size_t swtch){
+	GSList*lst=con_group;
+	unsigned char n=con_nr_max;
+	for(;;){
+		if(gtk_check_menu_item_get_active((GtkCheckMenuItem*)lst->data))break;
+		lst=lst->next;n--;
+	}
+	for(;;){
+		size_t port_i=0;
+		if(swtch<=port_last&&(n==con_nr_righttype1||n==con_nr_righttype2))n--;
+		for(;;){
+			unsigned short port1=ports[port_i];unsigned short port2=ports[port_i+1];
+			for(;;){
+				create_socket(hostname,port1);
+				if(plain_socket != -1){
+					BOOL r;
+					if(n==_con_nr_su){
+						r=con_ssl(psw,nkn,ps);
+						if(r==FALSE){
+							close_plain_safe
+							create_socket(hostname,port1);
+							if(plain_socket != -1)
+								con_plain(psw,nkn,ps);
+						}
+					}else if(n==_con_nr_us){
+						r=con_plain(psw,nkn,ps);
+						if(r==FALSE){
+							close_plain_safe
+							create_socket(hostname,port1);
+							if(plain_socket != -1)
+								con_ssl(psw,nkn,ps);
+						}
+					}else if(n==_con_nr_s)con_ssl(psw,nkn,ps);
+					else con_plain(psw,nkn,ps);
+					close_plain_safe
+				}
+				if(close_intention)return;
+				main_text_s("Will try to reconnect after " INT_CONV_STR(wait_recon) " seconds.\n");
+				for(unsigned int i=0;i<wait_recon;i++){
+					sleep(1);
+					if(close_intention)return;
+				}
+				if(port1==port2)break;
+				if(port1<port2)port1++;
+				else port1--;
+			}
+			if(port_i==port_last)break;
+			port_i+=2;
+			if(swtch==port_i)n++;
+		}
+	}
+}
 static void proced(struct stk_s*ps){
 	char hostname[hostname_sz];
 	char psw[password_sz];char nkn[namenul_sz];
@@ -1616,61 +1668,7 @@ static void proced(struct stk_s*ps){
 	if(parse_host_str(ps->text,hostname,psw,nkn,&ports,&port_last,&swtch,ps)) {
 		main_text_s("Connecting...\n");
 		clear_old_chat(ps->notebook);
-		GSList*lst=con_group;
-		unsigned char n=con_nr_max;
-		for(;;){
-			if(gtk_check_menu_item_get_active((GtkCheckMenuItem*)lst->data))break;
-			lst=lst->next;n--;
-		}
-		do{
-			size_t port_i=0;
-			if(swtch<=port_last&&(n==con_nr_righttype1||n==con_nr_righttype2))n--;
-			for(;;){
-				unsigned short port1=ports[port_i];unsigned short port2=ports[port_i+1];
-				for(;;){
-					create_socket(hostname,port1);
-					if(plain_socket != -1){
-						BOOL r;
-						if(n==_con_nr_su){
-							r=con_ssl(psw,nkn,ps);
-							if(r==FALSE){
-								close_plain_safe
-								create_socket(hostname,port1);
-								if(plain_socket != -1)
-									r=con_plain(psw,nkn,ps);
-							}
-						}else if(n==_con_nr_us){
-							r=con_plain(psw,nkn,ps);
-							if(r==FALSE){
-								close_plain_safe
-								create_socket(hostname,port1);
-								if(plain_socket != -1)
-									r=con_ssl(psw,nkn,ps);
-							}
-						}else if(n==_con_nr_s)r=con_ssl(psw,nkn,ps);
-						else
-							r=con_plain(psw,nkn,ps);
-						close_plain_safe
-						if(r)break;
-					}
-					if(close_intention)break;
-					else{
-						main_text_s("Will try to reconnect after " INT_CONV_STR(wait_recon) " seconds.\n");
-						for(unsigned int i=0;i<wait_recon;i++){
-							sleep(1);
-							if(close_intention)break;
-						}
-					}
-					if(port1==port2)break;
-					if(port1<port2)port1++;
-					else port1--;
-				}
-				if(close_intention)break;
-				if(port_i==port_last)break;
-				port_i+=2;
-				if(swtch==port_i)n++;
-			}
-		}while(close_intention==FALSE);
+		proced_core(ps,hostname,psw,nkn,ports,port_last,swtch);
 		free(ports);
 		main_text_s("Disconnected.\n");
 		gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,home_page));
