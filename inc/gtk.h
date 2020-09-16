@@ -242,7 +242,6 @@ char *g_uri_unescape_string (const char *escaped_string, const char *illegal_cha
 gboolean g_variant_dict_contains (GVariantDict *dict, const gchar *key);
 gboolean g_variant_dict_lookup (GVariantDict *dict, const gchar *key, const gchar *format_string, ...);
 GVariant * g_variant_dict_lookup_value (GVariantDict *dict, const gchar *key, const GVariantType *expected_type);
-gchar * g_variant_dup_string (GVariant *value, gsize *length);
 const gchar * g_variant_get_string (GVariant *value, gsize *length);
 guint gdk_keyval_to_upper (guint keyval) __attribute__((__const__));
 GdkPixbuf *gdk_pixbuf_new_from_data (const guchar *data,GdkColorspace colorspace,gboolean has_alpha,int bits_per_sample,int width, int height,int rowstride,GdkPixbufDestroyNotify destroy_fn,gpointer destroy_fn_data);
@@ -270,7 +269,6 @@ gint gtk_combo_box_get_active (GtkComboBox *combo_box);
 GtkTreeModel*gtk_combo_box_get_model (GtkComboBox *combo_box);
 void gtk_combo_box_set_active (GtkComboBox *combo_box, gint index_);
 void gtk_combo_box_text_append_text (GtkComboBoxText *combo_box, const gchar *text);
-GType gtk_combo_box_text_get_type (void) __attribute__((__const__));
 GtkWidget* gtk_combo_box_text_new_with_entry (void);
 void gtk_combo_box_text_remove (GtkComboBoxText *combo_box, gint position);
 void gtk_container_add (GtkContainer *container, GtkWidget *widget);

@@ -177,10 +177,11 @@ struct stk_s{
 	char*welcome;
 	const char*user_irc;
 	GtkWidget*trv;unsigned long trvr;
-	char*ignor_str;
 	char*execute_newmsg;GtkWindow*main_win;
 	int argc;char**argv;
+	int active;
 	struct ajoin*ajoins;char*ajoins_mem;size_t ajoins_sum;
+	struct ajoin*ignores;char*ignores_mem;size_t ignores_sum;
 	char*password;
 	GtkListStore*org_tree_list;
 	GApplication*app;
@@ -212,12 +213,13 @@ static int show_msg=RPL_NONE;
 #define digits_in_uint 10
 static int log_file=-1;
 static char*dummy=nullptr;
-static char**ignoreds=&dummy;
+static char**ignores;
 static BOOL can_send_data=FALSE;
 #define chans_str "channels"
 #define names_str "names"
 #define counting_the_list_size (sizeof(chans_str)>sizeof(names_str)?sizeof(chans_str):sizeof(names_str))
 #define list_end_str " listed\n"
+#define autojoin_str "autojoin"
 enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,chans_max_id,connection_number_id,hide_id,ignore_id,log_id,maximize_id,minimize_id,nick_id,password_id,refresh_id,right_id,run_id,send_history_id,timestamp_id,user_id,visible_id,welcome_id,welcomeNotice_id};
 struct ajoin{
 	int c;//against get_active
@@ -1174,8 +1176,8 @@ static void pars_pmsg_chan(char*n,char*c,char*msg,GtkNotebook*nb){
 }
 static BOOL talk_user(char*n){
 	for(size_t i=0;;i++){
-		if(ignoreds[i]==nullptr)return TRUE;
-		if(strcmp(ignoreds[i],n)==0)return FALSE;
+		if(ignores[i]==nullptr)return TRUE;
+		if(strcmp(ignores[i],n)==0)return FALSE;
 	}
 }
 #define exec_nm \
@@ -1286,7 +1288,7 @@ static void list_end(){
 }
 static void send_autojoin(struct stk_s*ps){
 	for(size_t i=0;i<ps->ajoins_sum;i++)
-		if(ps->ajoins[i].c==gtk_combo_box_get_active((GtkComboBox*)ps->cbt)){
+		if(ps->ajoins[i].c==ps->active){
 			for(size_t j=0;ps->ajoins[i].chans[j]!=nullptr;j++)
 				send_join(ps->ajoins[i].chans[j],strlen(ps->ajoins[i].chans[j]));
 			break;
@@ -1732,6 +1734,15 @@ static void set_combo_box_text(GtkComboBox * box,const char*txt)
 	save_combo_box(list_store);
 	gtk_combo_box_set_active(box, i);
 }
+static void ignores_init(struct stk_s*ps,int active){
+	for(size_t i=0;i<ps->ignores_sum;i++){
+		if(ps->ignores[i].c==active){
+			ignores=ps->ignores[i].chans;
+			return;
+		}
+		ignores=&dummy;
+	}
+}
 static gboolean enter_recallback( gpointer ps){
 	const char* t=gtk_entry_get_text ((GtkEntry*)((struct stk_s*)ps)->con_entry);
 	if(strlen(t)>0){
@@ -1740,9 +1751,12 @@ static gboolean enter_recallback( gpointer ps){
 			g_timeout_add(1000,enter_recallback,ps);
 			return FALSE;
 		}
-		set_combo_box_text((GtkComboBox*)gtk_widget_get_ancestor(((struct stk_s*)ps)->con_entry,gtk_combo_box_text_get_type()),t);
-		((struct stk_s*)ps)->text=t;
-		close_intention=FALSE;con_th = pthread_create( &threadid, nullptr, worker,ps);
+		set_combo_box_text((GtkComboBox*)((struct stk_s*)ps)->cbt,t);
+		int active=gtk_combo_box_get_active((GtkComboBox*)((struct stk_s*)ps)->cbt);
+		((struct stk_s*)ps)->text=t;((struct stk_s*)ps)->active=active;
+		ignores_init((struct stk_s*)ps,active);
+		close_intention=FALSE;
+		con_th = pthread_create( &threadid, nullptr, worker,ps);
 	}
 	//unblock this ENTER
 	g_signal_handler_unblock(((struct stk_s*)ps)->con_entry,((struct stk_s*)ps)->con_entry_act);
@@ -2112,6 +2126,63 @@ static gboolean prog_key_press (struct stk_s*ps, GdkEventKey  *event){
 	}
 	return FALSE;//propagation seems fine
 }
+static void gather_parse(size_t*sum,char*mem,struct ajoin**ons){
+	*sum=0;
+	for(size_t i=0;;i++){
+		BOOL b=mem[i]=='\0';
+		if(mem[i]==' '||b){
+			*sum=*sum+1;
+			if(b)break;
+			else mem[i]='\0';
+		}
+	}
+	//
+	struct ajoin*ins=(struct ajoin*)malloc((*sum)*sizeof(struct ajoin));
+	if(ins==nullptr){*sum=0;g_free(mem);return;}
+	*ons=ins;
+	size_t j=0;size_t k=0;
+	for(size_t i=0;;){
+		for(;mem[j]!='\0';j++){
+			if(mem[j]==','){
+				mem[j]='\0';
+				break;
+			}
+		}
+		ins[i].c=atoi(&mem[k]);
+		j++;k=j;
+		size_t m=0;
+		for(;;j++){
+			BOOL b=mem[j]=='\0';
+			if(mem[j]==','||b){
+				m++;
+				if(b)break;else mem[j]='\0';
+			}
+		}
+		ins[i].chans=(char**)malloc(sizeof(char*)*(m+1));
+		if(ins[i].chans==nullptr)ins[i].chans=&dummy;
+		else{
+			j=k;
+			for(size_t l=0;;){
+				if(mem[j]=='\0'){
+					ins[i].chans[l]=&mem[k];
+					l++;if(l==m){ins[i].chans[l]=nullptr;break;}
+					k=j+1;
+				}
+				j++;
+			}
+		}
+		i++;if(i==*sum)break;
+		j++;k=j;
+	}
+}
+static void gather_free(size_t sum,char*mem,struct ajoin*ins){
+	if(sum>0){
+		g_free(mem);
+		for(size_t i=0;i<sum;i++)if(ins[i].chans!=&dummy)
+			free(ins[i].chans);
+		free(ins);
+	}
+}
 static void
 activate (GtkApplication* app,
           struct stk_s*ps)
@@ -2248,51 +2319,7 @@ activate (GtkApplication* app,
 	g_signal_connect_data (window, "key-press-event",G_CALLBACK (prog_key_press),ps,nullptr,G_CONNECT_SWAPPED);
 }
 static void parse_autojoin(struct stk_s*ps){
-	for(size_t i=0;;i++){
-		BOOL b=ps->ajoins_mem[i]=='\0';
-		if(ps->ajoins_mem[i]==' '||b){
-			ps->ajoins_sum++;
-			if(b)break;
-			else ps->ajoins_mem[i]='\0';
-		}
-	}
-	//
-	ps->ajoins=(struct ajoin*)malloc(ps->ajoins_sum*sizeof(struct ajoin));
-	if(ps->ajoins==nullptr){ps->ajoins_sum=0;g_free(ps->ajoins_mem);return;}
-	size_t j=0;size_t k=0;
-	for(size_t i=0;;){
-		for(;ps->ajoins_mem[j]!='\0';j++){
-			if(ps->ajoins_mem[j]==','){
-				ps->ajoins_mem[j]='\0';
-				break;
-			}
-		}
-		ps->ajoins[i].c=atoi(&ps->ajoins_mem[k]);
-		j++;k=j;
-		size_t m=0;
-		for(;;j++){
-			BOOL b=ps->ajoins_mem[j]=='\0';
-			if(ps->ajoins_mem[j]==','||b){
-				m++;
-				if(b)break;else ps->ajoins_mem[j]='\0';
-			}
-		}
-		ps->ajoins[i].chans=(char**)malloc(sizeof(char*)*(m+1));
-		if(ps->ajoins[i].chans==nullptr)ps->ajoins[i].chans=&dummy;
-		else{
-			j=k;
-			for(size_t l=0;;){
-				if(ps->ajoins_mem[j]=='\0'){
-					ps->ajoins[i].chans[l]=&ps->ajoins_mem[k];
-					l++;if(l==m){ps->ajoins[i].chans[l]=nullptr;break;}
-					k=j+1;
-				}
-				j++;
-			}
-		}
-		i++;if(i==ps->ajoins_sum)break;
-		j++;k=j;
-	}
+	gather_parse(&ps->ajoins_sum,ps->ajoins_mem,&ps->ajoins);
 	if(autoconnect_pending){
 		GDateTime*time_new_now=g_date_time_new_now_local();
 		if(time_new_now!=nullptr){
@@ -2302,22 +2329,6 @@ static void parse_autojoin(struct stk_s*ps){
 			s%=ps->ajoins_sum;
 			autoconnect=ps->ajoins[s].c;
 		}
-	}
-}
-static void parse_ignore(GVariant*v,struct stk_s*ps){
-	const char*a=g_variant_get_string(v,nullptr);
-	size_t n=2;
-	for(size_t i=0;a[i]!='\0';i++)
-		if(a[i]==',')n++;
-	char**b=(char**)malloc(n*sizeof(char*));
-	if(b!=nullptr){
-		ps->ignor_str=g_variant_dup_string(v,nullptr);//get is not the same pointer as argv[n],is always utf-8
-		ignoreds=b;
-		size_t k=0;size_t j=0;
-		for(size_t i=0;a[i]!='\0';i++)
-			if(a[i]==','){ignoreds[k]=&ps->ignor_str[j];j=i+1;k++;}
-		ignoreds[k]=&ps->ignor_str[j];
-		ignoreds[k+1]=nullptr;
 	}
 }
 static gboolean autoconnect_callback(const gchar *option_name,const gchar *value,gpointer data,GError **error){
@@ -2374,17 +2385,16 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		log_file=open(a,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR);
 	}
 	//
-	v=g_variant_dict_lookup_value(options,ps->args[ignore_id],G_VARIANT_TYPE_STRING);
-	if(v!=nullptr){
-		parse_ignore(v,ps);
-	}else ps->ignor_str=nullptr;
+	if(g_variant_dict_lookup(options,ps->args[ignore_id],"s",&ps->ignores_mem))
+		gather_parse(&ps->ignores_sum,ps->ignores_mem,&ps->ignores);
+	else ps->ignores_sum=0;
 	//
 	if(g_variant_dict_lookup(options,ps->args[run_id],"s",&ps->execute_newmsg)==FALSE)
 		ps->execute_newmsg=nullptr;
 	//
-	ps->ajoins_sum=0;
 	if(g_variant_dict_lookup(options,ps->args[autojoin_id],"s",&ps->ajoins_mem))
 		parse_autojoin(ps);
+	else ps->ajoins_sum=0;
 	//
 	if (g_variant_dict_lookup (options,ps->args[password_id],"s",&ps->password)==FALSE)
 		ps->password=nullptr;
@@ -2419,7 +2429,7 @@ int main (int    argc,
 		const GOptionEntry autoc[]={{ps.args[autoconnect_id],ps.args_short[autoconnect_id],G_OPTION_FLAG_IN_MAIN|G_OPTION_FLAG_OPTIONAL_ARG,G_OPTION_ARG_CALLBACK,(gpointer)autoconnect_callback,"At [=INDEX] optional value: autoconnect to that index. Else, autoconnect to an autojoin connection (the reminder of unix days % autojoin total).","INDEX"}
 			,{nullptr,'\0',0,(GOptionArg)0,nullptr,nullptr,nullptr}};
 		g_application_add_main_option_entries((GApplication*)app,autoc);
-		ps.args[autojoin_id]="autojoin";ps.args_short[autojoin_id]='j';
+		ps.args[autojoin_id]=autojoin_str;ps.args_short[autojoin_id]='j';
 		g_application_add_main_option((GApplication*)app,ps.args[autojoin_id],ps.args_short[autojoin_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Autojoin channels on connection index. e.g. \"2,#a,#b 4,#b,#z\"","\"I1,C1,C2...CN I2... ... IN...\"");
 		ps.args[dimensions_id]="dimensions";ps.args_short[dimensions_id]='d';
 		g_application_add_main_option((GApplication*)app,ps.args[dimensions_id],ps.args_short[dimensions_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Window size","WIDTH[xHEIGHT]");
@@ -2432,7 +2442,7 @@ int main (int    argc,
 		ps.args[hide_id]="hide";ps.args_short[hide_id]='h';
 		g_application_add_main_option((GApplication*)app,ps.args[hide_id],ps.args_short[hide_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Don't display activity messages at " home_string " tab (join,part,...).",nullptr);
 		ps.args[ignore_id]="ignore";ps.args_short[ignore_id]='i';
-		g_application_add_main_option((GApplication*)app,ps.args[ignore_id],ps.args_short[ignore_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Ignore private messages from nicknames.","S1,S2...SN");//_FILENAME
+		g_application_add_main_option((GApplication*)app,ps.args[ignore_id],ps.args_short[ignore_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Ignore private messages from nicknames. The format is te same as \"" autojoin_str "\".","\"I1,N1,N2...NN I2... ... IN...\"");
 		ps.args[log_id]="log";ps.args_short[log_id]='l';
 		g_application_add_main_option((GApplication*)app,ps.args[log_id],ps.args_short[log_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Log private chat to filename.","FILENAME");//_FILENAME
 		ps.args[maximize_id]="maximize";ps.args_short[maximize_id]='z';
@@ -2479,14 +2489,9 @@ int main (int    argc,
 		#pragma GCC diagnostic pop
 		if(info_path_name!=nullptr)free(info_path_name);
 		if(log_file!=-1)close(log_file);
-		if(ps.ignor_str!=nullptr){g_free(ps.ignor_str);free(ignoreds);}
 		if(ps.execute_newmsg!=nullptr)g_free(ps.execute_newmsg);
-		if(ps.ajoins_sum>0){
-			g_free(ps.ajoins_mem);
-			for(size_t i=0;i<ps.ajoins_sum;i++)if(ps.ajoins[i].chans!=&dummy)
-				free(ps.ajoins[i].chans);
-			free(ps.ajoins);
-		}
+		gather_free(ps.ajoins_sum,ps.ajoins_mem,ps.ajoins);
+		gather_free(ps.ignores_sum,ps.ignores_mem,ps.ignores);
 	}else puts("openssl error");
 	return EXIT_SUCCESS;
 }
