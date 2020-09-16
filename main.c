@@ -456,7 +456,7 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,uns
 					if(end){*pl=i*2-2;*pr=por;return TRUE;}
 					k+=2;
 					if(sw)*swtch=k;
-					ptr=&ptr[j+1];
+					ptr=&ptr[j+1];j=0;continue;
 				}
 				j++;
 			}
