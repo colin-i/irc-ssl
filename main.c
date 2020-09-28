@@ -1965,7 +1965,7 @@ static void help_popup(struct stk_s*ps){
 	GtkTextIter it;
 	gtk_text_buffer_get_end_iter(text_buffer,&it);
 	gtk_text_buffer_insert(text_buffer,&it,"\n\nArguments:\n",-1);
-	for(size_t i=0;i<number_of_args;i++){
+	for(unsigned int i=0;i<number_of_args;i++){
 		if(i>0)gtk_text_buffer_insert(text_buffer,&it," ",1);
 		gtk_text_buffer_insert(text_buffer,&it,ps->args[i],-1);
 		gtk_text_buffer_insert(text_buffer,&it,",",1);
