@@ -531,7 +531,7 @@ static GtkWidget*container_frame_name_out(GtkWidget**out){
 	gtk_text_view_set_wrap_mode ((GtkTextView*)text, GTK_WRAP_WORD_CHAR);
 	GtkWidget *scrolled_window = gtk_scrolled_window_new (nullptr, nullptr);
 	gtk_scrolled_window_set_policy ((GtkScrolledWindow*) scrolled_window,
-	                                  GTK_POLICY_EXTERNAL,//NEVER but widh will have the bigger value and cannot rewrap
+	                                  GTK_POLICY_EXTERNAL,//NEVER. but with will have the bigger value and cannot rewrap
 	                                  GTK_POLICY_AUTOMATIC);
 	gtk_container_add ((GtkContainer*) scrolled_window,text);
 	gtk_container_set_border_width ((GtkContainer*)scrolled_window, 5);
@@ -1948,7 +1948,7 @@ static gboolean prog_menu_popup (GtkMenu*menu,GdkEvent*evn){
 	return FALSE;
 }
 static void help_popup(struct stk_s*ps){
-	GtkWidget *dialog = gtk_dialog_new_with_buttons ("Organize Connections",
+	GtkWidget *dialog = gtk_dialog_new_with_buttons ("Help",
 			    ps->main_win, (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
 			    "_OK",GTK_RESPONSE_NONE,nullptr);
 	int w;int h;
