@@ -221,7 +221,11 @@ guint g_idle_add (GSourceFunc function,gpointer data);
 void g_list_free (GList *list);
 GList* g_list_last (GList *list);
 #define g_list_next(list) ((list) ? (((GList *)(list))->next) : nullptr)
-gpointer g_memdup (gconstpointer mem, guint byte_size);
+#ifdef FN_G_MEMDUP2
+	gpointer g_memdup2 (gconstpointer mem, gsize byte_size);
+#else
+	gpointer g_memdup (gconstpointer mem, guint byte_size);
+#endif
 gpointer g_object_ref (gpointer object);
 void g_object_set (gpointer object, const gchar *first_property_name, ...) __attribute__((__sentinel__));
 void g_object_unref (gpointer object);

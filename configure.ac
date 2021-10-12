@@ -31,7 +31,24 @@ X_PROGRAM="#include<gtk/gtk.h>"
 AC_MSG_CHECKING([gtk/gtk.h])
 AC_COMPILE_IFELSE(
    [AC_LANG_SOURCE([$X_PROGRAM])],
-   [AC_MSG_RESULT([yes]) AC_DEFINE(HAVE_GTK_GTK_H, 1, [3])],
+   [
+      AC_MSG_RESULT([yes])
+      AC_DEFINE(HAVE_GTK_GTK_H, 1, [3])
+
+      AC_MSG_CHECKING([g_memdup2])
+      AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+            #include <glib/gstrfuncs.h>
+            int main(){g_memdup2(NULL,0);}
+         ]])],
+         [
+            AC_MSG_RESULT(yes)
+            AC_DEFINE(FN_G_MEMDUP2, 1, [use g_memdup2])
+         ],
+         [
+            AC_MSG_RESULT(no)
+         ]
+      )
+   ],
    [AC_MSG_RESULT([no])
     AC_SUBST([GTK_CFLAGS], '')]
 )

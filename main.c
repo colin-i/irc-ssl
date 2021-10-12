@@ -228,7 +228,7 @@ struct ajoin{
 #define invite_str " invited you to join channel "
 static GtkWidget*menuwithtabs;
 #define sw_rule 0
-#define size_t_max (((unsigned int)1<<(8*sizeof(size_t)-1))-1)+((unsigned int)1<<(8*sizeof(size_t)-1))
+#define size_t_max (((unsigned long int)1<<(8*sizeof(size_t)-1))-1)+((unsigned long int)1<<(8*sizeof(size_t)-1))
 static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 #define default_chan_min 250
 #define default_chans_max 150
@@ -315,7 +315,7 @@ static void addatnames(const char*n,const char*msg,GtkWidget*p){
 	if(log_file!=-1){
 		write(log_file,n,strlen(n));
 		char buf[1+20+1+1];//2 at 64, $((2**63))...
-		write(log_file,buf,(size_t)sprintf(buf,sizeof(time_t)==8?" %lld ":" %ld ",time(nullptr)));
+		write(log_file,buf,(size_t)sprintf(buf," %ld ",time(nullptr)));//sizeof(time_t)==8?" %lld ":
 		write(log_file,msg,strlen(msg));
 		write(log_file,irc_term,irc_term_sz);
 	}
@@ -414,7 +414,13 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,uns
 			}
 		}
 		size_t psz=lsz-i;
-		char*p=(char*)g_memdup(indata+i,psz+1);
+		char*p=(char*)
+#ifdef FN_G_MEMDUP2
+		g_memdup2
+#else
+		g_memdup
+#endif
+		(indata+i,psz+1);
 		p[psz]='\0';
 		char*up=g_uri_unescape_string(p,nullptr);
 		g_free(p);
