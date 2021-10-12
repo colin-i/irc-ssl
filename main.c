@@ -7,11 +7,6 @@
 #else
 #include "inc/libgen.h"
 #endif
-#ifdef HAVE_LIMITS_H
-#include <limits.h>
-#else
-#include "inc/limits.h"
-#endif
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>
 #else
@@ -1559,7 +1554,8 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 						size_t s;
 						if(n!=nullptr)s=(size_t)(n+1-b);
 						else s=(size_t)sz;
-						if(s>4&&memcmp(b,"PING",4)==0){
+						size_t number_of_times=4;
+						if(s>4&&memcmp(b,"PING",number_of_times)==0){
 							main_text(b,s);
 							b[1]='O';
 							send_safe(b,s);
@@ -1786,23 +1782,12 @@ static BOOL info_path_name_set_val(const char*a,char*b,size_t i,size_t j){
 	return FALSE;
 }
 static BOOL info_path_name_set(char*a){
-	char*c=realpath(a,nullptr);
-	if(c!=nullptr){
+	char*h=getenv("HOME");
+	if(h!=nullptr){
 		char*b=basename(a);
-		size_t i=sizeof(BDIR)-1;
-		size_t j=strlen(c);
-		size_t k=strlen(b);
-		BOOL answer;
-		if(i+k==j&&memcmp(c,BDIR,i)==0&&memcmp(c+i,b,k)==0){
-			char*h=getenv("HOME");
-			if(h!=nullptr){
-				size_t l=strlen(h);
-				answer=info_path_name_set_val(h,b,l,k);//sizeof(HOMEDIR)-1
-			}else answer=FALSE;
-		}
-		else answer=info_path_name_set_val(c,b,j-k,k);
-		free(c);
-		return answer;
+		size_t i=strlen(h);
+		size_t j=strlen(b);
+		return info_path_name_set_val(h,b,i,j);//sizeof(HOMEDIR)-1
 	}
 	return FALSE;
 }
