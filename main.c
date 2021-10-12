@@ -1773,11 +1773,12 @@ static void enter_callback( gpointer ps){
 	enter_recallback(ps);
 }
 static BOOL info_path_name_set_val(const char*a,char*b,size_t i,size_t j){
-	info_path_name=(char*)malloc(i+j+6);
+	info_path_name=(char*)malloc(i+2+j+5);
 	if(info_path_name!=nullptr){
 		memcpy(info_path_name,a,i);
-		info_path_name[i]='.';
-		char*c=info_path_name+i+1;
+		info_path_name[i]='/';
+		info_path_name[i+1]='.';
+		char*c=info_path_name+i+2;
 		memcpy(c,b,j);
 		memcpy(c+j,"info",5);
 		return TRUE;
