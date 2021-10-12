@@ -1786,7 +1786,13 @@ static BOOL info_path_name_set(char*a){
 		size_t j=strlen(c);
 		size_t k=strlen(b);
 		BOOL answer;
-		if(i+k==j&&memcmp(c,BDIR,i)==0&&memcmp(c+i,b,k)==0)answer=info_path_name_set_val(HOMEDIR,b,sizeof(HOMEDIR)-1,k);
+		if(i+k==j&&memcmp(c,BDIR,i)==0&&memcmp(c+i,b,k)==0){
+			char*h=getenv("HOME");
+			if(h!=nullptr){
+				size_t l=strlen(h);
+				answer=info_path_name_set_val(h,b,l,k);//sizeof(HOMEDIR)-1
+			}else answer=FALSE;
+		}
 		else answer=info_path_name_set_val(c,b,j-k,k);
 		free(c);
 		return answer;

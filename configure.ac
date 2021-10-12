@@ -4,7 +4,7 @@
 AC_PREREQ([2.69])
 
 AC_INIT([sirc], [0.1])
-AC_SUBST([PROJ], 'sirc')
+#AC_SUBST([PROJ], 'sirc')
 
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_AUX_DIR([build-aux])
@@ -18,7 +18,7 @@ AM_CONDITIONAL(CPP, test x"$cpp" = x"true")
 
 #
 
-AC_DEFINE_UNQUOTED(HOMEDIR,[$(echo "\"$(cd ~; pwd)/\"")],[~ cannot be "q q"])
+#AC_DEFINE_UNQUOTED(HOMEDIR,[$(echo "\"$(cd ~; pwd)/\"")],[~ cannot be "q q"])
 AC_PROG_CC
 AC_CHECK_HEADERS(libgen.h limits.h fcntl.h netdb.h netinet/in.h openssl/ssl.h pthread.h signal.h stdio.h stdlib.h string.h sys/socket.h time.h unistd.h)
 
@@ -63,6 +63,6 @@ AC_OUTPUT
 
 ##set -v
 #the connections. no need to remove them between ./configure
-if [[ ! -e "./.${PROJ}info" ]]; then echo -n >"./.${PROJ}info"; fi
+#if [[ ! -e "./.${PROJ}info" ]]; then echo -n >"./.${PROJ}info"; fi
 #sudo make will change ~
-echo ~>./bash_home
+#echo ~>./bash_home

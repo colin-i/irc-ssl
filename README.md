@@ -4,6 +4,7 @@ autoreconf -i
 ./configure
 make
 ```
+*\-\-disable\-cpp* at *./configure* to set c rules.\
 GTK3 required.
 ###### Donations
 | Name      | Address                                    |
