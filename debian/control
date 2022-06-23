@@ -9,5 +9,6 @@ Homepage: https://github.com/colin-i/irc-ssl
 Package: sirc
 Architecture: amd64 arm64
 Multi-Arch: foreign
-Depends: libssl1.1, libgtk-3-0, ${misc:Depends}, ${shlibs:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
+#, libssl1.1, libgtk-3-0
 Description: IRC client with ssl
