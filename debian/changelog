@@ -1,3 +1,9 @@
+sirc (1-jammy4) jammy; urgency=medium
+
+  * build dependency
+
+ -- bc <bc@bc-HP-Pavilion-x360-Convertible>  Fri, 24 Jun 2022 14:53:46 +0300
+
 sirc (1-jammy3) jammy; urgency=medium
 
   * sirc pool
