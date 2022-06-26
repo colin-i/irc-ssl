@@ -1,3 +1,9 @@
+sirc (1-jammy5) jammy; urgency=medium
+
+  * crash at ignores
+
+ -- bc <bc@bc-HP-Pavilion-x360-Convertible>  Sun, 26 Jun 2022 07:30:55 +0300
+
 sirc (1-jammy4) jammy; urgency=medium
 
   * build dependency

@@ -1741,8 +1741,8 @@ static void ignores_init(struct stk_s*ps,int active){
 			ignores=ps->ignores[i].chans;
 			return;
 		}
+		ignores=&dummy;
 	}
-	ignores=&dummy;
 }
 static gboolean enter_recallback( gpointer ps){
 	const char* t=gtk_entry_get_text ((GtkEntry*)((struct stk_s*)ps)->con_entry);
@@ -2423,7 +2423,7 @@ int main (int    argc,
 		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
 		//if(app!=nullptr){
 		ps.args[autoconnect_id]="autoconnect";ps.args_short[autoconnect_id]='a';
-		const GOptionEntry autoc[]={{ps.args[autoconnect_id],ps.args_short[autoconnect_id],G_OPTION_FLAG_IN_MAIN|G_OPTION_FLAG_OPTIONAL_ARG,G_OPTION_ARG_CALLBACK,(gpointer)autoconnect_callback,"[=INDEX] optional value: autoconnect to that index. Else, autoconnect to an autojoin connection (the reminder of unix days % autojoin total).","INDEX"}
+		const GOptionEntry autoc[]={{ps.args[autoconnect_id],ps.args_short[autoconnect_id],G_OPTION_FLAG_IN_MAIN|G_OPTION_FLAG_OPTIONAL_ARG,G_OPTION_ARG_CALLBACK,(gpointer)autoconnect_callback,"At [=INDEX] optional value: autoconnect to that index. Else, autoconnect to an autojoin connection (the reminder of unix days % autojoin total).","INDEX"}
 			,{nullptr,'\0',0,(GOptionArg)0,nullptr,nullptr,nullptr}};
 		g_application_add_main_option_entries((GApplication*)app,autoc);
 		ps.args[autojoin_id]=autojoin_str;ps.args_short[autojoin_id]='j';

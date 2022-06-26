@@ -1,0 +1,89 @@
+Description: <short summary of the patch>
+ TODO: Put a short summary on the line above and replace this paragraph
+ with a longer explanation of this change. Complete the meta-information
+ with other relevant fields (see below for details). To make it easier, the
+ information below has been extracted from the changelog. Adjust it or drop
+ it.
+ .
+ sirc (1-jammy5) jammy; urgency=medium
+ .
+   * crash at ignores
+Author: bc <bc@bc-HP-Pavilion-x360-Convertible>
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout http://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Origin: <vendor|upstream|other>, <url of original patch>
+Bug: <url in upstream bugtracker>
+Bug-Debian: https://bugs.debian.org/<bugnumber>
+Bug-Ubuntu: https://launchpad.net/bugs/<bugnumber>
+Forwarded: <no|not-needed|url proving that it has been forwarded>
+Reviewed-By: <name and email of someone who approved the patch>
+Last-Update: 2022-06-26
+
+--- /dev/null
++++ sirc-1/.github/workflows/rpm.yml
+@@ -0,0 +1,40 @@
++on:
++ workflow_dispatch:
++  inputs:
++   ppa:
++    description: "ppa sufix"
++
++jobs:
++ rpbuild:
++  runs-on: ubuntu-22.04 #focal alien is not testing ok on docker fedora
++  steps:
++   - uses: actions/checkout@v3
++   - name: Run a multi-line script
++     run: |
++      #get deb
++      arh=`cat debian/control | grep ^Architecture | cut -d ' ' -f2`
++      name=`cat debian/changelog | head -1 | grep -o ^[^\ ]*`
++      version=`cat debian/changelog | head -1 | grep -Poe "[^\(]*(?=\))"`
++      #dist=`cat debian/changelog | head -1 | grep -Poe "[^ ]*(?=;)"`
++      if [ ! -e "lp2.py" ]; then
++       wget -q https://raw.githubusercontent.com/colin-i/test/master/lp2.py
++      fi
++      OUTPUT=$(python3 lp2.py ppa${{ github.event.inputs.ppa }} ${name} ${version} ${arh})
++      wget ${OUTPUT}/+files/${name}_${version}_${arh}.deb -O ${name}.deb
++      #make rpm
++      mkdir out
++      cd out
++      #sudo apt update
++      sudo apt install alien
++      sudo alien -rk ../${name}.deb
++      fname=`ls`
++      #no, BuildArch is x86_64, don't change to amd64
++      #fname2=${name}-${version}.${arh}.rpm
++      mv ${fname} ../
++      #${fname2} #alien says x86_64 but we coded elsewhere with amd64
++      echo "file=${fname}" >> $GITHUB_ENV
++   - name: artifact
++     uses: actions/upload-artifact@v3
++     with:
++      name: rpm
++      path: ./${{ env.file }}
+--- sirc-1.orig/main.c
++++ sirc-1/main.c
+@@ -1741,8 +1741,8 @@ static void ignores_init(struct stk_s*ps
+ 			ignores=ps->ignores[i].chans;
+ 			return;
+ 		}
+-		ignores=&dummy;
+ 	}
++	ignores=&dummy;
+ }
+ static gboolean enter_recallback( gpointer ps){
+ 	const char* t=gtk_entry_get_text ((GtkEntry*)((struct stk_s*)ps)->con_entry);
+@@ -2423,7 +2423,7 @@ int main (int    argc,
+ 		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
+ 		//if(app!=nullptr){
+ 		ps.args[autoconnect_id]="autoconnect";ps.args_short[autoconnect_id]='a';
+-		const GOptionEntry autoc[]={{ps.args[autoconnect_id],ps.args_short[autoconnect_id],G_OPTION_FLAG_IN_MAIN|G_OPTION_FLAG_OPTIONAL_ARG,G_OPTION_ARG_CALLBACK,(gpointer)autoconnect_callback,"At [=INDEX] optional value: autoconnect to that index. Else, autoconnect to an autojoin connection (the reminder of unix days % autojoin total).","INDEX"}
++		const GOptionEntry autoc[]={{ps.args[autoconnect_id],ps.args_short[autoconnect_id],G_OPTION_FLAG_IN_MAIN|G_OPTION_FLAG_OPTIONAL_ARG,G_OPTION_ARG_CALLBACK,(gpointer)autoconnect_callback,"[=INDEX] optional value: autoconnect to that index. Else, autoconnect to an autojoin connection (the reminder of unix days % autojoin total).","INDEX"}
+ 			,{nullptr,'\0',0,(GOptionArg)0,nullptr,nullptr,nullptr}};
+ 		g_application_add_main_option_entries((GApplication*)app,autoc);
+ 		ps.args[autojoin_id]=autojoin_str;ps.args_short[autojoin_id]='j';
