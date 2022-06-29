@@ -27,12 +27,14 @@ jobs:
       #sudo apt update
       sudo apt install alien
       sudo alien -rk ../${name}.deb
-      fname=`ls | sed "s/-/./"`
+      fname=`ls`
+      fnamefinal=`echo ${fname} | sed "s/-/./"`
+      mv ${fname} ${fnamefinal}
       #no, BuildArch is x86_64, don't change to amd64
       #fname2=${name}.${version}.${arh}.rpm
-      mv ${fname} ../
+      mv ${fnamefinal} ../
       #${fname2} #alien says x86_64 but we coded elsewhere with amd64
-      echo "file=${fname}" >> $GITHUB_ENV
+      echo "file=${fnamefinal}" >> $GITHUB_ENV
    - name: artifact
      uses: actions/upload-artifact@v3
      with:
