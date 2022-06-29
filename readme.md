@@ -12,12 +12,12 @@ Install:
 sudo apt-get install sirc
 ```
 \
-On Fedora, <i>.rpm</i> file from [releases](https://github.com/colin-i/irc-ssl/releases).
+On Fedora, <i>.rpm</i> file from [releases](https://github.com/colin-i/irc-ssl/releases). \
 ```sh
 yum install sirc-*.rpm
 ```
 \
-On linux distributions, <i>.AppImage</i> file from [releases](https://github.com/colin-i/irc-ssl/releases).\
+On linux distributions, <i>.AppImage</i> file from [releases](https://github.com/colin-i/irc-ssl/releases).
 
 ## From source
 ```sh
