@@ -108,8 +108,7 @@ jobs:
        cat ${name}.squashfs >> ${name}.AppImage
        chmod a+x ${name}.AppImage
       fi
-      glibc=`readelf -V ${apd}/usr/bin/edor | grep -Po "(?<= GLIBC_)[^ ]*" | sort -Vr | head -1`
-      glibc=${glibc//./-}
+      glibc=`readelf -V ${apd}/usr/bin/${name} | grep -Po "(?<= GLIBC_)[^ ]*" | sort -Vr | head -1 | sed "s/\./-/g"`
       echo -n ${glibc} > version #"glibc" will not be ok for upload-artifact
    - name: artifact
      uses: actions/upload-artifact@v3
