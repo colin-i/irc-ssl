@@ -1,0 +1,2 @@
+
+git clean -xdf -e .pc/ -e debian/patches/

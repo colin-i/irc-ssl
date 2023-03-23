@@ -1968,13 +1968,19 @@ static void help_popup(struct stk_s*ps){
 		gtk_text_buffer_insert(text_buffer,&it,",",1);
 		gtk_text_buffer_insert(text_buffer,&it,&ps->args_short[i],1);
 	}
-	gtk_text_buffer_insert(text_buffer,&it,"\n\nReceived arguments:\n",-1);
-	for(int i=1;i<ps->argc;i++){
-		if(i>1)gtk_text_buffer_insert(text_buffer,&it," ",1);
-		BOOL a=strchr(ps->argv[i],' ')!=nullptr;
-		if(a)gtk_text_buffer_insert(text_buffer,&it,"\"",1);
-		gtk_text_buffer_insert(text_buffer,&it,ps->argv[i],-1);
-		if(a)gtk_text_buffer_insert(text_buffer,&it,"\"",1);
+	//
+	if(ps->argc==1)gtk_text_buffer_insert(text_buffer,&it,"\n\nNo argument was provided.\n",-1);
+	else{
+		gtk_text_buffer_insert(text_buffer,&it,"\n\nReceived argument",-1);
+		if(ps->argc>2)gtk_text_buffer_insert(text_buffer,&it,"s",-1);
+		gtk_text_buffer_insert(text_buffer,&it,":\n",-1);
+		for(int i=1;i<ps->argc;i++){
+			if(i>1)gtk_text_buffer_insert(text_buffer,&it," ",1);
+			BOOL a=strchr(ps->argv[i],' ')!=nullptr;
+			if(a)gtk_text_buffer_insert(text_buffer,&it,"\"",1);
+			gtk_text_buffer_insert(text_buffer,&it,ps->argv[i],-1);
+			if(a)gtk_text_buffer_insert(text_buffer,&it,"\"",1);
+		}
 	}
 	//
 	GtkWidget*box=gtk_dialog_get_content_area((GtkDialog*)dialog);
@@ -2232,9 +2238,6 @@ activate (GtkApplication* app,
 	GtkWidget *menu_item = gtk_menu_item_new_with_label ("Organize Connections");
 	g_signal_connect_data (menu_item, "activate",G_CALLBACK (organize_connections),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
-	menu_item = gtk_menu_item_new_with_label ("Help");
-	g_signal_connect_data (menu_item, "activate",G_CALLBACK (help_popup),ps,nullptr,G_CONNECT_SWAPPED);
-	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	//
 	menu_item = gtk_menu_item_new_with_label ("Channels");
 	chan_menu = gtk_menu_new ();
@@ -2281,6 +2284,10 @@ activate (GtkApplication* app,
 	//
 	menu_item = gtk_menu_item_new_with_label ("Shutdown Connection");
 	g_signal_connect_data (menu_item, "activate",G_CALLBACK (action_to_close),nullptr,nullptr,(GConnectFlags)0);
+	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
+	//
+	menu_item = gtk_menu_item_new_with_label ("Help");
+	g_signal_connect_data (menu_item, "activate",G_CALLBACK (help_popup),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	//
 	menu_item = gtk_menu_item_new_with_label ("Exit Program");
@@ -2492,3 +2499,16 @@ int main (int    argc,
 	}else puts("openssl error");
 	return EXIT_SUCCESS;
 }
+
+/* example entries for .sircinfo
+irc.libera.chat:6697
+chat.freenode.net:6697,7000,7070
+@192.168.4.3     
+@bucharest.ro.eu.undernet.org:6660-6669
+chat.freenode.net:6697,7000,7070;6665-6667,8000-8002
+@192.168.4.1
+zonder:@irc.us.ircnet.net
+@0.0.0.0
+@192.168.4.3:6666-6667
+@192.168.4.3:6667;6666,6667-6667
+*/
