@@ -2,10 +2,11 @@ aclocal.m4
 autom4te.cache/
 build-aux/
 configure
+.deps/
 Makefile.in
 config.log
 config.status
 Makefile
-*sirc
+sirc*
 .pc/
 debian/patches/
