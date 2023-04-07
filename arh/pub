@@ -21,3 +21,6 @@ last=$(curl https://api.github.com/repos/colin-i/$(cat debian/control | grep "^H
 ~/test/keyring && \
 ~/test/del x ${last} x && \
 ~/test/arh2 ${last}
+
+#ngircd starred
+#also at debian/ubuntu
