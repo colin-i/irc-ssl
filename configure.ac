@@ -18,6 +18,15 @@ AM_CONDITIONAL(CPP, test x"$cpp" = x"true")
 
 #
 
+# Check for CFLAGS
+AC_MSG_CHECKING([whether configure should try to set CFLAGS])
+if test "x${CFLAGS+set}" = xset; then
+enable_cflags_setting=no
+else
+enable_cflags_setting=yes
+fi
+AC_MSG_RESULT($enable_cflags_setting)
+
 #AC_DEFINE_UNQUOTED(HOMEDIR,[$(echo "\"$(cd ~; pwd)/\"")],[~ cannot be "q q"])
 AC_PROG_CC
 AC_CHECK_HEADERS(libgen.h fcntl.h netdb.h netinet/in.h openssl/ssl.h pthread.h signal.h stdio.h stdlib.h string.h sys/socket.h time.h unistd.h)
@@ -75,6 +84,9 @@ CFLAGS="$start_cflgs"
 
 AS_IF([test x"$cpp" = x"false"],[
   AC_CHECK_HEADERS(stdbool.h stddef.h)])
+
+#back at CFLAGS
+test "x${enable_cflags_setting}" = xyes && CFLAGS="-O3 -s"
 
 #
 
