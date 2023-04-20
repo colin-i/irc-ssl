@@ -1347,8 +1347,8 @@ static gboolean incsafe(gpointer ps){
 			else if(sscanf(b,"%*s :" mod_scan,mod)==1)pars_mod_self((struct stk_s*)ps,mod);
 		}else if(strcmp(com,"INVITE")==0){
 			if(nick_extract(a,nicknm)&&sscanf(b,"%*s " channame_scan,channm)==1){
-				char buf[name_sz+sizeof(invite_str)+chan_sz];
-				sprintf(buf,"%s" invite_str "%s",nicknm,channm);
+				char buf[name_sz+sizeof(invite_str)+chan_sz];//invite_str size includes null
+				sprintf(buf,"%s" invite_str "%s",nicknm,channm);//is ok channm is only chan_sz here
 				pars_pmsg_name(nicknm,buf,(struct stk_s*)ps,TRUE,"*Invite");
 			}
 		}else if(strlen(com)!=3)showmsg=FALSE;
