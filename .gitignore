@@ -8,5 +8,3 @@ config.log
 config.status
 Makefile
 sirc*
-.pc/
-debian/patches/
