@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+int getchar(void);
 int printf( const char * format, ... );
 int puts(const char*);
 int sscanf(const char *str, const char *format, ...);

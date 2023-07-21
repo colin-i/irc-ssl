@@ -153,7 +153,7 @@ enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };//connections org,channels
-#define number_of_args 22
+#define number_of_args 23
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
@@ -215,7 +215,7 @@ static BOOL can_send_data=FALSE;
 #define counting_the_list_size (sizeof(chans_str)>sizeof(names_str)?sizeof(chans_str):sizeof(names_str))
 #define list_end_str " listed\n"
 #define autojoin_str "autojoin"
-enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,chans_max_id,connection_number_id,hide_id,ignore_id,log_id,maximize_id,minimize_id,nick_id,password_id,refresh_id,right_id,run_id,send_history_id,timestamp_id,user_id,visible_id,welcome_id,welcomeNotice_id};
+enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,chans_max_id,connection_number_id,hide_id,ignore_id,log_id,maximize_id,minimize_id,nick_id,password_id,refresh_id,right_id,run_id,send_history_id,timestamp_id,user_id,visible_id,welcome_id,welcomeNotice_id,removeconf_id};
 struct ajoin{
 	int c;//against get_active
 	char**chans;
@@ -1768,7 +1768,7 @@ static void enter_callback( gpointer ps){
 	g_signal_handler_block(((struct stk_s*)ps)->con_entry,((struct stk_s*)ps)->con_entry_act);
 	enter_recallback(ps);
 }
-static BOOL info_path_name_set_val(const char*a,char*b,size_t i,size_t j){
+static void info_path_name_set_val(const char*a,char*b,size_t i,size_t j){
 	info_path_name=(char*)malloc(i+2+j+5);
 	if(info_path_name!=nullptr){
 		memcpy(info_path_name,a,i);
@@ -1777,22 +1777,19 @@ static BOOL info_path_name_set_val(const char*a,char*b,size_t i,size_t j){
 		char*c=info_path_name+i+2;
 		memcpy(c,b,j);
 		memcpy(c+j,"info",5);
-		return TRUE;
 	}
-	return FALSE;
 }
-static BOOL info_path_name_set(char*a){
+static void info_path_name_set(char*a){
 	char*h=getenv("HOME");
 	if(h!=nullptr){
 		char*b=basename(a);
 		size_t i=strlen(h);
 		size_t j=strlen(b);
-		return info_path_name_set_val(h,b,i,j);//sizeof(HOMEDIR)-1
+		info_path_name_set_val(h,b,i,j);//sizeof(HOMEDIR)-1
 	}
-	return FALSE;
 }
 static void info_path_name_restore(GtkComboBoxText*cbt,GtkWidget*entext,struct stk_s*ps){
-	if(info_path_name_set(ps->argv[0])){
+	if(info_path_name!=nullptr){
 		int f=open(info_path_name,O_RDONLY);
 		if(f!=-1){
 			size_t sz=(size_t)lseek(f,0,SEEK_END);
@@ -2210,7 +2207,10 @@ activate (GtkApplication* app,
 	text_view=contf_get_textv(home_page);
 	ps->trv=(GtkWidget*)contf_get_treev(home_page);
 	channels=(GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)ps->trv);
-	ps->trvr=g_signal_handler_find(ps->trv,G_SIGNAL_MATCH_ID,g_signal_lookup("button-release-event", gtk_button_get_type()),0, nullptr, nullptr, nullptr);
+	//__asm("int $3");
+	GType trv_gt=gtk_button_get_type();
+	guint trv_gsl=g_signal_lookup("button-release-event", trv_gt);
+	ps->trvr=g_signal_handler_find(ps->trv,G_SIGNAL_MATCH_ID,trv_gsl,0,nullptr,nullptr,nullptr);
 	g_signal_handler_block(ps->trv,ps->trvr);//warning without
 	//
 	gtk_notebook_set_scrollable(ps->notebook,TRUE);
@@ -2341,16 +2341,28 @@ static gboolean autoconnect_callback(const gchar *option_name,const gchar *value
 	else autoconnect=atoi(value);
 	return TRUE;
 }
-static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
-	int nr;
-	if (g_variant_dict_lookup (options,ps->args[connection_number_id], "i", &nr)){//if 0 this is false here
-		if(nr<con_nr_min||nr>con_nr_max){
-			printf("%s must be from " con_nr_nrs " interval, \"%i\" given.\n",ps->args[7],nr);
-			return 0;
+static void remove_config(){
+	if(info_path_name!=nullptr){
+		if(access(info_path_name,F_OK)==0){
+			puts("Would remove:");
+			puts(info_path_name);
+			puts("yes ?");
+			int e=getchar();
+			if(e=='y'){
+				e=getchar();
+				if(e=='e'){
+					e=getchar();
+					if(e=='s'){
+						if(unlink(info_path_name)==0)printf("%s removed\n",info_path_name);
+						return;
+					}
+				}
+			}
+			puts("expecting \"yes\"");
 		}
-		ps->con_type=(unsigned char)nr;
-	}else ps->con_type=default_connection_number;
-	//
+	}
+}
+static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	char*result;
 	if(g_variant_dict_lookup (options, ps->args[dimensions_id], "s", &result)){//missing argument is not reaching here
 		char*b=strchr(result,'x');
@@ -2416,6 +2428,23 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	//
 	if (g_variant_dict_lookup (options,ps->args[send_history_id],"i",&ps->send_history)==FALSE)
 		ps->send_history=default_send_history;
+
+	//these are after allocs where set to allocated mem or 0/nullptr
+
+	if(g_variant_dict_contains(options,ps->args[removeconf_id])/*true*/){
+		remove_config();
+		return 0;
+	}
+
+	int nr;
+	if (g_variant_dict_lookup (options,ps->args[connection_number_id], "i", &nr)){//if 0 this is false here
+		if(nr<con_nr_min||nr>con_nr_max){
+			printf("%s must be from " con_nr_nrs " interval, \"%i\" given.\n",ps->args[connection_number_id],nr);
+			return 0;
+		}
+		ps->con_type=(unsigned char)nr;
+	}else ps->con_type=default_connection_number;
+
 	return -1;
 }
 int main (int    argc,
@@ -2428,7 +2457,11 @@ int main (int    argc,
 		struct stk_s ps;
 		GtkApplication *app;
 		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
+
 		//if(app!=nullptr){
+		//QWERTYUIOP
+		//ASDFgHJkL
+		// ZXCVbNM
 		ps.args[autoconnect_id]="autoconnect";ps.args_short[autoconnect_id]='a';
 		const GOptionEntry autoc[]={{ps.args[autoconnect_id],ps.args_short[autoconnect_id],G_OPTION_FLAG_IN_MAIN|G_OPTION_FLAG_OPTIONAL_ARG,G_OPTION_ARG_CALLBACK,(gpointer)autoconnect_callback,"[=INDEX] optional value: autoconnect to that index. Else, autoconnect to an autojoin connection (the reminder of unix days % autojoin total).","INDEX"}
 			,{nullptr,'\0',0,(GOptionArg)0,nullptr,nullptr,nullptr}};
@@ -2475,15 +2508,18 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[welcome_id],ps.args_short[welcome_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Welcome message sent in response when someone starts a conversation.","TEXT");
 		ps.args[welcomeNotice_id]="welcome-notice";ps.args_short[welcomeNotice_id]='e';
 		g_application_add_main_option((GApplication*)app,ps.args[welcomeNotice_id],ps.args_short[welcomeNotice_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Welcome message sent as a " not_msg_str " instead of " priv_msg_str ".",nullptr);
+		ps.args[removeconf_id]="remove-config";ps.args_short[removeconf_id]='q';
+		g_application_add_main_option((GApplication*)app,ps.args[removeconf_id],ps.args_short[removeconf_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Remove configuration and exit.",nullptr);
 		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
 		//  if(han>0)
 		ps.argc=argc;ps.argv=argv;
 		send_entry_list=g_queue_new();
-		//
+
+		info_path_name_set(argv[0]);
 		g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
 		g_object_unref (app);
-		//
+
 		g_queue_free_full(send_entry_list,g_free);
 		if(ps.nick!=nullptr)g_free(ps.nick);
 		if(ps.welcome!=nullptr)g_free(ps.welcome);
