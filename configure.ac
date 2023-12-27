@@ -69,6 +69,7 @@ AC_COMPILE_IFELSE(
 )
 #CFLAGS="$start_cflgs"
 
+#there is a headless build, but still lazy about @GTK_LIBS@ at link
 ], [AC_MSG_ERROR("pkg check modules failed for gtk")])
 
 CFLAGS="-Werror=unknown-warning-option -Weverything"

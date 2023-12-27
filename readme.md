@@ -20,14 +20,14 @@ yum install sirc-*.*.rpm
 On linux distributions, <i>.AppImage</i> file from [releases](https://github.com/colin-i/irc-ssl/releases).
 
 ## From source
+Using libssl-dev and libgtk-3-dev. There is a "headless" build file as well.
 ```sh
 autoreconf -i
 ./configure
 make install
 ```
 For *install*, *sudo make install* if it is the user.\
-*\-\-disable\-cpp* at *./configure* to set c rules.\
-GTK3 required.
+*\-\-disable\-cpp* at *./configure* to set c rules.
 
 ## Donations
 The *donations* section is here
