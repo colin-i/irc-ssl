@@ -53,14 +53,7 @@ PKG_CHECK_MODULES([GLIB], [glib-2.0],[
       #not using GLIB_CFLAGS
 ])
 
-#GTK_LIBS=" -lgtk-3 -lgdk-3 -lz -lpangocairo-1.0 -lpango-1.0 -lharfbuzz -latk-1.0 -lcairo-gobject -lcairo -lgdk_pixbuf-2.0 -lgio-2.0 -lgobject-2.0 -lglib-2.0 "
-AC_MSG_CHECKING([whether GTK_LIBS is set])
-if test "x${GTK_LIBS+set}" = xset; then
-	AC_MSG_RESULT(yes)
-else
-	AC_MSG_RESULT(no)
-	PKG_CHECK_MODULES([GTK], [gtk+-3.0],[
-
+PKG_CHECK_MODULES([GTK], [gtk+-3.0],[
 	CFLAGS="$GTK_CFLAGS"
 	X_PROGRAM="#include<gtk/gtk.h>"
 	AC_MSG_CHECKING([gtk/gtk.h])
@@ -74,10 +67,17 @@ else
 	    AC_SUBST([GTK_CFLAGS], '')]
 	)
 	#CFLAGS="$start_cflgs"
-
+], [
 	#there is a headless build, but still lazy about @GTK_LIBS@ at link
-	], [AC_MSG_ERROR("pkg check modules failed for gtk")])
-fi
+	#GTK_LIBS=" -lgtk-3 -lgdk-3 -lz -lpangocairo-1.0 -lpango-1.0 -lharfbuzz -latk-1.0 -lcairo-gobject -lcairo -lgdk_pixbuf-2.0 -lgio-2.0 -lgobject-2.0 -lglib-2.0 "
+	AC_MSG_CHECKING([whether GTK_LIBS is set])
+	if test "x${GTK_LIBS+set}" = xset; then
+		AC_MSG_RESULT(yes)
+	else
+		AC_MSG_RESULT(no)
+		AC_MSG_ERROR("pkg check modules failed for gtk")
+	fi
+])
 
 CFLAGS="-Werror=unknown-warning-option -Weverything"
 AC_MSG_CHECKING([-Weverything])
