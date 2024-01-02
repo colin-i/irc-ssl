@@ -129,7 +129,7 @@ Ctrl+X = Exit program\n\
 \n\
 Connection format:\n\
 [[nickname" parse_host_delim "]password" parse_host_left "]hostname[" parse_host_delim "port1[" parse_host_ports_delim "portN][" parse_host_ports_micro "portM...][" parse_host_ports_macro "portP...]]\n\
-A " parse_host_ports_macro_text " (" parse_host_ports_macro ") will override the connection type. Before " parse_host_ports_macro_text ", " con_nr_s "  or  " con_nr_su "; after " parse_host_ports_macro_text ", " con_nr_u "  or  " con_nr_us ".\n\
+A " parse_host_ports_macro_text " (" parse_host_ports_macro ") will override the connection type. Before " parse_host_ports_macro_text " are " con_nr_s " ports and after " parse_host_ports_macro_text " are " con_nr_u " ports.\n\
 Escape " parse_host_left " in password with the uri format (\"%40\").\n\
 e.g. newNick" parse_host_delim "a%40c" parse_host_left "127.0.0.1" parse_host_delim "7000" parse_host_ports_macro "6660" parse_host_ports_delim "6665" parse_host_ports_micro "6669"
 #define chan_sz 50
