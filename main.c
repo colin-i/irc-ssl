@@ -225,7 +225,7 @@ static GtkWidget*menuwithtabs;
 #define size_t_max (((unsigned long int)1<<(8*sizeof(size_t)-1))-1)+((unsigned long int)1<<(8*sizeof(size_t)-1))
 #define not_a_switch size_t_max
 //is also odd, there are pairs, and text size is also let small
-//at = and == is same asm against 1
+//at = and == is same asm against 1     and for other compilers can compare from bit sign and is faster
 static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 #define default_chan_min 250
 #define default_chans_max 150
