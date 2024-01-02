@@ -442,7 +442,7 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,uns
 		if(ptr==nullptr){
 			*pr=(unsigned short*)malloc(2*sizeof(unsigned short));
 			if(*pr==nullptr)return FALSE;
-			(*pr)[0]=6667;(*pr)[1]=6667;*pl=0;*swtch=not_a_switch; 
+			(*pr)[0]=6667;(*pr)[1]=6667;*pl=0;*swtch=not_a_switch;
 			return TRUE;
 		}
 		//at switch recon, can't test pl==switch because of :;port  /   pl<switch  :port;    =>    only not_a_switch = odd is ok
