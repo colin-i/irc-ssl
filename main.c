@@ -115,8 +115,8 @@ static char*info_path_name=nullptr;
 #define con_nr_min _con_nr_su
 #define con_nr_max _con_nr_u
 #define con_nr_nrs INT_CONV_STR(con_nr_min) "-" INT_CONV_STR(con_nr_max)
-#define con_nr_righttype1 _con_nr_us
-#define con_nr_righttype2 _con_nr_u
+//#define con_nr_righttype1 _con_nr_us
+//#define con_nr_righttype2 _con_nr_u
 #define help_text "Most of the parameters are set at start.\n\
 Launch the program with --help argument for more info.\n\
 Send irc commands from the " home_string " tab. Other tabs are sending " priv_msg_str " messages.\n\
@@ -129,7 +129,7 @@ Ctrl+X = Exit program\n\
 \n\
 Connection format:\n\
 [[nickname" parse_host_delim "]password" parse_host_left "]hostname[" parse_host_delim "port1[" parse_host_ports_delim "portN][" parse_host_ports_micro "portM...][" parse_host_ports_macro "portP...]]\n\
-A " parse_host_ports_macro_text " (" parse_host_ports_macro ") will override the connection type. Before " parse_host_ports_macro_text ", " con_nr_s " or " con_nr_su "; after " parse_host_ports_macro_text ", " con_nr_u " or " con_nr_us ".\n\
+A " parse_host_ports_macro_text " (" parse_host_ports_macro ") will override the connection type. Before " parse_host_ports_macro_text ", " con_nr_s "  or  " con_nr_su "; after " parse_host_ports_macro_text ", " con_nr_u "  or  " con_nr_us ".\n\
 Escape " parse_host_left " in password with the uri format (\"%40\").\n\
 e.g. newNick" parse_host_delim "a%40c" parse_host_left "127.0.0.1" parse_host_delim "7000" parse_host_ports_macro "6660" parse_host_ports_delim "6665" parse_host_ports_micro "6669"
 #define chan_sz 50
@@ -222,8 +222,9 @@ struct ajoin{
 };
 #define invite_str " invited you to join channel "
 static GtkWidget*menuwithtabs;
-#define sw_rule 0
 #define size_t_max (((unsigned long int)1<<(8*sizeof(size_t)-1))-1)+((unsigned long int)1<<(8*sizeof(size_t)-1))
+#define not_a_switch size_t_max
+//is also odd, there are pairs, and text size is also let small
 static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 #define default_chan_min 250
 #define default_chans_max 150
@@ -441,24 +442,40 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,uns
 		if(ptr==nullptr){
 			*pr=(unsigned short*)malloc(2*sizeof(unsigned short));
 			if(*pr==nullptr)return FALSE;
-			(*pr)[0]=6667;(*pr)[1]=6667;*pl=sw_rule;*swtch=sw_rule+1;
+			(*pr)[0]=6667;(*pr)[1]=6667;*pl=0;*swtch=not_a_switch; 
 			return TRUE;
 		}
+		//at switch recon, can't test pl==switch because of :;port  /   pl<switch  :port;    =>    only not_a_switch = odd is ok
 		ptr++;
+		if(*ptr=='\0')return FALSE;//return here, else will return TRUE with two undefined
 		size_t i=1;
 		for(size_t j=0;ptr[j]!='\0';j++)if(ptr[j]==*parse_host_ports_micro||ptr[j]==*parse_host_ports_macro)i++;
-		unsigned short*por=(unsigned short*)malloc(i*2*sizeof(unsigned short));
+		size_t max=i*2;
+		unsigned short*por=(unsigned short*)malloc(max*sizeof(unsigned short));
 		if(por!=nullptr){
-			size_t j=0;size_t k=0;*swtch=size_t_max;
+			if(*ptr==*parse_host_ports_macro){//case when are induced unencrypted ports
+				ptr++;
+				if(*ptr=='\0'){free(por);return FALSE;}//case:   ;   return here, else will return TRUE with two undefined
+				*swtch=0;
+				max-=2;//because first two are not anymore
+			}else *swtch=not_a_switch;
+			size_t j=0;size_t k=0;
 			for(;;){
 				BOOL end=ptr[j]=='\0';BOOL sw=ptr[j]==*parse_host_ports_macro;
 				if(ptr[j]==*parse_host_ports_micro||end||sw){
 					int n=sscanf(ptr,"%hu" parse_host_ports_delim "%hu",&por[k],&por[k+1]);
-					if(n==0){free(por);return FALSE;}
+					if(n==0){free(por);return FALSE;}//this is not same as EOF, a "" is an EOF
 					if(n==1)por[k+1]=por[k];
-					if(end){*pl=i*2-2;*pr=por;return TRUE;}
+					if(end){
+						if(n==EOF)//this is the case: :port;    pl 0   switch 2      or :port,      EOF can also be an error but not here
+							max-=2;
+						*pl=max-2;*pr=por;return TRUE;
+					}
 					k+=2;
-					if(sw)*swtch=k;
+					if(sw){
+						if(*swtch!=not_a_switch){free(por);return FALSE;}//this is the second switch?
+						*swtch=k;
+					}
 					ptr=&ptr[j+1];j=0;continue;
 				}
 				j++;
@@ -1613,16 +1630,20 @@ static void clear_old_chat(GtkNotebook*nb){
 	start_old_clear(name_off_menu,nb);
 }
 static void proced_core(struct stk_s*ps,char*hostname,char*psw,char*nkn,unsigned short*ports,size_t port_last,size_t swtch){
-	GSList*lst=con_group;
-	unsigned char n=con_nr_max;
-	for(;;){
-		if(gtk_check_menu_item_get_active((GtkCheckMenuItem*)lst->data))break;
-		lst=lst->next;n--;
-	}
+	unsigned char n;
+	if(swtch==not_a_switch){
+		GSList*lst=con_group;
+		n=con_nr_max;
+		for(;;){
+			if(gtk_check_menu_item_get_active((GtkCheckMenuItem*)lst->data))break;
+			lst=lst->next;n--;
+		}
+	}else n=_con_nr_s;
 	for(;;){
 		size_t port_i=0;
-		if(swtch<=port_last&&(n==con_nr_righttype1||n==con_nr_righttype2))n--;
+		//if(swtch<=port_last&&(n==con_nr_righttype1||n==con_nr_righttype2))n--;//this is useless at :ssl;plain
 		for(;;){
+			if(swtch==port_i)n++;//this was moved up to let unencrypted only preferred
 			unsigned short port1=ports[port_i];unsigned short port2=ports[port_i+1];
 			for(;;){
 				create_socket(hostname,port1);
@@ -1645,7 +1666,7 @@ static void proced_core(struct stk_s*ps,char*hostname,char*psw,char*nkn,unsigned
 								con_ssl(psw,nkn,ps);
 						}
 					}else if(n==_con_nr_s)con_ssl(psw,nkn,ps);
-					else con_plain(psw,nkn,ps);
+					else con_plain(psw,nkn,ps);//_con_nr_u
 					close_plain_safe
 				}
 				if(close_intention)return;
@@ -1660,7 +1681,7 @@ static void proced_core(struct stk_s*ps,char*hostname,char*psw,char*nkn,unsigned
 			}
 			if(port_i==port_last)break;
 			port_i+=2;
-			if(swtch==port_i)n++;
+			//if(swtch==port_i)n++;
 		}
 	}
 }
