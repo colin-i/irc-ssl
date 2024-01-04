@@ -375,10 +375,14 @@ static void create_socket(char*hostname,unsigned short port) {
 		plain_socket = socket(AF_INET, SOCK_STREAM, 0);
 		if(plain_socket!=-1){
 			dest_addr.sin_family=AF_INET;
-			dest_addr.sin_port=htons(port);
-			dest_addr.sin_addr.s_addr = *(unsigned long*)((void*)(host->h_addr_list[0]));
+
+			//dest_addr.sin_addr.s_addr = *(unsigned long*)((void*)(host->h_addr_list[0]));
 			//  memset(&(dest_addr.sin_zero), '\0', 8);//string
 			//"setting it to zero doesn't seem to be actually necessary"
+			memcpy((char *) &dest_addr.sin_addr, (char *) host->h_addr,host->h_length);
+
+			dest_addr.sin_port=htons(port);
+
 			  /* ---------------------------------------------------------- *
 			   * Try to make the host connect here                          *
 			   * ---------------------------------------------------------- */
@@ -2561,12 +2565,11 @@ int main (int    argc,
 /* example entries for .sircinfo
 irc.libera.chat:6697
 chat.freenode.net:6697,7000,7070
-@192.168.4.3     
 @bucharest.ro.eu.undernet.org:6660-6669
 chat.freenode.net:6697,7000,7070;6665-6667,8000-8002
-@192.168.4.1
+@127.0.0.1
 zonder:@irc.us.ircnet.net
 @0.0.0.0
-@192.168.4.3:6666-6667
-@192.168.4.3:6667;6666,6667-6667
+@127.0.0.1:6666-6667
+@127.0.0.1:6697;6667-6669
 */

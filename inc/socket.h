@@ -2,12 +2,9 @@
 #define AF_INET 2
 #define SOCK_STREAM 1
 
-typedef unsigned short sa_family_t;
-struct sockaddr {
-  sa_family_t sa_family;
-  char sa_data[14];
-};
-typedef int socklen_t;//int32_t
+#include "sockaddr.h"
+
+typedef unsigned int socklen_t;
 
 #ifdef __cplusplus
 extern "C" {
