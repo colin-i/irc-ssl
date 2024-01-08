@@ -389,6 +389,7 @@ void gtk_window_set_default_size (GtkWindow *window, gint width, gint height);
 void gtk_window_set_icon (GtkWindow *window, GdkPixbuf *icon);
 void gtk_window_set_title (GtkWindow *window,const gchar *title);
 void gtk_window_maximize (GtkWindow *window);
+void gtk_window_unmaximize (GtkWindow *window);
 
 #ifdef __cplusplus
 }

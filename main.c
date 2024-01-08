@@ -2209,6 +2209,15 @@ static void gather_free(size_t sum,char*mem,struct ajoin*ins){
 		free(ins);
 	}
 }
+static void organizer_popup(struct stk_s*ps){
+	GtkWidget *dialog = gtk_application_window_new (ps->app);
+	//GtkWidget *dialog = gtk_dialog_new_with_buttons ("Organizer",  nullptr, (GtkDialogFlags)0,  "_Done",GTK_RESPONSE_NONE,nullptr);//still is on top
+	int w;int h;
+	gtk_window_get_size (ps->main_win,&w,&h);w*=15;
+	gtk_window_set_default_size((GtkWindow*)dialog,w/16,h);//h is not doing right for this width
+	gtk_widget_show_all (dialog);
+	//gtk_window_unmaximize((GtkWindow*)dialog);//at this dims will be automaximized, at dims/2 will not be automaximized  //is not working here
+}
 static void
 activate (GtkApplication* app,
           struct stk_s*ps)
@@ -2280,9 +2289,13 @@ activate (GtkApplication* app,
 	gtk_menu_item_set_submenu((GtkMenuItem*)menu_item,name_off_menu);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	//
-	show_time=(GtkCheckMenuItem*)gtk_check_menu_item_new_with_label("Show Message Timestamp");
-	if(ps->timestamp)gtk_check_menu_item_set_active(show_time,TRUE);
-	gtk_menu_shell_append ((GtkMenuShell*)menu,(GtkWidget*)show_time);gtk_widget_show((GtkWidget*)show_time);
+	menu_item = gtk_menu_item_new_with_label ("Organizer");
+	g_signal_connect_data (menu_item, "activate",G_CALLBACK (organizer_popup),ps,nullptr,G_CONNECT_SWAPPED);
+	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
+	//
+	menu_item = gtk_menu_item_new_with_label ("Copy to Clipboard");
+	g_signal_connect_data (menu_item, "activate",G_CALLBACK (clipboard_tev),ps->notebook,nullptr,G_CONNECT_SWAPPED);
+	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	//
 	GtkWidget*menu_con=gtk_menu_item_new_with_label("Connection Type");
 	GtkMenuShell*menucon=(GtkMenuShell*)gtk_menu_new();
@@ -2295,18 +2308,18 @@ activate (GtkApplication* app,
 	gtk_menu_shell_append ((GtkMenuShell*)menu,menu_con);
 	gtk_widget_show_all(menu_con);
 	//
-	menu_item = gtk_menu_item_new_with_label ("Copy to Clipboard");
-	g_signal_connect_data (menu_item, "activate",G_CALLBACK (clipboard_tev),ps->notebook,nullptr,G_CONNECT_SWAPPED);
+	menu_item = gtk_menu_item_new_with_label ("Channel Minimum Users");
+	g_signal_connect_data (menu_item, "activate",G_CALLBACK (chan_reMin),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
+	//
+	show_time=(GtkCheckMenuItem*)gtk_check_menu_item_new_with_label("Show Message Timestamp");
+	if(ps->timestamp)gtk_check_menu_item_set_active(show_time,TRUE);
+	gtk_menu_shell_append ((GtkMenuShell*)menu,(GtkWidget*)show_time);gtk_widget_show((GtkWidget*)show_time);
 	//
 	channels_counted=(GtkCheckMenuItem*)gtk_check_menu_item_new_with_label("Sort Channels by Number");
 	gtk_check_menu_item_set_active(channels_counted,TRUE);
 	g_signal_connect_data (channels_counted, "toggled",G_CALLBACK(channels_sort),nullptr,nullptr,(GConnectFlags)0);
 	gtk_menu_shell_append ((GtkMenuShell*)menu,(GtkWidget*)channels_counted);gtk_widget_show((GtkWidget*)channels_counted);
-	//
-	menu_item = gtk_menu_item_new_with_label ("Channel Minimum Users");
-	g_signal_connect_data (menu_item, "activate",G_CALLBACK (chan_reMin),ps,nullptr,G_CONNECT_SWAPPED);
-	gtk_menu_shell_append ((GtkMenuShell*)menu, menu_item);gtk_widget_show(menu_item);
 	//
 	menu_item = gtk_menu_item_new_with_label ("Shutdown Connection");
 	g_signal_connect_data (menu_item, "activate",G_CALLBACK (action_to_close),nullptr,nullptr,(GConnectFlags)0);
@@ -2505,7 +2518,7 @@ int main (int    argc,
 		ps.args[hide_id]="hide";ps.args_short[hide_id]='h';
 		g_application_add_main_option((GApplication*)app,ps.args[hide_id],ps.args_short[hide_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Don't display activity messages at " home_string " tab (join,part,...).",nullptr);
 		ps.args[ignore_id]="ignore";ps.args_short[ignore_id]='i';
-		g_application_add_main_option((GApplication*)app,ps.args[ignore_id],ps.args_short[ignore_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Ignore private messages from nicknames. The format is te same as \"" autojoin_str "\".","\"I1,N1,N2...NN I2... ... IN...\"");
+		g_application_add_main_option((GApplication*)app,ps.args[ignore_id],ps.args_short[ignore_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Ignore private messages from nicknames. The format is the same as \"" autojoin_str "\".","\"I1,N1,N2...NN I2... ... IN...\"");
 		ps.args[log_id]="log";ps.args_short[log_id]='l';
 		g_application_add_main_option((GApplication*)app,ps.args[log_id],ps.args_short[log_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Log private chat to filename.","FILENAME");//_FILENAME
 		ps.args[maximize_id]="maximize";ps.args_short[maximize_id]='z';
