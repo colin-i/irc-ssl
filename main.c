@@ -2221,9 +2221,9 @@ static void organizer_popup(struct stk_s*ps){
 		GtkWidget *dialog = gtk_application_window_new (ps->app);
 		ps->organizer=dialog;
 		//GtkWidget *dialog = gtk_dialog_new_with_buttons ("Organizer",  nullptr, (GtkDialogFlags)0,  "_Done",GTK_RESPONSE_NONE,nullptr);//still is on top
-	
+
 		g_signal_connect_data (dialog,"destroy",G_CALLBACK(organizer_destroy_from_selfclose),ps,nullptr,G_CONNECT_SWAPPED);
-	
+
 		int w;int h;
 		gtk_window_get_size (ps->main_win,&w,&h);w*=0xf;
 		gtk_window_set_default_size((GtkWindow*)dialog,w/0x10,h);//h is not doing right for this width
