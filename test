@@ -1,1 +1,5 @@
-./sirc -z -f 0 -t
+
+if [ -n "${1}" ]; then
+dbg="gdb --args "
+fi
+${dbg} ./sirc -z -f 0 -t
