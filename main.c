@@ -2211,6 +2211,7 @@ static void gather_free(size_t sum,char*mem,struct ajoin*ins){
 	}
 }
 static void organizer_destroy_from_mainclose(struct stk_s*ps){
+	gtk_widget_destroy(menuwithtabs);
 	if(ps->organizer!=nullptr)gtk_window_close(ps->organizer);
 }
 static void organizer_destroy_from_selfclose(struct stk_s*ps){
@@ -2222,6 +2223,7 @@ static void organizer_popup(struct stk_s*ps){
 		ps->organizer=dialog;
 		//GtkWidget *dialog = gtk_dialog_new_with_buttons ("Organizer",  nullptr, (GtkDialogFlags)0,  "_Done",GTK_RESPONSE_NONE,nullptr);//still is on top
 
+		gtk_window_set_title ((GtkWindow*)dialog, "Organizer");
 		g_signal_connect_data (dialog,"destroy",G_CALLBACK(organizer_destroy_from_selfclose),ps,nullptr,G_CONNECT_SWAPPED);
 
 		int w;int h;
@@ -2238,12 +2240,11 @@ activate (GtkApplication* app,
 	ps->app=(GApplication*)app;
 	/* Create a window with a title, and a default size */
 	GtkWidget *window = gtk_application_window_new (app);
-
+	menuwithtabs=gtk_menu_new();
+	//
 	g_signal_connect_data (window,"destroy",G_CALLBACK(organizer_destroy_from_mainclose),ps,nullptr,G_CONNECT_SWAPPED);
 	ps->organizer=nullptr;
-
-	menuwithtabs=gtk_menu_new();
-	g_signal_connect_data (window,"destroy",G_CALLBACK(gtk_widget_destroy),menuwithtabs,nullptr,G_CONNECT_SWAPPED);
+	//moved to organizer_destroy_from_mainclose: g_signal_connect_data (window,"destroy",G_CALLBACK(gtk_widget_destroy),menuwithtabs,nullptr,G_CONNECT_SWAPPED);
 	//
 	gtk_window_set_title ((GtkWindow*) window, "IRC");
 	if(ps->dim[0]!=-1)
