@@ -382,14 +382,15 @@ void gtk_widget_set_size_request (GtkWidget *widget,gint width,gint height);
 void gtk_widget_set_tooltip_text (GtkWidget *widget, const gchar *text);
 void gtk_widget_show (GtkWidget *widget);
 void gtk_widget_show_all (GtkWidget *widget);
+void gtk_window_close (GtkWindow *window);
 void gtk_window_get_size (GtkWindow *window,gint *width,gint *height);
 void gtk_window_iconify (GtkWindow *window);
 gboolean gtk_window_is_active (GtkWindow *window);
+void gtk_window_maximize (GtkWindow *window);
+void gtk_window_present (GtkWindow *window);
 void gtk_window_set_default_size (GtkWindow *window, gint width, gint height);
 void gtk_window_set_icon (GtkWindow *window, GdkPixbuf *icon);
 void gtk_window_set_title (GtkWindow *window,const gchar *title);
-void gtk_window_maximize (GtkWindow *window);
-void gtk_window_close (GtkWindow *window);
 
 #ifdef __cplusplus
 }

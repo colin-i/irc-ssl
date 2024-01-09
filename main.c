@@ -2231,7 +2231,7 @@ static void organizer_popup(struct stk_s*ps){
 		gtk_window_set_default_size((GtkWindow*)dialog,w/0x10,h);//h is not doing right for this width
 		gtk_widget_show_all (dialog);
 		//gtk_window_unmaximize((GtkWindow*)dialog);//at this dims will be automaximized, at dims/2 will not be automaximized  //is not working here
-	}
+	}else gtk_window_present(ps->organizer);
 }
 static void
 activate (GtkApplication* app,
