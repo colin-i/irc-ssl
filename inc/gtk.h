@@ -273,6 +273,7 @@ gint gtk_combo_box_get_active (GtkComboBox *combo_box);
 GtkTreeModel*gtk_combo_box_get_model (GtkComboBox *combo_box);
 void gtk_combo_box_set_active (GtkComboBox *combo_box, gint index_);
 void gtk_combo_box_text_append_text (GtkComboBoxText *combo_box, const gchar *text);
+GtkWidget* gtk_combo_box_text_new (void);
 GtkWidget* gtk_combo_box_text_new_with_entry (void);
 void gtk_combo_box_text_remove (GtkComboBoxText *combo_box, gint position);
 void gtk_container_add (GtkContainer *container, GtkWidget *widget);

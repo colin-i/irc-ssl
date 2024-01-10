@@ -2210,6 +2210,20 @@ static void gather_free(size_t sum,char*mem,struct ajoin*ins){
 		free(ins);
 	}
 }
+
+static void organizer_populate(GtkWidget*window){
+	GtkNotebook*nb = (GtkNotebook*)gtk_notebook_new ();
+	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
+	GtkWidget*start=gtk_button_new_with_label("Bind");
+	gtk_box_pack_start((GtkBox*)top,start,FALSE,FALSE,0);
+	GtkWidget*dirs=gtk_combo_box_text_new();
+	gtk_box_pack_start((GtkBox*)top,dirs,TRUE,TRUE,0);
+	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
+	gtk_box_pack_start((GtkBox*)box,top,FALSE,FALSE,0);
+	gtk_box_pack_start((GtkBox*)box,(GtkWidget*)nb,TRUE,TRUE,0);
+	gtk_container_add ((GtkContainer*)window, box);
+}
+
 static void organizer_destroy_from_mainclose(struct stk_s*ps){
 	gtk_widget_destroy(menuwithtabs);
 	if(ps->organizer!=nullptr)gtk_window_close(ps->organizer);
@@ -2229,6 +2243,9 @@ static void organizer_popup(struct stk_s*ps){
 		int w;int h;
 		gtk_window_get_size (ps->main_win,&w,&h);w*=0xf;
 		gtk_window_set_default_size((GtkWindow*)dialog,w/0x10,h);//h is not doing right for this width
+
+		organizer_populate(dialog);
+
 		gtk_widget_show_all (dialog);
 		//gtk_window_unmaximize((GtkWindow*)dialog);//at this dims will be automaximized, at dims/2 will not be automaximized  //is not working here
 	}else gtk_window_present(ps->organizer);
