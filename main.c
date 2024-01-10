@@ -2218,6 +2218,12 @@ static void organizer_populate(GtkWidget*window){
 	gtk_box_pack_start((GtkBox*)top,start,FALSE,FALSE,0);
 	GtkWidget*dirs=gtk_combo_box_text_new();
 	gtk_box_pack_start((GtkBox*)top,dirs,TRUE,TRUE,0);
+	GtkWidget*add_folder=gtk_button_new_with_label("+");
+	gtk_widget_set_sensitive (add_folder,FALSE);
+	gtk_box_pack_start((GtkBox*)top,add_folder,FALSE,FALSE,0);
+	GtkWidget*remove_folder=gtk_button_new_with_label("-");
+	gtk_widget_set_sensitive (remove_folder,FALSE);
+	gtk_box_pack_start((GtkBox*)top,remove_folder,FALSE,FALSE,0);
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	gtk_box_pack_start((GtkBox*)box,top,FALSE,FALSE,0);
 	gtk_box_pack_start((GtkBox*)box,(GtkWidget*)nb,TRUE,TRUE,0);
