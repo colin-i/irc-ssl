@@ -2211,11 +2211,21 @@ static void gather_free(size_t sum,char*mem,struct ajoin*ins){
 	}
 }
 
+#define bind "Bind"
+#define unbind "UnBind"
+static void deciderfn(GtkButton*a){
+	if(strcmp(gtk_button_get_label(a),bind)==0)gtk_button_set_label(a,unbind);
+	else gtk_button_set_label(a,bind);
+}
+
 static void organizer_populate(GtkWidget*window){
 	GtkNotebook*nb = (GtkNotebook*)gtk_notebook_new ();
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
-	GtkWidget*start=gtk_button_new_with_label("Bind");
-	gtk_box_pack_start((GtkBox*)top,start,FALSE,FALSE,0);
+
+	GtkWidget*decider=gtk_button_new_with_label(bind);
+	g_signal_connect_data (decider, "clicked",G_CALLBACK(deciderfn),nullptr,nullptr,(GConnectFlags)0);
+	gtk_box_pack_start((GtkBox*)top,decider,FALSE,FALSE,0);
+
 	GtkWidget*dirs=gtk_combo_box_text_new();
 	gtk_box_pack_start((GtkBox*)top,dirs,TRUE,TRUE,0);
 	GtkWidget*add_folder=gtk_button_new_with_label("+");
