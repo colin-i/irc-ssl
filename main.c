@@ -2079,8 +2079,10 @@ static void chan_reMin_response (GtkDialog *dialog,gint response,int*chan_min){
 		GList*l=gtk_container_get_children((GtkContainer*)gtk_dialog_get_content_area(dialog));
 		const char*text=gtk_entry_get_text((GtkEntry*)l->data);
 		g_list_free(l);
-		*chan_min=atoi(text);
-		send_list_if
+		if(strlen(text)!=0){//else is like the placeholder
+			*chan_min=atoi(text);
+			send_list_if
+		}
 	}
 	gtk_widget_destroy((GtkWidget*)dialog);
 }
@@ -2088,7 +2090,9 @@ static gboolean to_placeholder(GtkEntry*en,GdkEventKey*event){
 	if(event->type==GDK_KEY_PRESS){
 		if('0'<=event->keyval&&event->keyval<='9'){
 			GtkEntryBuffer*buf=gtk_entry_get_buffer(en);
-			gtk_entry_buffer_set_text(buf,(const gchar *)&event->keyval,1);//or gtk_entry_buffer_insert_text(buf,gtk_entry_buffer_get_length(buf),
+			//gtk_entry_buffer_insert_text(buf,gtk_entry_buffer_get_length(buf), //coming back there is not relevant at this point
+			//gtk_entry_buffer_set_text(buf, //this is delete text and isert at 0
+			gtk_entry_buffer_insert_text(buf,0,(const gchar*)&event->keyval,1);//this is the faster
 			gtk_widget_grab_focus(en);
 			gtk_editable_set_position(en, -1);//the text is selected all, need to move cursor to end
 			return TRUE;

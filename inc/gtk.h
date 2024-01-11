@@ -291,7 +291,6 @@ void gtk_editable_set_position (GtkEditable *editable, gint position);
 guint gtk_entry_buffer_delete_text (GtkEntryBuffer *buffer, guint position, gint n_chars);
 const gchar* gtk_entry_buffer_get_text (GtkEntryBuffer *buffer);
 guint gtk_entry_buffer_insert_text (GtkEntryBuffer *buffer,guint position,const gchar *chars,gint n_chars);
-void gtk_entry_buffer_set_text (GtkEntryBuffer *buffer, const gchar *chars, gint n_chars);
 GtkEntryBuffer *gtk_entry_get_buffer (GtkEntry *entry);
 const gchar *gtk_entry_get_text (GtkEntry *entry);
 GtkWidget* gtk_entry_new (void);
