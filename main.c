@@ -2246,14 +2246,14 @@ static void organizer_populate(GtkWidget*window){
 
 static void organizer_destroy_from_mainclose(struct stk_s*ps){
 	gtk_widget_destroy(menuwithtabs);
-	if(ps->organizer!=nullptr)gtk_window_close(ps->organizer);
+	if(ps->organizer!=nullptr)gtk_window_close((GtkWindow*)ps->organizer);
 }
 static void organizer_destroy_from_selfclose(struct stk_s*ps){
 	ps->organizer=nullptr;
 }
 static void organizer_popup(struct stk_s*ps){
 	if(ps->organizer==nullptr){
-		GtkWidget *dialog = gtk_application_window_new (ps->app);
+		GtkWidget *dialog = gtk_application_window_new ((GtkApplication*)ps->app);
 		ps->organizer=dialog;
 		//GtkWidget *dialog = gtk_dialog_new_with_buttons ("Organizer",  nullptr, (GtkDialogFlags)0,  "_Done",GTK_RESPONSE_NONE,nullptr);//still is on top
 
@@ -2268,7 +2268,7 @@ static void organizer_popup(struct stk_s*ps){
 
 		gtk_widget_show_all (dialog);
 		//gtk_window_unmaximize((GtkWindow*)dialog);//at this dims will be automaximized, at dims/2 will not be automaximized  //is not working here
-	}else gtk_window_present(ps->organizer);
+	}else gtk_window_present((GtkWindow*)ps->organizer);
 }
 static void
 activate (GtkApplication* app,
