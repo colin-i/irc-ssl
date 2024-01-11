@@ -2088,7 +2088,7 @@ static gboolean to_placeholder(GtkEntry*en,GdkEventKey*event){
 	if(event->type==GDK_KEY_PRESS){
 		if('0'<=event->keyval&&event->keyval<='9'){
 			GtkEntryBuffer*buf=gtk_entry_get_buffer(en);
-			gtk_entry_buffer_insert_text(buf,gtk_entry_buffer_get_length(buf),(const gchar *)&event->keyval,1);
+			gtk_entry_buffer_set_text(buf,(const gchar *)&event->keyval,1);//or gtk_entry_buffer_insert_text(buf,gtk_entry_buffer_get_length(buf),
 			gtk_widget_grab_focus(en);
 			gtk_editable_set_position(en, -1);//the text is selected all, need to move cursor to end
 			return TRUE;
