@@ -2461,6 +2461,7 @@ static void remove_config(){
 //#define GVSD(d)                 ((struct stack_dict *) (d))
 
 static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
+	//1 dimensions_id
 	char*result;
 	if(g_variant_dict_lookup (options, ps->args[dimensions_id], "s", &result)){//missing argument is not reaching here
 		char*b=strchr(result,'x');
@@ -2469,7 +2470,7 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		ps->dim[1]=b!=nullptr?atoi(b):ps->dim[0];
 		g_free(result);
 	}else ps->dim[0]=-1;//this is default at gtk
-	//
+	//2 connection_number_id
 	int nr;
 	if (g_variant_dict_lookup (options,ps->args[connection_number_id], "i", &nr)){//if 0 this is false here
 		if(nr<con_nr_min||nr>con_nr_max){
@@ -2478,10 +2479,10 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		}
 		ps->con_type=(unsigned char)nr;
 	}else ps->con_type=default_connection_number;
-	//
+	//3 right_id
 	if (g_variant_dict_lookup (options,ps->args[right_id], "i", &ps->separator)==FALSE)//they are already G_OPTION_ARG_INT (gint)
 	ps->separator=default_right;//passed to gtk_widget_set_size_request
-	//
+	//4 refresh_id
 	//if (g_variant_dict_lookup (options,ps->args[refresh_id], "i", &ps->refresh)==FALSE)//but at 0 is not ok
 	//same for gpointer p;g_hash_table_lookup_extended(GVSD(options)->values,ps->args[refresh_id],nullptr,&p);//pointer(not getting the value)/0
 	char*temp;
@@ -2492,28 +2493,29 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		}
 		g_free(temp);
 	}else ps->refresh=default_refresh;//passed to g_timeout_add
-	//
+	//5 timestamp_id
 	ps->timestamp=g_variant_dict_contains(options,ps->args[timestamp_id]);
-	//
+	//6 chan_min_id
 	if (g_variant_dict_lookup (options,ps->args[chan_min_id], "i", &ps->chan_min)==FALSE)
 		ps->chan_min=default_chan_min;
-	//
+	//7 visible_id
 	ps->visible=g_variant_dict_contains(options,ps->args[visible_id]);
-	//
+	//8 hide_id
 	ps->show_msgs=g_variant_dict_contains(options,ps->args[hide_id])==FALSE;
-	//
+	//9 maximize_id
 	ps->maximize=g_variant_dict_contains(options,ps->args[maximize_id]);
-	//
+	//10 minimize_id
 	ps->minimize=g_variant_dict_contains(options,ps->args[minimize_id]);
-	//
+	//11 welcomeNotice_id
 	ps->wnotice=g_variant_dict_contains(options,ps->args[welcomeNotice_id]);
-	//
+	//12 chans_max_id
 	if (g_variant_dict_lookup (options,ps->args[chans_max_id], "i", &ps->chans_max)==FALSE)
 		ps->chans_max=default_chans_max;
-	//
+	//13 send_history_id
 	if (g_variant_dict_lookup (options,ps->args[send_history_id],"i",&ps->send_history)==FALSE)
 		ps->send_history=default_send_history;
 
+	//14 removeconf_id
 	if(g_variant_dict_contains(options,ps->args[removeconf_id])/*true*/){
 		remove_config();
 		return EXIT_SUCCESS;
@@ -2522,36 +2524,39 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	//these are after allocs where set to allocated mem or 0/nullptr
 	ps->handle_command_line_callback_was_executed=TRUE;
 
+	//15 nick_id
 	if (g_variant_dict_lookup (options,ps->args[nick_id],"s",&ps->nick)==FALSE)
 		ps->nick=nullptr;
-	//
+	//16 welcome_id
 	if(g_variant_dict_lookup(options,ps->args[welcome_id],"s",&ps->welcome)==FALSE)
 		ps->welcome=nullptr;
-	//
+	//17 user_id
 	if(g_variant_dict_lookup(options,ps->args[user_id],"s",&ps->user_irc))//they are already G_OPTION_ARG_STRING
 		ps->user_irc_free=TRUE;//-Wstring-compare tells the result is unspecified against a #define
 	else{ps->user_irc=default_user;ps->user_irc_free=FALSE;}
-	//
+	//18 log_id
 	GVariant*v=g_variant_dict_lookup_value(options,ps->args[log_id],G_VARIANT_TYPE_STRING);
 	if(v!=nullptr){
 		const char*a=g_variant_get_string(v,nullptr);//return [transfer none]
 		log_file=open(a,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR);
 		g_variant_unref(v);
 	}
-	//
+	//19 ignore_id
 	if(g_variant_dict_lookup(options,ps->args[ignore_id],"s",&ps->ignores_mem))
 		gather_parse(&ps->ignores_sum,ps->ignores_mem,&ps->ignores);
 	else ps->ignores_sum=0;
-	//
+	//20 run_id
 	if(g_variant_dict_lookup(options,ps->args[run_id],"s",&ps->execute_newmsg)==FALSE)
 		ps->execute_newmsg=nullptr;
-	//
+	//21 autojoin_id
 	if(g_variant_dict_lookup(options,ps->args[autojoin_id],"s",&ps->ajoins_mem))
 		parse_autojoin(ps);
 	else ps->ajoins_sum=0;
-	//
+	//22 password_id
 	if (g_variant_dict_lookup (options,ps->args[password_id],"s",&ps->password)==FALSE)
 		ps->password=nullptr;
+
+	//23 autoconnect_id has a callback
 
 	return -1;
 }
