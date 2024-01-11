@@ -186,6 +186,7 @@ struct stk_s{
 	BOOL user_irc_free;unsigned char con_type;BOOL show_msgs;
 	char args_short[number_of_args];
 	GtkWidget*organizer;
+	BOOL handle_command_line_callback_was_executed;
 };
 static int autoconnect=-1;static BOOL autoconnect_pending=FALSE;
 static GSList*con_group;
@@ -2095,6 +2096,9 @@ static void chan_reMin(struct stk_s*ps){
 	                       &ps->chan_min,nullptr,(GConnectFlags)0);
 	GtkWidget*box=gtk_dialog_get_content_area((GtkDialog*)dialog);
 	gtk_box_pack_start((GtkBox*)box, entry, TRUE, TRUE, 0);
+
+	gtk_widget_grab_focus(gtk_dialog_get_widget_for_response((GtkDialog*)dialog, GTK_RESPONSE_OK));//this to see the placeholder
+
 	gtk_widget_show_all (dialog);
 }
 static void reload_tabs(GtkWidget*menu_from,GtkWidget*menu,GtkNotebook*notebook){
@@ -2452,6 +2456,10 @@ static void remove_config(){
 		}
 	}
 }
+
+//struct stack_dict { GHashTable *values;  gsize magic;};
+//#define GVSD(d)                 ((struct stack_dict *) (d))
+
 static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	char*result;
 	if(g_variant_dict_lookup (options, ps->args[dimensions_id], "s", &result)){//missing argument is not reaching here
@@ -2462,48 +2470,35 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		g_free(result);
 	}else ps->dim[0]=-1;//this is default at gtk
 	//
-	if (g_variant_dict_lookup (options,ps->args[nick_id],"s",&ps->nick)==FALSE)
-		ps->nick=nullptr;
+	int nr;
+	if (g_variant_dict_lookup (options,ps->args[connection_number_id], "i", &nr)){//if 0 this is false here
+		if(nr<con_nr_min||nr>con_nr_max){
+			printf("%s must be from " con_nr_nrs " interval, \"%i\" given.\n",ps->args[connection_number_id],nr);
+			return EXIT_FAILURE;//warning: this is same as not executing this function, if wanting that return, change this
+		}
+		ps->con_type=(unsigned char)nr;
+	}else ps->con_type=default_connection_number;
 	//
-	if (g_variant_dict_lookup (options,ps->args[right_id], "i", &ps->separator)==FALSE)
-		ps->separator=default_right;
+	if (g_variant_dict_lookup (options,ps->args[right_id], "i", &ps->separator)==FALSE)//they are already G_OPTION_ARG_INT (gint)
+	ps->separator=default_right;//passed to gtk_widget_set_size_request
 	//
-	if (g_variant_dict_lookup (options,ps->args[refresh_id], "i", &ps->refresh)==FALSE)
-		ps->refresh=default_refresh;
-	//
-	if(g_variant_dict_lookup(options,ps->args[welcome_id],"s",&ps->welcome)==FALSE)
-		ps->welcome=nullptr;
+	//if (g_variant_dict_lookup (options,ps->args[refresh_id], "i", &ps->refresh)==FALSE)//but at 0 is not ok
+	//same for gpointer p;g_hash_table_lookup_extended(GVSD(options)->values,ps->args[refresh_id],nullptr,&p);//pointer(not getting the value)/0
+	char*temp;
+	if (g_variant_dict_lookup (options,ps->args[refresh_id], "s", &temp)){
+		if(sscanf(temp,"%u",&ps->refresh)!=1){//EOF is not, "" is error catched before entering the dict
+			puts("Refresh interval argument error");
+			return EXIT_FAILURE;
+		}
+		g_free(temp);
+	}else ps->refresh=default_refresh;//passed to g_timeout_add
 	//
 	ps->timestamp=g_variant_dict_contains(options,ps->args[timestamp_id]);
-	//
-	if(g_variant_dict_lookup(options,ps->args[user_id],"s",&ps->user_irc))
-		ps->user_irc_free=TRUE;//-Wstring-compare tells the result is unspecified against a #define
-	else{ps->user_irc=default_user;ps->user_irc_free=FALSE;}
 	//
 	if (g_variant_dict_lookup (options,ps->args[chan_min_id], "i", &ps->chan_min)==FALSE)
 		ps->chan_min=default_chan_min;
 	//
 	ps->visible=g_variant_dict_contains(options,ps->args[visible_id]);
-	//
-	GVariant*v=g_variant_dict_lookup_value(options,ps->args[log_id],G_VARIANT_TYPE_STRING);
-	if(v!=nullptr){
-		const char*a=g_variant_get_string(v,nullptr);
-		log_file=open(a,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR);
-	}
-	//
-	if(g_variant_dict_lookup(options,ps->args[ignore_id],"s",&ps->ignores_mem))
-		gather_parse(&ps->ignores_sum,ps->ignores_mem,&ps->ignores);
-	else ps->ignores_sum=0;
-	//
-	if(g_variant_dict_lookup(options,ps->args[run_id],"s",&ps->execute_newmsg)==FALSE)
-		ps->execute_newmsg=nullptr;
-	//
-	if(g_variant_dict_lookup(options,ps->args[autojoin_id],"s",&ps->ajoins_mem))
-		parse_autojoin(ps);
-	else ps->ajoins_sum=0;
-	//
-	if (g_variant_dict_lookup (options,ps->args[password_id],"s",&ps->password)==FALSE)
-		ps->password=nullptr;
 	//
 	ps->show_msgs=g_variant_dict_contains(options,ps->args[hide_id])==FALSE;
 	//
@@ -2519,21 +2514,44 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	if (g_variant_dict_lookup (options,ps->args[send_history_id],"i",&ps->send_history)==FALSE)
 		ps->send_history=default_send_history;
 
-	//these are after allocs where set to allocated mem or 0/nullptr
-
 	if(g_variant_dict_contains(options,ps->args[removeconf_id])/*true*/){
 		remove_config();
-		return 0;
+		return EXIT_SUCCESS;
 	}
 
-	int nr;
-	if (g_variant_dict_lookup (options,ps->args[connection_number_id], "i", &nr)){//if 0 this is false here
-		if(nr<con_nr_min||nr>con_nr_max){
-			printf("%s must be from " con_nr_nrs " interval, \"%i\" given.\n",ps->args[connection_number_id],nr);
-			return 0;
-		}
-		ps->con_type=(unsigned char)nr;
-	}else ps->con_type=default_connection_number;
+	//these are after allocs where set to allocated mem or 0/nullptr
+	ps->handle_command_line_callback_was_executed=TRUE;
+
+	if (g_variant_dict_lookup (options,ps->args[nick_id],"s",&ps->nick)==FALSE)
+		ps->nick=nullptr;
+	//
+	if(g_variant_dict_lookup(options,ps->args[welcome_id],"s",&ps->welcome)==FALSE)
+		ps->welcome=nullptr;
+	//
+	if(g_variant_dict_lookup(options,ps->args[user_id],"s",&ps->user_irc))//they are already G_OPTION_ARG_STRING
+		ps->user_irc_free=TRUE;//-Wstring-compare tells the result is unspecified against a #define
+	else{ps->user_irc=default_user;ps->user_irc_free=FALSE;}
+	//
+	GVariant*v=g_variant_dict_lookup_value(options,ps->args[log_id],G_VARIANT_TYPE_STRING);
+	if(v!=nullptr){
+		const char*a=g_variant_get_string(v,nullptr);//return [transfer none]
+		log_file=open(a,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR);
+		g_variant_unref(v);
+	}
+	//
+	if(g_variant_dict_lookup(options,ps->args[ignore_id],"s",&ps->ignores_mem))
+		gather_parse(&ps->ignores_sum,ps->ignores_mem,&ps->ignores);
+	else ps->ignores_sum=0;
+	//
+	if(g_variant_dict_lookup(options,ps->args[run_id],"s",&ps->execute_newmsg)==FALSE)
+		ps->execute_newmsg=nullptr;
+	//
+	if(g_variant_dict_lookup(options,ps->args[autojoin_id],"s",&ps->ajoins_mem))
+		parse_autojoin(ps);
+	else ps->ajoins_sum=0;
+	//
+	if (g_variant_dict_lookup (options,ps->args[password_id],"s",&ps->password)==FALSE)
+		ps->password=nullptr;
 
 	return -1;
 }
@@ -2580,8 +2598,8 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[nick_id],ps.args_short[nick_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default nickname","NICKNAME");
 		ps.args[password_id]="password";ps.args_short[password_id]='p';
 		g_application_add_main_option((GApplication*)app,ps.args[password_id],ps.args_short[password_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default password (blank overwrite with \"" parse_host_left "host...\", the format is at the g.u.i. help)","PASSWORD");
-		ps.args[refresh_id]="refresh";ps.args_short[refresh_id]='f';
-		g_application_add_main_option((GApplication*)app,ps.args[refresh_id],ps.args_short[refresh_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Refresh channels interval in seconds. Default " INT_CONV_STR(default_refresh) ". Less than 1 to disable.","SECONDS");
+		ps.args[refresh_id]="refresh";ps.args_short[refresh_id]='f';//when ARG_INT and comming 0 it will not go further into the dict to know, ARG_STRING can do it
+		g_application_add_main_option((GApplication*)app,ps.args[refresh_id],ps.args_short[refresh_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Refresh channels interval in seconds. Default " INT_CONV_STR(default_refresh) ". Less than 1 to disable.","SECONDS");
 		ps.args[right_id]="right";ps.args_short[right_id]='r';
 		g_application_add_main_option((GApplication*)app,ps.args[right_id],ps.args_short[right_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Right pane size, default " INT_CONV_STR(default_right),"WIDTH");
 		ps.args[run_id]="run";ps.args_short[run_id]='x';
@@ -2604,24 +2622,29 @@ int main (int    argc,
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
 		//  if(han>0)
 		ps.argc=argc;ps.argv=argv;
-		send_entry_list=g_queue_new();
+		ps.handle_command_line_callback_was_executed=FALSE;
 
+		send_entry_list=g_queue_new();
 		info_path_name_set(argv[0]);
-		g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
+
+		int exitcode=g_application_run ((GApplication*)app, argc, argv);//gio.h>gapplication.h gio-2.0
 		g_object_unref (app);
 
-		g_queue_free_full(send_entry_list,g_free);
-		if(ps.nick!=nullptr)g_free(ps.nick);
-		if(ps.welcome!=nullptr)g_free(ps.welcome);
-		#pragma GCC diagnostic push
-		#pragma GCC diagnostic ignored "-Wcast-qual"		
-		if(ps.user_irc_free)g_free((gpointer)ps.user_irc);
-		#pragma GCC diagnostic pop
 		if(info_path_name!=nullptr)free(info_path_name);
-		if(log_file!=-1)close(log_file);
-		if(ps.execute_newmsg!=nullptr)g_free(ps.execute_newmsg);
-		gather_free(ps.ajoins_sum,ps.ajoins_mem,ps.ajoins);
-		gather_free(ps.ignores_sum,ps.ignores_mem,ps.ignores);
+		g_queue_free_full(send_entry_list,g_free);
+
+		if(ps.handle_command_line_callback_was_executed==TRUE){//or !=EXIT_FAILURE, but can be many exit scenarios
+			if(ps.nick!=nullptr)g_free(ps.nick);
+			if(ps.welcome!=nullptr)g_free(ps.welcome);
+			#pragma GCC diagnostic push
+			#pragma GCC diagnostic ignored "-Wcast-qual"
+			if(ps.user_irc_free)g_free((gpointer)ps.user_irc);
+			#pragma GCC diagnostic pop
+			if(log_file!=-1)close(log_file);
+			if(ps.execute_newmsg!=nullptr)g_free(ps.execute_newmsg);
+			gather_free(ps.ajoins_sum,ps.ajoins_mem,ps.ajoins);
+			gather_free(ps.ignores_sum,ps.ignores_mem,ps.ignores);
+		}
 	}else puts("openssl error");
 	return EXIT_SUCCESS;
 }
