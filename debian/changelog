@@ -1,3 +1,9 @@
+sirc (1-jammy10) jammy; urgency=medium
+
+  * fixes with mem free, 0 at refresh, segmentation at cline arg err
+
+ -- bc <bc@bc-Type1ProductConfigId>  Thu, 11 Jan 2024 15:46:50 +0200
+
 sirc (1-jammy9) jammy; urgency=medium
 
   * fix ";" server syntax
