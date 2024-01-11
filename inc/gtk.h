@@ -37,6 +37,7 @@ typedef void GtkComboBox;
 typedef void GtkComboBoxText;
 typedef void GtkContainer;
 typedef void GtkDialog;
+typedef void GtkEditable;
 typedef void GtkEntry;
 typedef void GtkEntryBuffer;
 typedef void GtkLabel;
@@ -286,7 +287,9 @@ void gtk_container_set_border_width (GtkContainer *container,guint border_width)
 GtkWidget * gtk_dialog_get_content_area (GtkDialog *dialog);
 GtkWidget *gtk_dialog_get_widget_for_response (GtkDialog *dialog, gint response_id);
 GtkWidget* gtk_dialog_new_with_buttons (const gchar *title,  GtkWindow *parent, GtkDialogFlags flags, const gchar *first_button_text, ...) __attribute__((__sentinel__));
+void gtk_editable_set_position (GtkEditable *editable, gint position);
 guint gtk_entry_buffer_delete_text (GtkEntryBuffer *buffer, guint position, gint n_chars);
+guint gtk_entry_buffer_get_length (GtkEntryBuffer *buffer);
 const gchar* gtk_entry_buffer_get_text (GtkEntryBuffer *buffer);
 guint gtk_entry_buffer_insert_text (GtkEntryBuffer *buffer,guint position,const gchar *chars,gint n_chars);
 GtkEntryBuffer *gtk_entry_get_buffer (GtkEntry *entry);

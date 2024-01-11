@@ -2084,6 +2084,18 @@ static void chan_reMin_response (GtkDialog *dialog,gint response,int*chan_min){
 	}
 	gtk_widget_destroy((GtkWidget*)dialog);
 }
+static gboolean to_placeholder(GtkEntry*en,GdkEventKey*event){
+	if(event->type==GDK_KEY_PRESS){
+		if('0'<=event->keyval&&event->keyval<='9'){
+			GtkEntryBuffer*buf=gtk_entry_get_buffer(en);
+			gtk_entry_buffer_insert_text(buf,gtk_entry_buffer_get_length(buf),(const gchar *)&event->keyval,1);
+			gtk_widget_grab_focus(en);
+			gtk_editable_set_position(en, -1);//the text is selected all, need to move cursor to end
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
 static void chan_reMin(struct stk_s*ps){
 	GtkWidget *dialog = gtk_dialog_new_with_buttons ("Channel Minimum Users",
 			    ps->main_win, (GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
@@ -2097,7 +2109,9 @@ static void chan_reMin(struct stk_s*ps){
 	GtkWidget*box=gtk_dialog_get_content_area((GtkDialog*)dialog);
 	gtk_box_pack_start((GtkBox*)box, entry, TRUE, TRUE, 0);
 
-	gtk_widget_grab_focus(gtk_dialog_get_widget_for_response((GtkDialog*)dialog, GTK_RESPONSE_OK));//this to see the placeholder
+	GtkWidget*wg=gtk_dialog_get_widget_for_response((GtkDialog*)dialog, GTK_RESPONSE_OK);
+	g_signal_connect_data (wg, "key-press-event",G_CALLBACK (to_placeholder),entry,nullptr,G_CONNECT_SWAPPED);//this will swap with first arg, not second GdkEventKey
+	gtk_widget_grab_focus(wg);//this to see the placeholder
 
 	gtk_widget_show_all (dialog);
 }
