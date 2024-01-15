@@ -245,6 +245,7 @@ static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 #define user_error "*Error"
 #define user_topic "*Topic"
 #define user_info "*Info"
+#define chanstart '#'
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_model(pan) gtk_tree_view_get_model(contf_get_treev(pan))
@@ -330,6 +331,7 @@ static void main_text(const char*b,size_t s){
 	int out;sigwait(&threadset,&out);
 }
 #define main_text_s(b) main_text(b,sizeof(b)-1)
+//#define main_text_sn(a) main_text_s(a"\n")
 static int recv_data(char*b,int sz){
 	if(ssl!=nullptr)return SSL_read(ssl, b, sz);
 	return read(plain_socket,b,(size_t)sz);
@@ -2235,17 +2237,21 @@ static void gather_free(size_t sum,char*mem,struct ajoin*ins){
 
 #define bind "Bind"
 #define unbind "UnBind"
-static void deciderfn(GtkButton*a){
-	if(strcmp(gtk_button_get_label(a),bind)==0)gtk_button_set_label(a,unbind);
+static void deciderfn(GtkButton*a,struct stk_s*ps){
+	if(strcmp(gtk_button_get_label(a),bind)==0){
+		const char*b=gtk_notebook_get_menu_label_text(ps->notebook,gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook)));
+		if(*b==chanstart)gtk_button_set_label(a,unbind);
+		else addattextmain("Must be in a channel",-1);
+	}
 	else gtk_button_set_label(a,bind);
 }
 
-static void organizer_populate(GtkWidget*window){
+static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	GtkNotebook*nb = (GtkNotebook*)gtk_notebook_new ();
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 
 	GtkWidget*decider=gtk_button_new_with_label(bind);
-	g_signal_connect_data (decider, "clicked",G_CALLBACK(deciderfn),nullptr,nullptr,(GConnectFlags)0);
+	g_signal_connect_data (decider, "clicked",G_CALLBACK(deciderfn),ps,nullptr,(GConnectFlags)0);
 	gtk_box_pack_start((GtkBox*)top,decider,FALSE,FALSE,0);
 
 	GtkWidget*dirs=gtk_combo_box_text_new();
@@ -2256,6 +2262,7 @@ static void organizer_populate(GtkWidget*window){
 	GtkWidget*remove_folder=gtk_button_new_with_label("-");
 	gtk_widget_set_sensitive (remove_folder,FALSE);
 	gtk_box_pack_start((GtkBox*)top,remove_folder,FALSE,FALSE,0);
+
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	gtk_box_pack_start((GtkBox*)box,top,FALSE,FALSE,0);
 	gtk_box_pack_start((GtkBox*)box,(GtkWidget*)nb,TRUE,TRUE,0);
@@ -2282,7 +2289,7 @@ static void organizer_popup(struct stk_s*ps){
 		gtk_window_get_size (ps->main_win,&w,&h);w*=0xf;
 		gtk_window_set_default_size((GtkWindow*)dialog,w/0x10,h);//h is not doing right for this width
 
-		organizer_populate(dialog);
+		organizer_populate(dialog,ps);
 
 		gtk_widget_show_all (dialog);
 		//gtk_window_unmaximize((GtkWindow*)dialog);//at this dims will be automaximized, at dims/2 will not be automaximized  //is not working here
