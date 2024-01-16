@@ -29,7 +29,7 @@ AC_MSG_RESULT($enable_cflags_setting)
 
 #AC_DEFINE_UNQUOTED(HOMEDIR,[$(echo "\"$(cd ~; pwd)/\"")],[~ cannot be "q q"])
 AC_PROG_CC
-AC_CHECK_HEADERS(libgen.h fcntl.h netdb.h netinet/in.h openssl/ssl.h pthread.h signal.h stdio.h stdlib.h string.h sys/socket.h time.h unistd.h)
+AC_CHECK_HEADERS(libgen.h fcntl.h netdb.h netinet/in.h openssl/ssl.h pthread.h signal.h stdio.h stdlib.h string.h sys/socket.h sys/stat.h time.h unistd.h)
 #limits.h
 
 start_cflgs="$CFLAGS"

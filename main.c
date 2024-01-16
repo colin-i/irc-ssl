@@ -57,6 +57,11 @@
 #else
 #include "inc/socket.h"
 #endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#else
+#include "inc/stat.h"
+#endif
 #ifdef HAVE_TIME_H
 #include <time.h>
 #else
@@ -92,7 +97,9 @@ static BOOL close_intention;
 #define password_con "PASS %s" irc_term
 #define nickname_con "NICK %s" irc_term
 static char*info_path_name=nullptr;
-#define home_string "*Home"
+#define homestart     "*"
+#define homestart_size 1
+#define home_string homestart"Home"
 #define priv_msg_str "PRIVMSG"
 #define not_msg_str "NOTICE"
 #define mod_msg_str "MODE"
@@ -188,9 +195,12 @@ struct stk_s{
 	GtkWidget*organizer;
 	BOOL handle_command_line_callback_was_executed;
 
-	char*proced_text;
+	const char*proced_text;
 	BOOL proced_switch;
 	unsigned char proced_n;
+	char*proced_hostname;
+
+	GtkComboBox*organizer_dirs;
 };
 static int autoconnect=-1;static BOOL autoconnect_pending=FALSE;
 static GSList*con_group;
@@ -250,6 +260,10 @@ static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 #define user_topic "*Topic"
 #define user_info "*Info"
 #define chanstart '#'
+
+#define homelocal ".local"
+#define folderseparator '/'
+#define removed_string " removed"
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_model(pan) gtk_tree_view_get_model(contf_get_treev(pan))
@@ -868,7 +882,7 @@ static void pars_join(char*chan,struct stk_s*ps){
 		pan=container_frame(ps->separator,G_CALLBACK(name_join),ps);
 		gtk_widget_set_tooltip_text(pan,listing_info("names"));//is also a NAMES flag here
 		GtkWidget*close;GtkWidget*lb=add_new_tab(pan,chan,&close,ps->notebook,chan_menu,FALSE);
-		g_signal_connect_data (close, "clicked",G_CALLBACK (close_channel),lb,nullptr,G_CONNECT_SWAPPED);
+		g_signal_connect_data (close, "clicked",G_CALLBACK (close_channel),lb,nullptr,G_CONNECT_SWAPPED);//but will close the notebook page only on PART received from the server
 	}
 	gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,pan));
 	if(chan_change_nr(chan,1)==FALSE)if(test_to_add_chan(ps,1))pars_chan(chan,1,ps->chans_max);
@@ -1705,6 +1719,11 @@ static gboolean proced_connecting(gpointer b){
 	}else n=_con_nr_s;
 	ps->proced_n=n;
 
+	char hostname[1+hostname_sz]={homestart};//only first is set in case of arrays
+	strcpy(hostname+1,ps->proced_hostname);
+	gtk_notebook_set_menu_label_text(ps->notebook,home_page,hostname);
+	gtk_notebook_set_tab_label_text(ps->notebook,home_page,hostname);
+
 	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
 }
@@ -1722,9 +1741,10 @@ static void proced(struct stk_s*ps){
 	if(parse_host_str(ps->text,hostname,psw,nkn,&ports,&port_last,&swtch,ps)) {
 		ps->proced_text="Connecting...\n";
 		ps->proced_switch=swtch==not_a_switch;
+		ps->proced_hostname=hostname;
 		g_idle_add(proced_connecting,ps);
 		int out;sigwait(&threadset,&out);
-		
+
 		proced_core(ps,hostname,psw,nkn,ports,port_last,swtch);
 		free(ports);
 
@@ -1765,7 +1785,8 @@ static void save_combo_box(GtkTreeModel*list){
 	}
 }
 
-static void set_combo_box_text(GtkComboBox * box,const char*txt) 
+//is new netry or is not
+static BOOL set_combo_box_text(GtkComboBox * box,const char*txt) 
 {
 	GtkTreeIter iter;
 	gboolean valid;
@@ -1781,15 +1802,15 @@ static void set_combo_box_text(GtkComboBox * box,const char*txt)
 		if (strcmp(item_text, txt) == 0) { 
 			gtk_combo_box_set_active(box, i);
 			g_free(item_text);
-			return;
+			return FALSE;
 		}    
 		g_free(item_text);
 		i++; 
 		valid = gtk_tree_model_iter_next( list_store, &iter);
 	}
 	gtk_combo_box_text_append_text((GtkComboBoxText*)box,txt);
-	save_combo_box(list_store);
 	gtk_combo_box_set_active(box, i);
+	return TRUE;
 }
 static void ignores_init(struct stk_s*ps,int active){
 	for(size_t i=0;i<ps->ignores_sum;i++){
@@ -1808,7 +1829,9 @@ static gboolean enter_recallback( gpointer ps){
 			g_timeout_add(1000,enter_recallback,ps);
 			return FALSE;
 		}
-		set_combo_box_text((GtkComboBox*)((struct stk_s*)ps)->cbt,t);
+		if(set_combo_box_text((GtkComboBox*)((struct stk_s*)ps)->cbt,t)){
+			save_combo_box(gtk_combo_box_get_model((GtkComboBox*)((struct stk_s*)ps)->cbt));
+		}
 		int active=gtk_combo_box_get_active((GtkComboBox*)((struct stk_s*)ps)->cbt);
 		((struct stk_s*)ps)->text=t;((struct stk_s*)ps)->active=active;
 		ignores_init((struct stk_s*)ps,active);
@@ -1828,7 +1851,7 @@ static void info_path_name_set_val(const char*a,char*b,size_t i,size_t j){
 	info_path_name=(char*)malloc(i+2+j+5);
 	if(info_path_name!=nullptr){
 		memcpy(info_path_name,a,i);
-		info_path_name[i]='/';
+		info_path_name[i]=folderseparator;
 		info_path_name[i+1]='.';
 		char*c=info_path_name+i+2;
 		memcpy(c,b,j);
@@ -2266,7 +2289,19 @@ static void gather_free(size_t sum,char*mem,struct ajoin*ins){
 static void deciderfn(GtkButton*a,struct stk_s*ps){
 	if(strcmp(gtk_button_get_label(a),bind)==0){
 		const char*b=gtk_notebook_get_menu_label_text(ps->notebook,gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook)));
-		if(*b==chanstart)gtk_button_set_label(a,unbind);
+		if(*b==chanstart){
+			const char*h=gtk_notebook_get_menu_label_text(ps->notebook,home_page);
+			size_t hs=strlen(h)-homestart_size;size_t bs=strlen(b);
+			char*z=(char*)malloc(hs+bs+1);
+			if(z){
+				memcpy(z,   h+homestart_size,hs);
+				memcpy(z+hs,b,bs);
+				z[hs+bs]='\0';
+				set_combo_box_text(ps->organizer_dirs,z);
+				free(z);
+				gtk_button_set_label(a,unbind);
+			}
+		}
 		else addattextmain("Must be in a channel",-1);
 	}
 	else gtk_button_set_label(a,bind);
@@ -2275,12 +2310,13 @@ static void deciderfn(GtkButton*a,struct stk_s*ps){
 static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	GtkNotebook*nb = (GtkNotebook*)gtk_notebook_new ();
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
+	GtkWidget*dirs=gtk_combo_box_text_new();
+	ps->organizer_dirs=(GtkComboBox*)dirs;
 
 	GtkWidget*decider=gtk_button_new_with_label(bind);
 	g_signal_connect_data (decider, "clicked",G_CALLBACK(deciderfn),ps,nullptr,(GConnectFlags)0);
 	gtk_box_pack_start((GtkBox*)top,decider,FALSE,FALSE,0);
 
-	GtkWidget*dirs=gtk_combo_box_text_new();
 	gtk_box_pack_start((GtkBox*)top,dirs,TRUE,TRUE,0);
 	GtkWidget*add_folder=gtk_button_new_with_label("+");
 	gtk_widget_set_sensitive (add_folder,FALSE);
@@ -2302,23 +2338,47 @@ static void organizer_destroy_from_mainclose(struct stk_s*ps){
 static void organizer_destroy_from_selfclose(struct stk_s*ps){
 	ps->organizer=nullptr;
 }
+static BOOL to_organizer_folder(BOOL is_remove,BOOL remove){//for the moment this is the only chdir in the program
+	char*h=getenv("HOME");
+	if(h!=nullptr){
+		if(chdir(h)!=-1){
+			if(is_remove==FALSE){
+				if(chdir(homelocal)==-1){
+					if(mkdir(homelocal,0700)==-1)return FALSE;
+				}
+				return TRUE;
+			}else if(access(homelocal,F_OK)==0){
+				printf("%s%c%s",h,folderseparator,homelocal);
+				if(remove==FALSE){
+					puts("");
+				}else{
+					if(rmdir(homelocal)==0) puts(removed_string);
+					else puts(" ignored (maybe is not empty)");
+				}
+			}
+		}
+	}
+	return FALSE;
+}
 static void organizer_popup(struct stk_s*ps){
 	if(ps->organizer==nullptr){
-		GtkWidget *dialog = gtk_application_window_new ((GtkApplication*)ps->app);
-		ps->organizer=dialog;
-		//GtkWidget *dialog = gtk_dialog_new_with_buttons ("Organizer",  nullptr, (GtkDialogFlags)0,  "_Done",GTK_RESPONSE_NONE,nullptr);//still is on top
+		if(to_organizer_folder(FALSE,FALSE)){
+			GtkWidget *dialog = gtk_application_window_new ((GtkApplication*)ps->app);
+			ps->organizer=dialog;
+			//GtkWidget *dialog = gtk_dialog_new_with_buttons ("Organizer",  nullptr, (GtkDialogFlags)0,  "_Done",GTK_RESPONSE_NONE,nullptr);//still is on top
 
-		gtk_window_set_title ((GtkWindow*)dialog, "Organizer");
-		g_signal_connect_data (dialog,"destroy",G_CALLBACK(organizer_destroy_from_selfclose),ps,nullptr,G_CONNECT_SWAPPED);
+			gtk_window_set_title ((GtkWindow*)dialog, "Organizer");
+			g_signal_connect_data (dialog,"destroy",G_CALLBACK(organizer_destroy_from_selfclose),ps,nullptr,G_CONNECT_SWAPPED);
 
-		int w;int h;
-		gtk_window_get_size (ps->main_win,&w,&h);w*=0xf;
-		gtk_window_set_default_size((GtkWindow*)dialog,w/0x10,h);//h is not doing right for this width
+			int w;int h;
+			gtk_window_get_size (ps->main_win,&w,&h);w*=0xf;
+			gtk_window_set_default_size((GtkWindow*)dialog,w/0x10,h);//h is not doing right for this width
 
-		organizer_populate(dialog,ps);
+			organizer_populate(dialog,ps);
 
-		gtk_widget_show_all (dialog);
-		//gtk_window_unmaximize((GtkWindow*)dialog);//at this dims will be automaximized, at dims/2 will not be automaximized  //is not working here
+			gtk_widget_show_all (dialog);
+			//gtk_window_unmaximize((GtkWindow*)dialog);//at this dims will be automaximized, at dims/2 will not be automaximized  //is not working here
+		}
 	}else gtk_window_present((GtkWindow*)ps->organizer);
 }
 static void
@@ -2487,25 +2547,27 @@ static gboolean autoconnect_callback(const gchar *option_name,const gchar *value
 	return TRUE;
 }
 static void remove_config(){
+	puts("Would remove:");
 	if(info_path_name!=nullptr){
 		if(access(info_path_name,F_OK)==0){
-			puts("Would remove:");
 			puts(info_path_name);
-			puts("yes ?");
-			int e=getchar();
-			if(e=='y'){
-				e=getchar();
-				if(e=='e'){
-					e=getchar();
-					if(e=='s'){
-						if(unlink(info_path_name)==0)printf("%s removed\n",info_path_name);
-						return;
-					}
-				}
-			}
-			puts("expecting \"yes\"");
 		}
 	}
+	to_organizer_folder(TRUE,FALSE);
+	puts("yes ?");
+	int e=getchar();
+	if(e=='y'){
+		e=getchar();
+		if(e=='e'){
+			e=getchar();
+			if(e=='s'){
+				if(unlink(info_path_name)==0)printf("%s" removed_string "\n",info_path_name);
+				to_organizer_folder(TRUE,TRUE);
+				return;
+			}
+		}
+	}
+	puts("expecting \"yes\"");
 }
 
 //struct stack_dict { GHashTable *values;  gsize magic;};

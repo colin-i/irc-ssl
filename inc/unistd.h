@@ -15,9 +15,11 @@ extern "C" {
 #endif
 
 int access(const char*,int);
+int chdir(const char *path);
 int close(int);
 off_t lseek(int,off_t,int);
 ssize_t read(int,void*,size_t);
+int rmdir(const char *pathname);
 unsigned int sleep(unsigned int seconds);
 int unlink(const char*);
 ssize_t write(int,const void*,size_t);
