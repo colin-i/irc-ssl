@@ -187,6 +187,10 @@ struct stk_s{
 	char args_short[number_of_args];
 	GtkWidget*organizer;
 	BOOL handle_command_line_callback_was_executed;
+
+	char*proced_text;
+	BOOL proced_switch;
+	unsigned char proced_n;
 };
 static int autoconnect=-1;static BOOL autoconnect_pending=FALSE;
 static GSList*con_group;
@@ -1639,15 +1643,7 @@ static void clear_old_chat(GtkNotebook*nb){
 	start_old_clear(name_off_menu,nb);
 }
 static void proced_core(struct stk_s*ps,char*hostname,char*psw,char*nkn,unsigned short*ports,size_t port_last,size_t swtch){
-	unsigned char n;
-	if(swtch==not_a_switch){
-		GSList*lst=con_group;
-		n=con_nr_max;
-		for(;;){
-			if(gtk_check_menu_item_get_active((GtkCheckMenuItem*)lst->data))break;
-			lst=lst->next;n--;
-		}
-	}else n=_con_nr_s;
+	unsigned char n=ps->proced_n;
 	for(;;){
 		size_t port_i=0;
 		//if(swtch<=port_last&&(n==con_nr_righttype1||n==con_nr_righttype2))n--;//this is useless at :ssl;plain
@@ -1694,17 +1690,47 @@ static void proced_core(struct stk_s*ps,char*hostname,char*psw,char*nkn,unsigned
 		}
 	}
 }
+static gboolean proced_connecting(gpointer b){
+	struct stk_s*ps=(struct stk_s*)b;
+	clear_old_chat(ps->notebook);
+	addattextmain(ps->proced_text,-1);
+	unsigned char n;
+	if(ps->proced_switch){
+		GSList*lst=con_group;
+		n=con_nr_max;
+		for(;;){
+			if(gtk_check_menu_item_get_active((GtkCheckMenuItem*)lst->data))break;
+			lst=lst->next;n--;
+		}
+	}else n=_con_nr_s;
+	ps->proced_n=n;
+
+	pthread_kill( threadid, SIGUSR1);
+	return FALSE;
+}
+static gboolean proced_disconnected(gpointer b){
+	struct stk_s*ps=(struct stk_s*)b;
+	gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,home_page));
+	addattextmain(ps->proced_text,-1);
+	pthread_kill( threadid, SIGUSR1);
+	return FALSE;
+}
 static void proced(struct stk_s*ps){
 	char hostname[hostname_sz];
 	char psw[password_sz];char nkn[namenul_sz];
 	unsigned short*ports;size_t port_last;size_t swtch;
 	if(parse_host_str(ps->text,hostname,psw,nkn,&ports,&port_last,&swtch,ps)) {
-		main_text_s("Connecting...\n");
-		clear_old_chat(ps->notebook);
+		ps->proced_text="Connecting...\n";
+		ps->proced_switch=swtch==not_a_switch;
+		g_idle_add(proced_connecting,ps);
+		int out;sigwait(&threadset,&out);
+		
 		proced_core(ps,hostname,psw,nkn,ports,port_last,swtch);
 		free(ports);
-		main_text_s("Disconnected.\n");
-		gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,home_page));
+
+		ps->proced_text="Disconnected.\n";
+		g_idle_add(proced_disconnected,ps);
+		sigwait(&threadset,&out);
 	}else main_text_s("Error: Wrong input. For format, press the vertical ellipsis button and then Help.\n");
 }
 static gpointer worker (gpointer ps)
