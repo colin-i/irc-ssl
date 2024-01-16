@@ -1786,7 +1786,7 @@ static void save_combo_box(GtkTreeModel*list){
 }
 
 //is new netry or is not
-static BOOL set_combo_box_text(GtkComboBox * box,const char*txt) 
+static BOOL set_combo_box_text(GtkComboBox * box,const char*txt)
 {
 	GtkTreeIter iter;
 	gboolean valid;
