@@ -2327,7 +2327,7 @@ static void deciderfn(GtkButton*a,struct stk_s*ps){
 }
 void org_changed (GtkComboBoxText *combo_box)//, gpointer user_data)
 {
-	if(to_organizer_folder(FALSE,FALSE)){//is possible to be in home/server/channel/conv
+	if(to_organizer_folder(FALSE,FALSE)){//is possible to be in home/server/channel
 		char*text=gtk_combo_box_text_get_active_text (combo_box);
 		if(*text!=chanstart)//only if the folder is malevolently changed
 		{
