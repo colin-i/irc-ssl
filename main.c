@@ -268,6 +268,14 @@ static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 #define folderseparator *folder_separator
 #define removed_string " removed"
 #define remove_ignored " ignored (maybe is not empty)"
+//nick format: A..}
+//             -0..9; but not at [0]
+//hostname -.0..9a..z
+#define populate "Populate"
+#define dirback ".."
+#define org_c "chans"
+#define org_u "users"
+#define org_g "global"
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_model(pan) gtk_tree_view_get_model(contf_get_treev(pan))
@@ -2303,39 +2311,45 @@ static BOOL to_organizer_folder(BOOL is_remove,BOOL remove){//for the moment thi
 	return FALSE;
 }
 
-#define bind "Bind"
-#define unbind "UnBind"
-static void deciderfn(GtkButton*a,struct stk_s*ps){
-	if(strcmp(gtk_button_get_label(a),bind)==0){
-		const char*b=gtk_notebook_get_menu_label_text(ps->notebook,gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook)));
-		if(*b==chanstart){
-			const char*h=gtk_notebook_get_menu_label_text(ps->notebook,home_page);
-			size_t hs=strlen(h)-homestart_size;size_t bs=strlen(b);
-			char*z=(char*)malloc(hs+bs+1);
-			if(z){
-				memcpy(z,   h+homestart_size,hs);
-				memcpy(z+hs,b,bs);
-				z[hs+bs]='\0';
-				set_combo_box_text(ps->organizer_dirs,z);
-				free(z);
-				gtk_button_set_label(a,unbind);
-			}
+static void deciderfn(struct stk_s*ps){
+	const char*b=gtk_notebook_get_menu_label_text(ps->notebook,gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook)));
+	if(*b==chanstart){
+		const char*h=gtk_notebook_get_menu_label_text(ps->notebook,home_page);
+		size_t hs=strlen(h)-homestart_size;size_t bs=strlen(b);
+		char*z=(char*)malloc(hs+bs+1);
+		if(z!=nullptr){
+			memcpy(z,   h+homestart_size,hs);
+			memcpy(z+hs,b,bs);
+			z[hs+bs]='\0';
+			set_combo_box_text(ps->organizer_dirs,z);
+			free(z);
 		}
-		else addattextmain("Must be in a channel",-1);
 	}
-	else gtk_button_set_label(a,bind);
+	else addattextmain("Must be in a channel",-1);
 }
-void org_changed (GtkComboBoxText *combo_box)//, gpointer user_data)
+static void org_changed (GtkComboBoxText *combo_box)//, gpointer user_data)
 {
-	if(to_organizer_folder(FALSE,FALSE)){//is possible to be in another server
+	if(to_organizer_folder(FALSE,FALSE)){//is possible to be in another folder
 		char*text=gtk_combo_box_text_get_active_text (combo_box);
-		if(*text!=chanstart)//only if the folder is malevolently changed(this case is after list repopulation)
+		if(*text!=chanstart)//only if the folder is malevolently changed(this case is at list repopulation)
 		{
 			char*chan=strchr(text,chanstart);
-			if(chan){//only if the folder is malevolently changed(this case is after list repopulation)
+			if(chan!=nullptr){//only if the folder is malevolently changed(this case is at list repopulation)
 				*chan='\0';
 				if(chdir(text)==0||(mkdir(text,0700)==0&&chdir(text)==0)){
-					chan++;
+					if(access(org_u,F_OK)==0||mkdir(org_u,0700)==0){//users conversations
+						if(chdir(org_g)==0||(mkdir(org_g,0700)==0&&chdir(org_g)==0)){
+							//retake global lists
+							if(chdir(dirback)==0){
+								if(chdir(org_c)==0||(mkdir(org_c,0700)==0&&chdir(org_c)==0)){
+									chan++;
+									if(chdir(chan)==0||(mkdir(chan,0700)==0&&chdir(chan)==0)){
+										//retake local lists
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -2343,6 +2357,7 @@ void org_changed (GtkComboBoxText *combo_box)//, gpointer user_data)
 	}
 }
 static void organizer_populate(GtkWidget*window,struct stk_s*ps){
+	//.local .global read
 	GtkNotebook*nb = (GtkNotebook*)gtk_notebook_new ();
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 
@@ -2350,11 +2365,15 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	g_signal_connect_data (dirs, "changed",G_CALLBACK(org_changed),nullptr,nullptr,(GConnectFlags)0);
 	ps->organizer_dirs=(GtkComboBox*)dirs;
 
-	GtkWidget*decider=gtk_button_new_with_label(bind);
-	g_signal_connect_data (decider, "clicked",G_CALLBACK(deciderfn),ps,nullptr,(GConnectFlags)0);
+	GtkWidget*decider=gtk_button_new_with_label(populate);
+	g_signal_connect_data (decider, "clicked",G_CALLBACK(deciderfn),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_box_pack_start((GtkBox*)top,decider,FALSE,FALSE,0);
 
 	gtk_box_pack_start((GtkBox*)top,dirs,TRUE,TRUE,0);
+
+	GtkWidget*remove_dir=gtk_button_new_with_label("X");
+	gtk_widget_set_sensitive (remove_dir,FALSE);
+	gtk_box_pack_start((GtkBox*)top,remove_dir,FALSE,FALSE,0);
 	GtkWidget*add_folder=gtk_button_new_with_label("+");
 	gtk_widget_set_sensitive (add_folder,FALSE);
 	gtk_box_pack_start((GtkBox*)top,add_folder,FALSE,FALSE,0);
