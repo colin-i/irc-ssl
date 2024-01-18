@@ -135,10 +135,10 @@ Send irc commands from the " home_string " tab. Other tabs are sending " priv_ms
 \n\
 Keyboard\n\
 Ctrl+T = Tabs popup\n\
-Ctrl+C = Close tab\n\
+Ctrl+Shift+C = Close tab\n\
 Ctrl+Q = Shutdown connection\n\
 Ctrl+O = Open organizer\n\
-Ctrl+X = Exit program\n\
+Ctrl+Shift+X = Exit program\n\
 \n\
 Connection format:\n\
 [[nickname" parse_host_delim "]password" parse_host_left "]hostname[" parse_host_delim "port1[" parse_host_ports_delim "portN][" parse_host_ports_micro "portM...][" parse_host_ports_macro "portP...]]\n\
@@ -2327,17 +2327,15 @@ static void deciderfn(GtkButton*a,struct stk_s*ps){
 }
 void org_changed (GtkComboBoxText *combo_box)//, gpointer user_data)
 {
-	if(to_organizer_folder(FALSE,FALSE)){//is possible to be in home/server/channel
+	if(to_organizer_folder(FALSE,FALSE)){//is possible to be in another server
 		char*text=gtk_combo_box_text_get_active_text (combo_box);
-		if(*text!=chanstart)//only if the folder is malevolently changed
+		if(*text!=chanstart)//only if the folder is malevolently changed(this case is after list repopulation)
 		{
 			char*chan=strchr(text,chanstart);
-			if(chan){//only if the folder is malevolently changed
+			if(chan){//only if the folder is malevolently changed(this case is after list repopulation)
 				*chan='\0';
 				if(chdir(text)==0||(mkdir(text,0700)==0&&chdir(text)==0)){
 					chan++;
-					if(chdir(chan)==0||(mkdir(chan,0700)==0&&chdir(chan)==0)){
-					}
 				}
 			}
 		}
@@ -2403,25 +2401,28 @@ static gboolean prog_key_press (struct stk_s*ps, GdkEventKey  *event){
 	if(event->type==GDK_KEY_PRESS){
 		if((event->state&GDK_CONTROL_MASK)!=0){
 			unsigned int K=gdk_keyval_to_upper(event->keyval);
-			if(K==GDK_KEY_T){
-				GList*lst=gtk_container_get_children((GtkContainer*)menuwithtabs);
-				GList*list=lst;
-				for(;;){
-					list=g_list_next(list);
-					if(list==nullptr)break;
-					gtk_widget_destroy((GtkWidget*)list->data);
-				}
-				g_list_free(lst);
-				reload_tabs(chan_menu,menuwithtabs,ps->notebook);
-				reload_tabs(name_on_menu,menuwithtabs,ps->notebook);
-				reload_tabs(name_off_menu,menuwithtabs,ps->notebook);
-				gtk_menu_popup_at_widget((GtkMenu*)menuwithtabs,(GtkWidget*)ps->notebook,GDK_GRAVITY_NORTH_WEST,GDK_GRAVITY_NORTH_WEST,nullptr);
-			}else if(K==GDK_KEY_C){
-				GtkWidget*pg=gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook));
-				if(is_home(gtk_notebook_get_menu_label_text(ps->notebook,pg))==FALSE)gtk_button_clicked((GtkButton*)tab_close_button(ps->notebook,pg));
-			}else if(K==GDK_KEY_Q)action_to_close();
-			else if(K==GDK_KEY_O)organizer_popup(ps);
-			else if(K==GDK_KEY_X)g_application_quit(ps->app);
+			if((event->state&GDK_SHIFT_MASK)==0){
+				if(K==GDK_KEY_T){
+					GList*lst=gtk_container_get_children((GtkContainer*)menuwithtabs);
+					GList*list=lst;
+					for(;;){
+						list=g_list_next(list);
+						if(list==nullptr)break;
+						gtk_widget_destroy((GtkWidget*)list->data);
+					}
+					g_list_free(lst);
+					reload_tabs(chan_menu,menuwithtabs,ps->notebook);
+					reload_tabs(name_on_menu,menuwithtabs,ps->notebook);
+					reload_tabs(name_off_menu,menuwithtabs,ps->notebook);
+					gtk_menu_popup_at_widget((GtkMenu*)menuwithtabs,(GtkWidget*)ps->notebook,GDK_GRAVITY_NORTH_WEST,GDK_GRAVITY_NORTH_WEST,nullptr);
+				}else if(K==GDK_KEY_Q)action_to_close();
+				else if(K==GDK_KEY_O)organizer_popup(ps);
+			}else{
+				if(K==GDK_KEY_C){
+					GtkWidget*pg=gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook));
+					if(is_home(gtk_notebook_get_menu_label_text(ps->notebook,pg))==FALSE)gtk_button_clicked((GtkButton*)tab_close_button(ps->notebook,pg));
+				}else if(K==GDK_KEY_X)g_application_quit(ps->app);
+			}
 		}else if(event->keyval==GDK_KEY_Up&&gtk_widget_is_focus(ps->sen_entry)){
 			if(send_entry_list_cursor!=send_entry_list->head){
 				send_entry_list_cursor=send_entry_list_cursor==nullptr?
