@@ -208,6 +208,7 @@ struct stk_s{
 	char*proced_hostname;
 
 	GtkComboBox*organizer_dirs;
+	GtkWidget*organizer_rc;
 };
 static int autoconnect=-1;static BOOL autoconnect_pending=FALSE;
 static GSList*con_group;
@@ -2321,7 +2322,10 @@ static void deciderfn(struct stk_s*ps){
 			memcpy(z,   h+homestart_size,hs);
 			memcpy(z+hs,b,bs);
 			z[hs+bs]='\0';
+
 			set_combo_box_text(ps->organizer_dirs,z);
+			gtk_widget_set_sensitive(ps->organizer_rc,TRUE);
+
 			free(z);
 		}
 	}
@@ -2329,26 +2333,56 @@ static void deciderfn(struct stk_s*ps){
 }
 static void org_changed (GtkComboBoxText *combo_box)//, gpointer user_data)
 {
-	if(to_organizer_folder(FALSE,FALSE)){//is possible to be in another folder
-		char*text=gtk_combo_box_text_get_active_text (combo_box);
-		if(*text!=chanstart)//only if the folder is malevolently changed(this case is at list repopulation)
-		{
-			char*chan=strchr(text,chanstart);
-			if(chan!=nullptr){//only if the folder is malevolently changed(this case is at list repopulation)
-				*chan='\0';
-				if(chdir(text)==0||(mkdir(text,0700)==0&&chdir(text)==0)){
-					if(access(org_u,F_OK)==0||mkdir(org_u,0700)==0){//users conversations
-						if(chdir(org_g)==0||(mkdir(org_g,0700)==0&&chdir(org_g)==0)){
-							//retake global lists
-							if(chdir(dirback)==0){
-								if(chdir(org_c)==0||(mkdir(org_c,0700)==0&&chdir(org_c)==0)){
-									chan++;
-									if(chdir(chan)==0||(mkdir(chan,0700)==0&&chdir(chan)==0)){
-										//retake local lists
+	if(gtk_combo_box_get_active (combo_box)!=-1){//this is the case when last entry is deleted
+		if(to_organizer_folder(FALSE,FALSE)){//is possible to be in another folder
+			char*text=gtk_combo_box_text_get_active_text (combo_box);
+			if(*text!=chanstart)//only if the folder is malevolently changed(this case is at list repopulation)
+			{
+				char*chan=strchr(text,chanstart);
+				if(chan!=nullptr){//only if the folder is malevolently changed(this case is at list repopulation)
+					*chan='\0';
+					if(chdir(text)==0||(mkdir(text,0700)==0&&chdir(text)==0)){
+						if(access(org_u,F_OK)==0||mkdir(org_u,0700)==0){//users conversations
+							if(chdir(org_g)==0||(mkdir(org_g,0700)==0&&chdir(org_g)==0)){
+								//retake global lists
+								if(chdir(dirback)==0){
+									if(chdir(org_c)==0||(mkdir(org_c,0700)==0&&chdir(org_c)==0)){
+										chan++;
+										if(chdir(chan)==0||(mkdir(chan,0700)==0/*&&chdir(chan)==0*/)){
+											//retake local lists
+										}
 									}
 								}
 							}
 						}
+					}
+				}
+			}
+			g_free(text);
+		}
+	}
+}
+static void org_removechan(struct stk_s*ps){
+	if(to_organizer_folder(FALSE,FALSE)){//is possible to be in another folder
+		GtkComboBoxText *combo_box=ps->organizer_dirs;
+		char*text=gtk_combo_box_text_get_active_text (combo_box);
+		char*chan=strchr(text,chanstart);
+		*chan='\0';chan++;
+		if(chdir(text)==0&&chdir(org_c)==0&&chdir(chan)==0){
+			//remove local lists
+			if(chdir(dirback)==0){
+				rmdir(chan);
+				if(chdir(dirback)==0){
+					if(rmdir(org_c)==0){//test to see if was the last channel in server
+						rmdir(org_g);
+						rmdir(org_u);
+						if(chdir(dirback)==0){
+							rmdir(text);
+						}
+					}
+					gtk_combo_box_text_remove(combo_box,gtk_combo_box_get_active (combo_box));
+					if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(combo_box),nullptr)==0){//if was last
+						gtk_widget_set_sensitive(ps->organizer_rc,FALSE);
 					}
 				}
 			}
@@ -2358,12 +2392,11 @@ static void org_changed (GtkComboBoxText *combo_box)//, gpointer user_data)
 }
 static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	//.local .global read
-	GtkNotebook*nb = (GtkNotebook*)gtk_notebook_new ();
+	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 
 	GtkWidget*dirs=gtk_combo_box_text_new();
-	g_signal_connect_data (dirs, "changed",G_CALLBACK(org_changed),nullptr,nullptr,(GConnectFlags)0);
-	ps->organizer_dirs=(GtkComboBox*)dirs;
+	g_signal_connect_data (dirs, "changed",G_CALLBACK(org_changed),nullptr,nullptr,(GConnectFlags)0);	ps->organizer_dirs=(GtkComboBox*)dirs;
 
 	GtkWidget*decider=gtk_button_new_with_label(populate);
 	g_signal_connect_data (decider, "clicked",G_CALLBACK(deciderfn),ps,nullptr,G_CONNECT_SWAPPED);
@@ -2371,9 +2404,10 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 
 	gtk_box_pack_start((GtkBox*)top,dirs,TRUE,TRUE,0);
 
-	GtkWidget*remove_dir=gtk_button_new_with_label("X");
-	gtk_widget_set_sensitive (remove_dir,FALSE);
-	gtk_box_pack_start((GtkBox*)top,remove_dir,FALSE,FALSE,0);
+	GtkWidget*remove_chan=gtk_button_new_with_label("X");	ps->organizer_rc=remove_chan;
+	gtk_widget_set_sensitive (remove_chan,FALSE);
+	g_signal_connect_data (remove_chan, "clicked",G_CALLBACK(org_removechan),ps,nullptr,G_CONNECT_SWAPPED);
+	gtk_box_pack_start((GtkBox*)top,remove_chan,FALSE,FALSE,0);
 	GtkWidget*add_folder=gtk_button_new_with_label("+");
 	gtk_widget_set_sensitive (add_folder,FALSE);
 	gtk_box_pack_start((GtkBox*)top,add_folder,FALSE,FALSE,0);
@@ -2381,9 +2415,11 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	gtk_widget_set_sensitive (remove_folder,FALSE);
 	gtk_box_pack_start((GtkBox*)top,remove_folder,FALSE,FALSE,0);
 
-	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	gtk_box_pack_start((GtkBox*)box,top,FALSE,FALSE,0);
+
+	GtkNotebook*nb = (GtkNotebook*)gtk_notebook_new ();
 	gtk_box_pack_start((GtkBox*)box,(GtkWidget*)nb,TRUE,TRUE,0);
+
 	gtk_container_add ((GtkContainer*)window, box);
 }
 
