@@ -135,10 +135,10 @@ Send irc commands from the " home_string " tab. Other tabs are sending " priv_ms
 \n\
 Keyboard\n\
 Ctrl+T = Tabs popup\n\
-Ctrl+Shift+C = Close tab\n\
+Shift+Ctrl+C = Close tab\n\
 Ctrl+Q = Shutdown connection\n\
 Ctrl+O = Open organizer\n\
-Ctrl+Shift+X = Exit program\n\
+Shift+Ctrl+X = Exit program\n\
 \n\
 Connection format:\n\
 [[nickname" parse_host_delim "]password" parse_host_left "]hostname[" parse_host_delim "port1[" parse_host_ports_delim "portN][" parse_host_ports_micro "portM...][" parse_host_ports_macro "portP...]]\n\
@@ -209,6 +209,7 @@ struct stk_s{
 
 	GtkComboBox*organizer_dirs;
 	GtkWidget*organizer_rc;
+	GtkToggleButton*organizer_del_confirmation;
 };
 static int autoconnect=-1;static BOOL autoconnect_pending=FALSE;
 static GSList*con_group;
@@ -2363,6 +2364,12 @@ static void org_changed (GtkComboBoxText *combo_box)//, gpointer user_data)
 	}
 }
 static void org_removechan(struct stk_s*ps){
+	gint response;
+	if(gtk_toggle_button_get_active(ps->organizer_del_confirmation)){
+		GtkWidget*dialog=gtk_message_dialog_new(ps->organizer,GTK_DIALOG_DESTROY_WITH_PARENT/*modal will be at dialog_run*/,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"And delete stored data?");
+		response=gtk_dialog_run((GtkDialog*)dialog);
+		gtk_widget_destroy (dialog);
+	}else response=GTK_RESPONSE_YES;
 	if(to_organizer_folder(FALSE,FALSE)){//is possible to be in another folder
 		GtkComboBoxText *combo_box=ps->organizer_dirs;
 		char*text=gtk_combo_box_text_get_active_text (combo_box);
@@ -2371,9 +2378,9 @@ static void org_removechan(struct stk_s*ps){
 		if(chdir(text)==0&&chdir(org_c)==0&&chdir(chan)==0){
 			//remove local lists
 			if(chdir(dirback)==0){
-				rmdir(chan);
+				if(response==GTK_RESPONSE_YES)rmdir(chan);
 				if(chdir(dirback)==0){
-					if(rmdir(org_c)==0){//test to see if was the last channel in server
+					if(rmdir(org_c)==0){//test to see if was the last channel in server, when response is GTK_RESPONSE_CANCEL, will be not empty,-1,chan is there
 						rmdir(org_g);
 						rmdir(org_u);
 						if(chdir(dirback)==0){
@@ -2404,17 +2411,27 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 
 	gtk_box_pack_start((GtkBox*)top,dirs,TRUE,TRUE,0);
 
+	GtkWidget*buttonspack=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
+
+	GtkWidget*buttons=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 	GtkWidget*remove_chan=gtk_button_new_with_label("X");	ps->organizer_rc=remove_chan;
 	gtk_widget_set_sensitive (remove_chan,FALSE);
 	g_signal_connect_data (remove_chan, "clicked",G_CALLBACK(org_removechan),ps,nullptr,G_CONNECT_SWAPPED);
-	gtk_box_pack_start((GtkBox*)top,remove_chan,FALSE,FALSE,0);
+	gtk_box_pack_start((GtkBox*)buttons,remove_chan,FALSE,FALSE,0);
 	GtkWidget*add_folder=gtk_button_new_with_label("+");
 	gtk_widget_set_sensitive (add_folder,FALSE);
-	gtk_box_pack_start((GtkBox*)top,add_folder,FALSE,FALSE,0);
+	gtk_box_pack_start((GtkBox*)buttons,add_folder,FALSE,FALSE,0);
 	GtkWidget*remove_folder=gtk_button_new_with_label("-");
 	gtk_widget_set_sensitive (remove_folder,FALSE);
-	gtk_box_pack_start((GtkBox*)top,remove_folder,FALSE,FALSE,0);
+	gtk_box_pack_start((GtkBox*)buttons,remove_folder,FALSE,FALSE,0);
+	gtk_box_pack_start((GtkBox*)buttonspack,buttons,FALSE,FALSE,0);
 
+	GtkWidget*del_confirmation=gtk_check_button_new_with_mnemonic("_Delete confirmation");//Alt+D
+	gtk_toggle_button_set_active((GtkToggleButton*)del_confirmation,TRUE);
+	gtk_box_pack_start((GtkBox*)buttonspack,del_confirmation,FALSE,FALSE,0);
+	ps->organizer_del_confirmation=del_confirmation;
+
+	gtk_box_pack_start((GtkBox*)top,buttonspack,FALSE,FALSE,0);
 	gtk_box_pack_start((GtkBox*)box,top,FALSE,FALSE,0);
 
 	GtkNotebook*nb = (GtkNotebook*)gtk_notebook_new ();

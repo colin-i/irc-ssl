@@ -53,6 +53,7 @@ typedef void GtkTextBuffer;
 typedef void GtkTextMark;
 typedef void GtkTextTagTable;
 typedef void GtkTextView;
+typedef void GtkToggleButton;
 typedef void GtkTooltip;
 typedef void GtkTreeModel;
 typedef void GtkTreePath;
@@ -68,6 +69,7 @@ typedef void *GClosureNotify;
 typedef void (*GDestroyNotify)(gpointer data);
 typedef void *GdkPixbufDestroyNotify;
 typedef gboolean(*GSourceFunc)(gpointer user_data);
+
 typedef enum{G_APPLICATION_FLAGS_NONE}
  GApplicationFlags;
 typedef enum{G_CONNECT_SWAPPED = 1 << 1}
@@ -85,24 +87,29 @@ typedef enum{GDK_KEY_PRESS = 8}
  GdkEventType;
 typedef enum{  GDK_GRAVITY_NORTH_WEST = 1}
  GdkGravity;
-typedef enum{GTK_ORIENTATION_HORIZONTAL,GTK_ORIENTATION_VERTICAL}
- GtkOrientation;
+typedef enum{ GTK_BUTTONS_NONE, GTK_BUTTONS_OK, GTK_BUTTONS_CLOSE, GTK_BUTTONS_CANCEL, GTK_BUTTONS_YES_NO }//, GTK_BUTTONS_OK_CANCEL }
+ GtkButtonsType;
 typedef enum{  GTK_DIALOG_MODAL = 1 << 0, GTK_DIALOG_DESTROY_WITH_PARENT = 1 << 1}//, GTK_DIALOG_USE_HEADER_BAR = 1 << 2
  GtkDialogFlags;
 typedef enum{  GTK_ICON_SIZE_INVALID,  GTK_ICON_SIZE_MENU}
  GtkIconSize;
+typedef enum{ GTK_MESSAGE_INFO, GTK_MESSAGE_WARNING, GTK_MESSAGE_QUESTION }
+ GtkMessageType;
 typedef enum{GDK_SHIFT_MASK = 1 << 0, GDK_LOCK_MASK = 1 << 1, GDK_CONTROL_MASK = 1 << 2}
  GdkModifierType;
+typedef enum{GTK_ORIENTATION_HORIZONTAL,GTK_ORIENTATION_VERTICAL}
+ GtkOrientation;
 typedef enum{  GTK_PACK_START,  GTK_PACK_END}
  GtkPackType;
 typedef enum{  GTK_POLICY_ALWAYS,  GTK_POLICY_AUTOMATIC,  GTK_POLICY_NEVER,  GTK_POLICY_EXTERNAL}
  GtkPolicyType;
 typedef enum{  GTK_RELIEF_NORMAL,  GTK_RELIEF_HALF,  GTK_RELIEF_NONE}
  GtkReliefStyle;
-typedef enum{  GTK_RESPONSE_NONE = -1,GTK_RESPONSE_OK = -5}//, GTK_RESPONSE_REJECT = -2,GTK_RESPONSE_ACCEPT = -3,GTK_RESPONSE_DELETE_EVENT = -4
+typedef enum{ GTK_RESPONSE_NONE = -1, GTK_RESPONSE_OK = -5, GTK_RESPONSE_YES = -8 }//, GTK_RESPONSE_CANCEL = -6}//, GTK_RESPONSE_REJECT = -2,GTK_RESPONSE_ACCEPT = -3,GTK_RESPONSE_DELETE_EVENT = -4
  GtkResponseType;
 typedef enum{  GTK_WRAP_NONE,  GTK_WRAP_CHAR,  GTK_WRAP_WORD,  GTK_WRAP_WORD_CHAR}
  GtkWrapMode;
+
 typedef struct _GClosure GClosure;
 typedef struct _GList GList;
 struct _GList
@@ -267,6 +274,7 @@ GtkWidget* gtk_button_new_with_label (const gchar *label);
 void       gtk_button_set_image (GtkButton *button, GtkWidget *image);
 void       gtk_button_set_relief (GtkButton *button, GtkReliefStyle relief);
 GtkCellRenderer *gtk_cell_renderer_text_new (void);
+GtkWidget *gtk_check_button_new_with_mnemonic (const gchar *label);
 gboolean gtk_check_menu_item_get_active (GtkCheckMenuItem *check_menu_item);
 GtkWidget* gtk_check_menu_item_new_with_label (const gchar *label);
 void gtk_check_menu_item_set_active (GtkCheckMenuItem *check_menu_item, gboolean is_active);
@@ -287,6 +295,7 @@ void gtk_container_set_border_width (GtkContainer *container,guint border_width)
 GtkWidget * gtk_dialog_get_content_area (GtkDialog *dialog);
 GtkWidget *gtk_dialog_get_widget_for_response (GtkDialog *dialog, gint response_id);
 GtkWidget* gtk_dialog_new_with_buttons (const gchar *title,  GtkWindow *parent, GtkDialogFlags flags, const gchar *first_button_text, ...) __attribute__((__sentinel__));
+gint gtk_dialog_run (GtkDialog *dialog);
 void gtk_editable_set_position (GtkEditable *editable, gint position);
 guint gtk_entry_buffer_delete_text (GtkEntryBuffer *buffer, guint position, gint n_chars);
 const gchar* gtk_entry_buffer_get_text (GtkEntryBuffer *buffer);
@@ -313,13 +322,14 @@ void gtk_list_store_prepend (GtkListStore *list_store, GtkTreeIter *iter);
 gboolean gtk_list_store_remove (GtkListStore *list_store, GtkTreeIter *iter);
 void gtk_list_store_set (GtkListStore *list_store, GtkTreeIter *iter, ...);
 void gtk_list_store_swap (GtkListStore *store, GtkTreeIter *a, GtkTreeIter *b);
-const gchar *gtk_menu_item_get_label (GtkMenuItem *menu_item);
-GtkWidget* gtk_menu_item_new_with_label (const gchar *label);
-void gtk_menu_item_set_submenu (GtkMenuItem *menu_item, GtkWidget *submenu);
-GtkWidget* gtk_menu_new (void);
-void gtk_menu_popup_at_pointer (GtkMenu *menu, const GdkEvent *trigger_event);
-void gtk_menu_popup_at_widget (GtkMenu *menu, GtkWidget *widget, GdkGravity widget_anchor, GdkGravity menu_anchor, const GdkEvent *trigger_event);
-void gtk_menu_shell_append (GtkMenuShell *menu_shell, GtkWidget *child);
+const gchar*gtk_menu_item_get_label (GtkMenuItem *menu_item);
+GtkWidget*  gtk_menu_item_new_with_label (const gchar *label);
+void        gtk_menu_item_set_submenu (GtkMenuItem *menu_item, GtkWidget *submenu);
+GtkWidget*  gtk_menu_new (void);
+void        gtk_menu_popup_at_pointer (GtkMenu *menu, const GdkEvent *trigger_event);
+void        gtk_menu_popup_at_widget (GtkMenu *menu, GtkWidget *widget, GdkGravity widget_anchor, GdkGravity menu_anchor, const GdkEvent *trigger_event);
+void        gtk_menu_shell_append (GtkMenuShell *menu_shell, GtkWidget *child);
+GtkWidget *gtk_message_dialog_new (GtkWindow *parent, GtkDialogFlags flags, GtkMessageType type, GtkButtonsType buttons, const gchar *message_format, ...);
 gint gtk_notebook_append_page_menu (GtkNotebook *notebook, GtkWidget *child, GtkWidget *tab_label, GtkWidget *menu_label);
 GtkWidget*   gtk_notebook_get_action_widget (GtkNotebook *notebook, GtkPackType pack_type);
 gint         gtk_notebook_get_current_page (GtkNotebook *notebook);
@@ -358,6 +368,8 @@ void gtk_text_view_get_visible_rect (GtkTreeView *tree_view, GdkRectangle *visib
 GtkWidget * gtk_text_view_new (void);
 void gtk_text_view_set_wrap_mode (GtkTextView *text_view, GtkWrapMode wrap_mode);
 void gtk_text_view_set_editable (GtkTextView *text_view,gboolean setting);
+gboolean gtk_toggle_button_get_active (GtkToggleButton *toggle_button);
+void gtk_toggle_button_set_active (GtkToggleButton *toggle_button, gboolean is_active);
 void gtk_tooltip_set_text (GtkTooltip *tooltip, const gchar *text);
 void gtk_tree_model_get (GtkTreeModel *tree_model, GtkTreeIter *iter, ...);
 gboolean gtk_tree_model_get_iter_first(GtkTreeModel *tree_model, GtkTreeIter *iter);
