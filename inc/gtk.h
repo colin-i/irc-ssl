@@ -51,6 +51,7 @@ typedef void GtkRadioMenuItem;
 typedef void GtkScrolledWindow;
 typedef void GtkTextBuffer;
 typedef void GtkTextMark;
+typedef void GtkTreeSortable;
 typedef void GtkTextTagTable;
 typedef void GtkTextView;
 typedef void GtkToggleButton;
@@ -107,6 +108,8 @@ typedef enum{  GTK_RELIEF_NORMAL,  GTK_RELIEF_HALF,  GTK_RELIEF_NONE}
  GtkReliefStyle;
 typedef enum{ GTK_RESPONSE_NONE = -1, GTK_RESPONSE_OK = -5, GTK_RESPONSE_YES = -8 }//, GTK_RESPONSE_CANCEL = -6}//, GTK_RESPONSE_REJECT = -2,GTK_RESPONSE_ACCEPT = -3,GTK_RESPONSE_DELETE_EVENT = -4
  GtkResponseType;
+typedef enum{ GTK_SORT_ASCENDING,  GTK_SORT_DESCENDING }
+ GtkSortType;
 typedef enum{  GTK_WRAP_NONE,  GTK_WRAP_CHAR,  GTK_WRAP_WORD,  GTK_WRAP_WORD_CHAR}
  GtkWrapMode;
 
@@ -199,6 +202,7 @@ typedef struct _GdkAtom *GdkAtom;
 #define G_TYPE_FROM_INSTANCE(instance) (G_TYPE_FROM_CLASS (((GTypeInstance*) (instance))->g_class))
 #define G_TYPE_FUNDAMENTAL_SHIFT (2)
 #define G_TYPE_MAKE_FUNDAMENTAL(x) ((GType) ((x) << G_TYPE_FUNDAMENTAL_SHIFT))
+#define G_TYPE_INT G_TYPE_MAKE_FUNDAMENTAL (6)
 #define G_TYPE_STRING G_TYPE_MAKE_FUNDAMENTAL (16)
 #define G_VARIANT_TYPE_STRING ((const GVariantType *) "s")
 #define GUINT_TO_POINTER(u) ((gpointer) (guint) (u))
@@ -311,17 +315,17 @@ GtkWidget *gtk_label_get_mnemonic_widget (GtkLabel *label);
 void gtk_label_set_mnemonic_widget (GtkLabel *label, GtkWidget *widget);
 const gchar* gtk_label_get_text (GtkLabel *label);
 GtkWidget* gtk_label_new (const gchar *str);
-void gtk_list_store_append (GtkListStore *list_store, GtkTreeIter *iter);
-void gtk_list_store_clear (GtkListStore *list_store);
-void gtk_list_store_insert_after (GtkListStore *list_store, GtkTreeIter *iter, GtkTreeIter *sibling);
-void gtk_list_store_insert_before (GtkListStore *list_store, GtkTreeIter *iter, GtkTreeIter *sibling);
-void gtk_list_store_move_after (GtkListStore *store, GtkTreeIter *iter, GtkTreeIter *position);
-void gtk_list_store_move_before (GtkListStore *store, GtkTreeIter *iter, GtkTreeIter *position);
+void          gtk_list_store_append (GtkListStore *list_store, GtkTreeIter *iter);
+void          gtk_list_store_clear (GtkListStore *list_store);
+void          gtk_list_store_insert_after (GtkListStore *list_store, GtkTreeIter *iter, GtkTreeIter *sibling);
+void          gtk_list_store_insert_before (GtkListStore *list_store, GtkTreeIter *iter, GtkTreeIter *sibling);
+void          gtk_list_store_move_after (GtkListStore *store, GtkTreeIter *iter, GtkTreeIter *position);
+void          gtk_list_store_move_before (GtkListStore *store, GtkTreeIter *iter, GtkTreeIter *position);
 GtkListStore *gtk_list_store_new (gint n_columns, ...);
-void gtk_list_store_prepend (GtkListStore *list_store, GtkTreeIter *iter);
-gboolean gtk_list_store_remove (GtkListStore *list_store, GtkTreeIter *iter);
-void gtk_list_store_set (GtkListStore *list_store, GtkTreeIter *iter, ...);
-void gtk_list_store_swap (GtkListStore *store, GtkTreeIter *a, GtkTreeIter *b);
+void          gtk_list_store_prepend (GtkListStore *list_store, GtkTreeIter *iter);
+gboolean      gtk_list_store_remove (GtkListStore *list_store, GtkTreeIter *iter);
+void          gtk_list_store_set (GtkListStore *list_store, GtkTreeIter *iter, ...);
+void          gtk_list_store_swap (GtkListStore *store, GtkTreeIter *a, GtkTreeIter *b);
 const gchar*gtk_menu_item_get_label (GtkMenuItem *menu_item);
 GtkWidget*  gtk_menu_item_new_with_label (const gchar *label);
 void        gtk_menu_item_set_submenu (GtkMenuItem *menu_item, GtkWidget *submenu);
@@ -330,23 +334,23 @@ void        gtk_menu_popup_at_pointer (GtkMenu *menu, const GdkEvent *trigger_ev
 void        gtk_menu_popup_at_widget (GtkMenu *menu, GtkWidget *widget, GdkGravity widget_anchor, GdkGravity menu_anchor, const GdkEvent *trigger_event);
 void        gtk_menu_shell_append (GtkMenuShell *menu_shell, GtkWidget *child);
 GtkWidget *gtk_message_dialog_new (GtkWindow *parent, GtkDialogFlags flags, GtkMessageType type, GtkButtonsType buttons, const gchar *message_format, ...);
-gint gtk_notebook_append_page_menu (GtkNotebook *notebook, GtkWidget *child, GtkWidget *tab_label, GtkWidget *menu_label);
+gint         gtk_notebook_append_page_menu (GtkNotebook *notebook, GtkWidget *child, GtkWidget *tab_label, GtkWidget *menu_label);
 GtkWidget*   gtk_notebook_get_action_widget (GtkNotebook *notebook, GtkPackType pack_type);
 gint         gtk_notebook_get_current_page (GtkNotebook *notebook);
 const gchar *gtk_notebook_get_menu_label_text (GtkNotebook *notebook, GtkWidget *child);
 GtkWidget*   gtk_notebook_get_nth_page (GtkNotebook *notebook, gint page_num);
 GtkWidget *  gtk_notebook_get_tab_label (GtkNotebook *notebook, GtkWidget *child);
 GType        gtk_notebook_get_type (void) __attribute__((__const__));
-GtkWidget * gtk_notebook_new (void);
-gint gtk_notebook_page_num (GtkNotebook *notebook, GtkWidget *child);
-void gtk_notebook_popup_enable (GtkNotebook *notebook);
-void gtk_notebook_remove_page (GtkNotebook *notebook, gint page_num);
-void gtk_notebook_set_action_widget (GtkNotebook *notebook, GtkWidget *widget, GtkPackType pack_type);
-void gtk_notebook_set_current_page (GtkNotebook *notebook, gint page_num);
-void gtk_notebook_set_menu_label_text (GtkNotebook *notebook, GtkWidget *child, const gchar *menu_text);
-void gtk_notebook_set_scrollable (GtkNotebook *notebook, gboolean scrollable);
-void gtk_notebook_set_tab_label_text (GtkNotebook *notebook, GtkWidget *child, const gchar *tab_text);
-void gtk_notebook_set_tab_reorderable (GtkNotebook *notebook, GtkWidget *child, gboolean reorderable);
+GtkWidget *  gtk_notebook_new (void);
+gint         gtk_notebook_page_num (GtkNotebook *notebook, GtkWidget *child);
+void         gtk_notebook_popup_enable (GtkNotebook *notebook);
+void         gtk_notebook_remove_page (GtkNotebook *notebook, gint page_num);
+void         gtk_notebook_set_action_widget (GtkNotebook *notebook, GtkWidget *widget, GtkPackType pack_type);
+void         gtk_notebook_set_current_page (GtkNotebook *notebook, gint page_num);
+void         gtk_notebook_set_menu_label_text (GtkNotebook *notebook, GtkWidget *child, const gchar *menu_text);
+void         gtk_notebook_set_scrollable (GtkNotebook *notebook, gboolean scrollable);
+void         gtk_notebook_set_tab_label_text (GtkNotebook *notebook, GtkWidget *child, const gchar *tab_text);
+void         gtk_notebook_set_tab_reorderable (GtkNotebook *notebook, GtkWidget *child, gboolean reorderable);
 GtkWidget *gtk_paned_get_child1 (GtkPaned *paned);
 GtkWidget *gtk_paned_get_child2 (GtkPaned *paned);
 GtkWidget * gtk_paned_new (GtkOrientation orientation);
@@ -355,8 +359,8 @@ void gtk_paned_pack2 (GtkPaned *paned, GtkWidget *child, gboolean resize, gboole
 GSList* gtk_radio_menu_item_get_group (GtkRadioMenuItem *radio_menu_item);
 GtkWidget* gtk_radio_menu_item_new_with_label (GSList *group, const gchar *label);
 GtkAdjustment* gtk_scrolled_window_get_vadjustment (GtkScrolledWindow *scrolled_window);
-void gtk_scrolled_window_set_policy (GtkScrolledWindow *scrolled_window,GtkPolicyType hscrollbar_policy,GtkPolicyType vscrollbar_policy);
-GtkWidget* gtk_scrolled_window_new (GtkAdjustment *hadjustment,GtkAdjustment *vadjustment);
+void           gtk_scrolled_window_set_policy (GtkScrolledWindow *scrolled_window,GtkPolicyType hscrollbar_policy,GtkPolicyType vscrollbar_policy);
+GtkWidget*     gtk_scrolled_window_new (GtkAdjustment *hadjustment,GtkAdjustment *vadjustment);
 void gtk_text_buffer_get_bounds (GtkTextBuffer *buffer,GtkTextIter *start,GtkTextIter *end);
 void gtk_text_buffer_get_end_iter (GtkTextBuffer *buffer, GtkTextIter *iter);
 gchar *gtk_text_buffer_get_text (GtkTextBuffer *buffer,const GtkTextIter *start,const GtkTextIter *end,gboolean include_hidden_chars);
@@ -371,24 +375,30 @@ void gtk_text_view_set_editable (GtkTextView *text_view,gboolean setting);
 gboolean gtk_toggle_button_get_active (GtkToggleButton *toggle_button);
 void gtk_toggle_button_set_active (GtkToggleButton *toggle_button, gboolean is_active);
 void gtk_tooltip_set_text (GtkTooltip *tooltip, const gchar *text);
-void gtk_tree_model_get (GtkTreeModel *tree_model, GtkTreeIter *iter, ...);
-gboolean gtk_tree_model_get_iter_first(GtkTreeModel *tree_model, GtkTreeIter *iter);
-gboolean gtk_tree_model_get_iter_from_string (GtkTreeModel *tree_model, GtkTreeIter *iter, const gchar *path_string);
+void         gtk_tree_model_get (GtkTreeModel *tree_model, GtkTreeIter *iter, ...);
+gboolean     gtk_tree_model_get_iter_first(GtkTreeModel *tree_model, GtkTreeIter *iter);
+gboolean     gtk_tree_model_get_iter_from_string (GtkTreeModel *tree_model, GtkTreeIter *iter, const gchar *path_string);
 GtkTreePath *gtk_tree_model_get_path (GtkTreeModel *tree_model,GtkTreeIter *iter);
-gint gtk_tree_model_iter_n_children (GtkTreeModel *tree_model, GtkTreeIter *iter);
-gboolean gtk_tree_model_iter_next (GtkTreeModel *tree_model, GtkTreeIter *iter);
-gboolean gtk_tree_model_iter_nth_child (GtkTreeModel *tree_model, GtkTreeIter *iter, GtkTreeIter *parent, gint n);
-gboolean gtk_tree_model_iter_previous (GtkTreeModel *tree_model, GtkTreeIter *iter);
+gint         gtk_tree_model_iter_n_children (GtkTreeModel *tree_model, GtkTreeIter *iter);
+gboolean     gtk_tree_model_iter_next (GtkTreeModel *tree_model, GtkTreeIter *iter);
+gboolean     gtk_tree_model_iter_nth_child (GtkTreeModel *tree_model, GtkTreeIter *iter, GtkTreeIter *parent, gint n);
+gboolean     gtk_tree_model_iter_previous (GtkTreeModel *tree_model, GtkTreeIter *iter);
+GtkTreeModel*gtk_tree_model_sort_new_with_model (GtkTreeModel *child_model);
 gint *gtk_tree_path_get_indices (GtkTreePath *path);
 void gtk_tree_path_free (GtkTreePath *path);
 gboolean gtk_tree_selection_get_selected (GtkTreeSelection *selection,GtkTreeModel **model,GtkTreeIter *iter);
-gint gtk_tree_view_append_column (GtkTreeView *tree_view, GtkTreeViewColumn *column);
-GtkTreeViewColumn *gtk_tree_view_column_new_with_attributes (const gchar *title, GtkCellRenderer *cell, ...) __attribute__((__sentinel__));
-GtkTreeModel *gtk_tree_view_get_model (GtkTreeView *tree_view);
+gboolean gtk_tree_sortable_get_sort_column_id (GtkTreeSortable *sortable, gint *sort_column_id, GtkSortType *order);
+void     gtk_tree_sortable_set_sort_column_id (GtkTreeSortable *sortable, gint sort_column_id, GtkSortType order);
+gint              gtk_tree_view_append_column (GtkTreeView *tree_view, GtkTreeViewColumn *column);
+GtkTreeViewColumn*gtk_tree_view_column_new_with_attributes (const gchar *title, GtkCellRenderer *cell, ...) __attribute__((__sentinel__));
+void              gtk_tree_view_column_set_clickable (GtkTreeViewColumn *tree_column, gboolean clickable);
+void              gtk_tree_view_column_set_resizable (GtkTreeViewColumn *tree_column, gboolean resizable);
+GtkTreeModel *    gtk_tree_view_get_model (GtkTreeView *tree_view);
 GtkTreeSelection *gtk_tree_view_get_selection (GtkTreeView *tree_view);
-GtkWidget *gtk_tree_view_new (void);
-void gtk_tree_view_set_headers_visible (GtkTreeView *tree_view, gboolean headers_visible);
-void gtk_tree_view_set_model (GtkTreeView *tree_view, GtkTreeModel *model);
+GtkWidget *       gtk_tree_view_new (void);
+GtkWidget *       gtk_tree_view_new_with_model (GtkTreeModel *model);
+void              gtk_tree_view_set_headers_visible (GtkTreeView *tree_view, gboolean headers_visible);
+void              gtk_tree_view_set_model (GtkTreeView *tree_view, GtkTreeModel *model);
 gboolean gtk_widget_activate (GtkWidget *widget);
 void gtk_widget_destroy (GtkWidget *widget);
 void gtk_widget_hide (GtkWidget *widget);

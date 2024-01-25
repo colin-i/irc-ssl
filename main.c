@@ -278,6 +278,14 @@ static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 #define org_c "chans"
 #define org_u "users"
 #define org_g "global"
+enum {
+  ORG_ID1  = 0,
+  ORG_ID2  = 1,
+  ORG_GEN  = 2,
+  ORG_IDLE = 3,
+  ORG_N
+};
+GtkTreeModel*sort;
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_model(pan) gtk_tree_view_get_model(contf_get_treev(pan))
@@ -2300,7 +2308,7 @@ static BOOL to_organizer_folder(BOOL is_remove,BOOL remove){//for the moment thi
 										puts("");
 									}else{
 										if(rmdir(homelocal)==0) puts(removed_string);
-										else puts(" ignored (maybe is not empty)");
+										else puts(remove_ignored);
 									}
 								}
 							}
@@ -2397,7 +2405,51 @@ static void org_removechan(struct stk_s*ps){
 		g_free(text);
 	}
 }
+
+void organizer_tab_column_click(gint pos){
+	gint i;GtkSortType s;
+	gboolean b=gtk_tree_sortable_get_sort_column_id (sort, &i, &s);
+	// It returns TRUE unless the sort_column_id is GTK_TREE_SORTABLE_DEFAULT_SORT_COLUMN_ID or GTK_TREE_SORTABLE_UNSORTED_SORT_COLUMN_ID.
+	if(b){
+		if(s==GTK_SORT_DESCENDING)
+			gtk_tree_sortable_set_sort_column_id(sort,pos,GTK_SORT_ASCENDING);
+		else
+			gtk_tree_sortable_set_sort_column_id(sort,pos,GTK_SORT_DESCENDING);
+	}else{
+		gtk_tree_sortable_set_sort_column_id(sort,pos,GTK_SORT_DESCENDING);
+	}
+}
+static void organizer_tab_column_add(GtkTreeView*tree,char*name,long pos){//long not int to silence warning, pos is on stack/register
+	GtkCellRenderer *renderer= gtk_cell_renderer_text_new();
+	GtkTreeViewColumn *column = gtk_tree_view_column_new_with_attributes(name, renderer, "text", pos, nullptr);//"value" at progress. btw is sorting G_TYPE_INT ok
+	g_signal_connect_data(column,"clicked",G_CALLBACK(organizer_tab_column_click),(gpointer)pos,nullptr,G_CONNECT_SWAPPED);
+	gtk_tree_view_column_set_clickable(column,TRUE);
+	gtk_tree_view_column_set_resizable(column,TRUE);
+	gtk_tree_view_append_column(tree, column);
+}
+static void organizer_tab_add(GtkNotebook*nb,char*title){
+	GtkWidget*treeV=gtk_tree_view_new_with_model(sort);
+	g_object_unref(sort);
+
+	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Id",ORG_ID1);
+	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"AKA",ORG_ID2);
+	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Gender",ORG_GEN);
+	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Idle",ORG_IDLE);
+
+	GtkWidget*scroll = gtk_scrolled_window_new(nullptr, nullptr);
+	gtk_container_add((GtkContainer*)scroll,treeV);
+	gtk_notebook_append_page_menu(nb,scroll,gtk_label_new(title),gtk_label_new(title));
+}
+
 static void organizer_populate(GtkWidget*window,struct stk_s*ps){
+	//                                         logged_user/nick nick(if logged_user) gender         idle in minutes
+	GtkListStore*list=gtk_list_store_new(ORG_N, G_TYPE_STRING,   G_TYPE_STRING,       G_TYPE_STRING, G_TYPE_INT);
+	//any filter can come here
+	//sort idle/gender
+	sort=gtk_tree_model_sort_new_with_model(list);
+	g_object_unref(list);
+	//GtkTreeIter it;it=GtkTreeIter();gtk_list_store_append(list,&it);gtk_list_store_set(list, &it, 0, "a", 1, "x", 2,"x",3,1,-1);
+
 	//.local .global read
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
@@ -2435,6 +2487,7 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	gtk_box_pack_start((GtkBox*)box,top,FALSE,FALSE,0);
 
 	GtkNotebook*nb = (GtkNotebook*)gtk_notebook_new ();
+	organizer_tab_add(nb,(char*)"New");
 	gtk_box_pack_start((GtkBox*)box,(GtkWidget*)nb,TRUE,TRUE,0);
 
 	gtk_container_add ((GtkContainer*)window, box);
