@@ -392,6 +392,7 @@ void     gtk_tree_sortable_set_sort_column_id (GtkTreeSortable *sortable, gint s
 gint              gtk_tree_view_append_column (GtkTreeView *tree_view, GtkTreeViewColumn *column);
 GtkTreeViewColumn*gtk_tree_view_column_new_with_attributes (const gchar *title, GtkCellRenderer *cell, ...) __attribute__((__sentinel__));
 void              gtk_tree_view_column_set_clickable (GtkTreeViewColumn *tree_column, gboolean clickable);
+void              gtk_tree_view_column_set_expand (GtkTreeViewColumn *tree_column, gboolean expand);
 void              gtk_tree_view_column_set_resizable (GtkTreeViewColumn *tree_column, gboolean resizable);
 GtkTreeModel *    gtk_tree_view_get_model (GtkTreeView *tree_view);
 GtkTreeSelection *gtk_tree_view_get_selection (GtkTreeView *tree_view);

@@ -147,10 +147,11 @@ Escape " parse_host_left " in password with the uri format (\"%40\").\n\
 e.g. newNick" parse_host_delim "a%40c" parse_host_left "127.0.0.1" parse_host_delim "7000" parse_host_ports_macro "6660" parse_host_ports_delim "6665" parse_host_ports_micro "6669"
 
 #define chan_sz 50
-#define channul_sz chan_sz+1
 //"up to fifty (50) characters"
+#define channul_sz chan_sz+1
 #define channame_scan "%50s"
 #define name_sz 9
+//"max. 9 characters"
 #define namenul_sz name_sz+1
 #define name_scan1 "%9"
 #define name_scan name_scan1 "s"
@@ -167,7 +168,12 @@ enum {
   LIST_ITEM = 0,
   N_COLUMNS
 };//connections org,channels
+
 #define number_of_args 23
+//QWERTYUIOP
+//ASDFgHJkL
+// ZXCVbNM
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpadded"
 struct stk_s{
@@ -228,11 +234,14 @@ static int log_file=-1;
 static char*dummy=nullptr;
 static char**ignores;
 static BOOL can_send_data=FALSE;
-#define chans_str "channels"
-#define names_str "names"
-#define counting_the_list_size (sizeof(chans_str)>sizeof(names_str)?sizeof(chans_str):sizeof(names_str))
+#define chans_small_str "channels"
+#define names_small_str "names"
+#define counting_the_list_size (sizeof(chans_small_str)>sizeof(names_small_str)?sizeof(chans_small_str):sizeof(names_small_str))
 #define list_end_str " listed\n"
 #define autojoin_str "autojoin"
+#define join_str  "JOIN"
+#define names_str "NAMES"
+#define counting_the_chanRel_size (sizeof(names_str)>sizeof(join_str)?sizeof(names_str):sizeof(join_str))
 enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,chans_max_id,connection_number_id,hide_id,ignore_id,log_id,maximize_id,minimize_id,nick_id,password_id,refresh_id,right_id,run_id,send_history_id,timestamp_id,user_id,visible_id,welcome_id,welcomeNotice_id,removeconf_id};
 struct ajoin{
 	int c;//against get_active
@@ -285,7 +294,10 @@ enum {
   ORG_IDLE = 3,
   ORG_N
 };
-GtkTreeModel*sort;
+struct org_col{
+	int pos;
+	GtkTreeModel*sort;
+};
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_model(pan) gtk_tree_view_get_model(contf_get_treev(pan))
@@ -711,11 +723,16 @@ static BOOL chan_not_joined(char*item_text,GtkNotebook*notebook){
 	}
 	return b;
 }
+static void send_channel_related(char*antet,char*item_text,size_t i){
+	char buf[counting_the_chanRel_size+chan_sz+irc_term_sz];
+	size_t a=strlen(antet);
+	memcpy(buf,antet,a);buf[a]=' ';a++;
+	memcpy(buf+a,item_text,i);
+	memcpy(buf+a+i,irc_term,irc_term_sz);
+	send_data(buf,a+irc_term_sz+i);
+}
 static void send_join(char*item_text,size_t i){
-	char buf[5+chan_sz+irc_term_sz]="JOIN ";
-	memcpy(buf+5,item_text,i);
-	memcpy(buf+5+i,irc_term,irc_term_sz);
-	send_data(buf,5+irc_term_sz+i);
+	send_channel_related((char*)join_str,item_text,i);
 }
 static gboolean chan_join (GtkTreeView *tree,GdkEvent*ignored,GtkNotebook*notebook){
 	(void)ignored;
@@ -1324,7 +1341,7 @@ static void counting_the_list(GtkWidget*w,const char*a){
 	else addatchans(user_info,buf,w);
 }
 static void names_end(GtkWidget*p,char*chan){
-	counting_the_list(p,names_str);
+	counting_the_list(p,names_small_str);
 	char c[chan_sz+1+digits_in_uint+1];
 	GtkTreeIter it;char*text;
 	BOOL b;
@@ -1350,7 +1367,7 @@ static void names_end(GtkWidget*p,char*chan){
 }
 static void list_end(){
 	if(gtk_widget_get_has_tooltip(home_page))//can be zero channels and this
-		counting_the_list(home_page,chans_str);
+		counting_the_list(home_page,chans_small_str);
 }
 static void send_autojoin(struct stk_s*ps){
 	for(size_t i=0;i<ps->ajoins_sum;i++)
@@ -1390,7 +1407,7 @@ static gboolean incsafe(gpointer ps){
 					if(sscanf(b,channame_scan " %c",channm,&c)==2)pars_pmsg_chan(nicknm,channm,b+strlen(channm)+2,((struct stk_s*)ps)->notebook);
 				}else if(sscanf(b,name_scan " %c",channm,&c)==2)pars_pmsg_name(nicknm,b+strlen(channm)+2,(struct stk_s*)ps,is_privmsg,nicknm);
 			}
-		}else if(strcmp(com,"JOIN")==0){
+		}else if(strcmp(com,join_str)==0){
 			int resp=nick_and_chan(a,b,nicknm,channm,((struct stk_s*)ps)->nknnow);
 			if(resp==0)pars_join(channm,(struct stk_s*)ps);
 			else if(resp==1){pars_join_user(channm,nicknm);line_switch(nicknm,name_off_menu,name_on_menu,"User Join");}
@@ -2337,6 +2354,7 @@ static void deciderfn(struct stk_s*ps){
 
 			free(z);
 		}
+		send_channel_related((char*)names_str,(char*)b,bs);
 	}
 	else addattextmain("Must be in a channel",-1);
 }
@@ -2406,35 +2424,51 @@ static void org_removechan(struct stk_s*ps){
 	}
 }
 
-void organizer_tab_column_click(gint pos){
+void organizer_tab_column_click(org_col*st){
+	gint pos=st->pos;
+	GtkTreeModel*sort=st->sort;
 	gint i;GtkSortType s;
 	gboolean b=gtk_tree_sortable_get_sort_column_id (sort, &i, &s);
 	// It returns TRUE unless the sort_column_id is GTK_TREE_SORTABLE_DEFAULT_SORT_COLUMN_ID or GTK_TREE_SORTABLE_UNSORTED_SORT_COLUMN_ID.
 	if(b){
-		if(s==GTK_SORT_DESCENDING)
-			gtk_tree_sortable_set_sort_column_id(sort,pos,GTK_SORT_ASCENDING);
-		else
+		if(i==pos){
+			if(s==GTK_SORT_DESCENDING)
+				gtk_tree_sortable_set_sort_column_id(sort,pos,GTK_SORT_ASCENDING);
+			else
+				gtk_tree_sortable_set_sort_column_id(sort,pos,GTK_SORT_DESCENDING);
+		}else{
 			gtk_tree_sortable_set_sort_column_id(sort,pos,GTK_SORT_DESCENDING);
+		}
 	}else{
 		gtk_tree_sortable_set_sort_column_id(sort,pos,GTK_SORT_DESCENDING);
 	}
 }
-static void organizer_tab_column_add(GtkTreeView*tree,char*name,long pos){//long not int to silence warning, pos is on stack/register
-	GtkCellRenderer *renderer= gtk_cell_renderer_text_new();
-	GtkTreeViewColumn *column = gtk_tree_view_column_new_with_attributes(name, renderer, "text", pos, nullptr);//"value" at progress. btw is sorting G_TYPE_INT ok
-	g_signal_connect_data(column,"clicked",G_CALLBACK(organizer_tab_column_click),(gpointer)pos,nullptr,G_CONNECT_SWAPPED);
-	gtk_tree_view_column_set_clickable(column,TRUE);
-	gtk_tree_view_column_set_resizable(column,TRUE);
-	gtk_tree_view_append_column(tree, column);
+static void organizer_tab_column_add(GtkTreeView*tree,char*name,int pos,GtkTreeModel*sort){
+	if(org_col*s=(org_col*)malloc(sizeof(org_col))){
+		s->pos=pos;s->sort=sort;
+		GtkCellRenderer *renderer= gtk_cell_renderer_text_new();
+		GtkTreeViewColumn *column = gtk_tree_view_column_new_with_attributes(name, renderer, "text", pos, nullptr);//"value" at progress. btw is sorting G_TYPE_INT ok
+		gtk_tree_view_column_set_expand (column,TRUE);
+		g_signal_connect_data(column,"clicked",G_CALLBACK(organizer_tab_column_click),(gpointer)s,(GClosureNotify)free,G_CONNECT_SWAPPED);
+		gtk_tree_view_column_set_clickable(column,TRUE);
+		gtk_tree_view_column_set_resizable(column,TRUE);
+		gtk_tree_view_append_column(tree, column);
+	}
 }
 static void organizer_tab_add(GtkNotebook*nb,char*title){
+	//                                          nick             user                 gender         idle in minutes
+	GtkListStore*list=gtk_list_store_new(ORG_N, G_TYPE_STRING,   G_TYPE_STRING,       G_TYPE_STRING, G_TYPE_INT);
+	//any filter can come here
+	GtkTreeModel*sort=gtk_tree_model_sort_new_with_model(list);
+	g_object_unref(list);
+	//GtkTreeIter it;it=GtkTreeIter();gtk_list_store_append(list,&it);gtk_list_store_set(list, &it, 0, "a", 1, "x", 2,"x",3,1,-1);it=GtkTreeIter();gtk_list_store_append(list,&it);gtk_list_store_set(list, &it, 0, "b", 1, "x", 2,"x",3,2,-1);
 	GtkWidget*treeV=gtk_tree_view_new_with_model(sort);
 	g_object_unref(sort);
 
-	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Id",ORG_ID1);
-	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"AKA",ORG_ID2);
-	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Gender",ORG_GEN);
-	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Idle",ORG_IDLE);
+	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Id",ORG_ID1,sort);
+	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"AKA",ORG_ID2,sort);
+	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Gender",ORG_GEN,sort);
+	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Idle",ORG_IDLE,sort);
 
 	GtkWidget*scroll = gtk_scrolled_window_new(nullptr, nullptr);
 	gtk_container_add((GtkContainer*)scroll,treeV);
@@ -2442,14 +2476,6 @@ static void organizer_tab_add(GtkNotebook*nb,char*title){
 }
 
 static void organizer_populate(GtkWidget*window,struct stk_s*ps){
-	//                                          nick             user                 gender         idle in minutes
-	GtkListStore*list=gtk_list_store_new(ORG_N, G_TYPE_STRING,   G_TYPE_STRING,       G_TYPE_STRING, G_TYPE_INT);
-	//any filter can come here
-	//sort idle/gender
-	sort=gtk_tree_model_sort_new_with_model(list);
-	g_object_unref(list);
-	//GtkTreeIter it;it=GtkTreeIter();gtk_list_store_append(list,&it);gtk_list_store_set(list, &it, 0, "a", 1, "x", 2,"x",3,1,-1);
-
 	//.local .global read
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
@@ -2873,9 +2899,6 @@ int main (int    argc,
 		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
 
 		//if(app!=nullptr){
-		//QWERTYUIOP
-		//ASDFgHJkL
-		// ZXCVbNM
 		ps.args[autoconnect_id]="autoconnect";ps.args_short[autoconnect_id]='a';
 		const GOptionEntry autoc[]={{ps.args[autoconnect_id],ps.args_short[autoconnect_id],G_OPTION_FLAG_IN_MAIN|G_OPTION_FLAG_OPTIONAL_ARG,G_OPTION_ARG_CALLBACK,(gpointer)autoconnect_callback,"[=INDEX] optional value: autoconnect to that index. Else, autoconnect to an autojoin connection (the reminder of unix days % autojoin total).","INDEX"}
 			,{nullptr,'\0',0,(GOptionArg)0,nullptr,nullptr,nullptr}};
