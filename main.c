@@ -2442,7 +2442,7 @@ static void organizer_tab_add(GtkNotebook*nb,char*title){
 }
 
 static void organizer_populate(GtkWidget*window,struct stk_s*ps){
-	//                                         logged_user/nick nick(if logged_user) gender         idle in minutes
+	//                                          nick             user                 gender         idle in minutes
 	GtkListStore*list=gtk_list_store_new(ORG_N, G_TYPE_STRING,   G_TYPE_STRING,       G_TYPE_STRING, G_TYPE_INT);
 	//any filter can come here
 	//sort idle/gender
