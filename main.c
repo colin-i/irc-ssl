@@ -214,8 +214,11 @@ struct stk_s{
 	char*proced_hostname;
 
 	GtkComboBox*organizer_dirs;
-	GtkWidget*organizer_rc;
+	GtkWidget*organizer_rc;  //remove chan button X
 	GtkToggleButton*organizer_del_confirmation;
+	GtkListStore*organizer_entry_names;
+	GtkNotebook*organizer_notebook;
+	GtkWidget*organizer_entry_widget;
 };
 static int autoconnect=-1;static BOOL autoconnect_pending=FALSE;
 static GSList*con_group;
@@ -282,6 +285,12 @@ static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 //nick format: A..}
 //             -0..9; but not at [0]
 //hostname -.0..9a..z
+//~ for owners, +q, tilde ascii is after }
+//& for admins, +a
+//@ for full operators, +o
+//% for half operators, +h
+//+ for voiced users, +v
+
 #define populate "Populate"
 #define dirback ".."
 #define org_c "chans"
@@ -298,6 +307,7 @@ struct org_col{
 	int pos;
 	GtkTreeModel*sort;
 };
+#define org_new_names "New"
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_model(pan) gtk_tree_view_get_model(contf_get_treev(pan))
@@ -906,7 +916,13 @@ static BOOL chan_change_nr(const char*chan,int v){
 	}
 	return FALSE;
 }
-#define listing_test(a,b) if(gtk_widget_get_has_tooltip(a)==FALSE){gtk_list_store_clear(b);gtk_widget_set_has_tooltip(a,TRUE);}
+static BOOL listing_test(GtkWidget*a,GtkListStore*b){
+	if(gtk_widget_get_has_tooltip(a)==FALSE){
+		gtk_list_store_clear(b);gtk_widget_set_has_tooltip(a,TRUE);
+		return TRUE;
+	}
+	return FALSE;
+}
 #define listing_info(a) "Adding " a "..."
 static gboolean home_page_tooltip (GtkWidget*ignored,int ignored2,int ignored3,gboolean ignored4,GtkTooltip*tooltip){
 	(void)ignored;(void)ignored2;(void)ignored3;(void)ignored4;
@@ -1069,18 +1085,33 @@ static void add_name_highuser(GtkListStore*lst,char*t){
 	gtk_list_store_append(lst,&it);
 	gtk_list_store_set(lst, &it, LIST_ITEM, t, -1);
 }
-static void add_name(GtkListStore*lst,char*t){
+static void add_name_organizer(char*name,gpointer ps){
+	if(((struct stk_s*)ps)->organizer!=nullptr){
+		GtkListStore*new_entries=((struct stk_s*)ps)->organizer_entry_names;
+		GtkTreeIter it;//=GtkTreeIter();
+		gtk_list_store_append(new_entries,&it);
+		gtk_list_store_set(new_entries, &it, ORG_ID1, name, ORG_IDLE, 0x7fFFffFF, -1);
+	}
+}
+static void add_name(GtkListStore*lst,char*t,gpointer ps){
+	add_name_organizer(t,ps);//show with prefix
 	if(nickname_start(t)){add_name_lowuser(lst,t);return;}
 	add_name_highuser(lst,t);
 }
-static void pars_names(GtkWidget*pan,char*b,size_t s){
+static void pars_names_org(struct stk_s*ps,char*channm){
+	gtk_list_store_clear(ps->organizer_entry_names);
+	gtk_notebook_set_tab_label_text(ps->organizer_notebook,ps->organizer_entry_widget,channm);
+}
+static void pars_names(GtkWidget*pan,char*b,size_t s,gpointer ps,char*channm){
 	GtkListStore*lst=contf_get_list(pan);
-	listing_test(pan,lst)
+	if(listing_test(pan,lst)){
+		pars_names_org((struct stk_s*)ps,channm);
+	}
 	size_t j=0;
 	for(size_t i=0;i<s;i++){
-		if(b[i]==' '){b[i]='\0';add_name(lst,b+j);b[i]=' ';j=i+1;}
+		if(b[i]==' '){b[i]='\0';add_name(lst,b+j,ps);b[i]=' ';j=i+1;}
 	}
-	add_name(lst,b+j);
+	add_name(lst,b+j,ps);
 }
 static void pars_quit(char*nk){
 	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
@@ -1354,7 +1385,7 @@ static void names_end(GtkWidget*p,char*chan){
 		sscanf(text+len+1,"%u",&n);
 		g_free(text);
 		GtkListStore*list=contf_get_list(p);
-		int z=gtk_tree_model_iter_n_children ((GtkTreeModel*)list,nullptr);
+		int z=gtk_tree_model_iter_n_children((GtkTreeModel*)list,nullptr);
 		int dif=z-n;
 		if(dif==0)return;
 		if(ac){
@@ -1444,7 +1475,7 @@ static gboolean incsafe(gpointer ps){
 				//if its >nr ,c is not 2
 				if(sscanf(b,"%*s " channame_scan " %u",channm,&e)==2)
 					if(test_to_add_chan(((struct stk_s*)ps),(int)e)){
-						listing_test(home_page,channels)
+						listing_test(home_page,channels);
 						pars_chan(channm,e,((struct stk_s*)ps)->chans_max);
 					}
 			}
@@ -1458,7 +1489,7 @@ static gboolean incsafe(gpointer ps){
 					GtkWidget*p=chan_pan(channm);
 					if(p!=nullptr){
 						b=strchr(b,':');//join #q:w is error
-						if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a));
+						if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a),ps,channm);
 					}
 				}
 			}else if(d==366){//RPL_ENDOFNAMES
@@ -2349,12 +2380,14 @@ static void deciderfn(struct stk_s*ps){
 			memcpy(z+hs,b,bs);
 			z[hs+bs]='\0';
 
-			set_combo_box_text(ps->organizer_dirs,z);
-			gtk_widget_set_sensitive(ps->organizer_rc,TRUE);
+			int current=gtk_combo_box_get_active(ps->organizer_dirs);
+			if(set_combo_box_text(ps->organizer_dirs,z)==FALSE){//is an existent entry
+				if(gtk_combo_box_get_active(ps->organizer_dirs)==current)//is same entry already selected
+					send_channel_related((char*)names_str,(char*)b,bs);
+			}else gtk_widget_set_sensitive(ps->organizer_rc,TRUE);
 
 			free(z);
 		}
-		send_channel_related((char*)names_str,(char*)b,bs);
 	}
 	else addattextmain("Must be in a channel",-1);
 }
@@ -2363,22 +2396,22 @@ static void org_changed (GtkComboBoxText *combo_box)//, gpointer user_data)
 	if(gtk_combo_box_get_active (combo_box)!=-1){//this is the case when last entry is deleted
 		if(to_organizer_folder(FALSE,FALSE)){//is possible to be in another folder
 			char*text=gtk_combo_box_text_get_active_text (combo_box);
-			if(*text!=chanstart)//only if the folder is malevolently changed(this case is at list repopulation)
-			{
-				char*chan=strchr(text,chanstart);
-				if(chan!=nullptr){//only if the folder is malevolently changed(this case is at list repopulation)
-					*chan='\0';
-					if(chdir(text)==0||(mkdir(text,0700)==0&&chdir(text)==0)){
-						if(access(org_u,F_OK)==0||mkdir(org_u,0700)==0){//users conversations
-							if(chdir(org_g)==0||(mkdir(org_g,0700)==0&&chdir(org_g)==0)){
-								//retake global lists
-								if(chdir(dirback)==0){
-									if(chdir(org_c)==0||(mkdir(org_c,0700)==0&&chdir(org_c)==0)){
-										chan++;
-										if(chdir(chan)==0||(mkdir(chan,0700)==0/*&&chdir(chan)==0*/)){
-											//retake local lists
-										}
-									}
+			//not this check, is the server folder there//if(*text!=chanstart){//only if the folder is malevolently changed(this case is at list repopulation)
+			char*chan=strchr(text,chanstart);
+			//not this check, is the channel folder there//if(chan!=nullptr){//only if the folder is malevolently changed(this case is at list repopulation)
+			*chan='\0';
+			if(chdir(text)==0||(mkdir(text,0700)==0&&chdir(text)==0)){
+				if(access(org_u,F_OK)==0||mkdir(org_u,0700)==0){//users conversations
+					if(chdir(org_g)==0||(mkdir(org_g,0700)==0&&chdir(org_g)==0)){
+						//retake global lists
+						if(chdir(dirback)==0){
+							if(chdir(org_c)==0||(mkdir(org_c,0700)==0&&chdir(org_c)==0)){
+								chan++;
+								if(chdir(chan)==0||(mkdir(chan,0700)==0/*&&chdir(chan)==0*/)){
+									//retake local lists
+									//populate main tab
+									chan--;*chan=chanstart;
+									send_channel_related((char*)names_str,chan,strlen(chan));
 								}
 							}
 						}
@@ -2416,6 +2449,7 @@ static void org_removechan(struct stk_s*ps){
 					gtk_combo_box_text_remove(combo_box,gtk_combo_box_get_active (combo_box));
 					if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(combo_box),nullptr)==0){//if was last
 						gtk_widget_set_sensitive(ps->organizer_rc,FALSE);
+						pars_names_org(ps,(char*)org_new_names);
 					}
 				}
 			}
@@ -2448,20 +2482,22 @@ static void organizer_tab_column_add(GtkTreeView*tree,char*name,int pos,GtkTreeM
 		s->pos=pos;s->sort=sort;
 		GtkCellRenderer *renderer= gtk_cell_renderer_text_new();
 		GtkTreeViewColumn *column = gtk_tree_view_column_new_with_attributes(name, renderer, "text", pos, nullptr);//"value" at progress. btw is sorting G_TYPE_INT ok
-		gtk_tree_view_column_set_expand (column,TRUE);
 		g_signal_connect_data(column,"clicked",G_CALLBACK(organizer_tab_column_click),(gpointer)s,(GClosureNotify)free,G_CONNECT_SWAPPED);
+		gtk_tree_view_column_set_expand (column,TRUE);
 		gtk_tree_view_column_set_clickable(column,TRUE);
 		gtk_tree_view_column_set_resizable(column,TRUE);
 		gtk_tree_view_append_column(tree, column);
 	}
 }
-static void organizer_tab_add(GtkNotebook*nb,char*title){
+static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**child_out){
 	//                                          nick             user                 gender         idle in minutes
 	GtkListStore*list=gtk_list_store_new(ORG_N, G_TYPE_STRING,   G_TYPE_STRING,       G_TYPE_STRING, G_TYPE_INT);
 	//any filter can come here
 	GtkTreeModel*sort=gtk_tree_model_sort_new_with_model(list);
 	g_object_unref(list);
-	//GtkTreeIter it;it=GtkTreeIter();gtk_list_store_append(list,&it);gtk_list_store_set(list, &it, 0, "a", 1, "x", 2,"x",3,1,-1);it=GtkTreeIter();gtk_list_store_append(list,&it);gtk_list_store_set(list, &it, 0, "b", 1, "x", 2,"x",3,2,-1);
+
+	//GtkTreeIter it;gtk_list_store_append(list,&it);gtk_list_store_set(list, &it, 0, "a", 1, "x", 2,"x",3,1,-1);gtk_list_store_append(list,&it);gtk_list_store_set(list, &it, 0, "b", 1, "x", 2,"x",3,2,-1);
+
 	GtkWidget*treeV=gtk_tree_view_new_with_model(sort);
 	g_object_unref(sort);
 
@@ -2471,8 +2507,10 @@ static void organizer_tab_add(GtkNotebook*nb,char*title){
 	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Idle",ORG_IDLE,sort);
 
 	GtkWidget*scroll = gtk_scrolled_window_new(nullptr, nullptr);
+	*child_out=scroll;
 	gtk_container_add((GtkContainer*)scroll,treeV);
 	gtk_notebook_append_page_menu(nb,scroll,gtk_label_new(title),gtk_label_new(title));
+	return list;
 }
 
 static void organizer_populate(GtkWidget*window,struct stk_s*ps){
@@ -2513,7 +2551,8 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	gtk_box_pack_start((GtkBox*)box,top,FALSE,FALSE,0);
 
 	GtkNotebook*nb = (GtkNotebook*)gtk_notebook_new ();
-	organizer_tab_add(nb,(char*)"New");
+	ps->organizer_notebook=nb;
+	ps->organizer_entry_names=organizer_tab_add(nb,(char*)org_new_names,&ps->organizer_entry_widget);
 	gtk_box_pack_start((GtkBox*)box,(GtkWidget*)nb,TRUE,TRUE,0);
 
 	gtk_container_add ((GtkContainer*)window, box);
@@ -2531,18 +2570,18 @@ static void organizer_popup(struct stk_s*ps){
 		if(to_organizer_folder(FALSE,FALSE)){
 			GtkWidget *dialog = gtk_application_window_new ((GtkApplication*)ps->app);
 			ps->organizer=dialog;
-			//GtkWidget *dialog = gtk_dialog_new_with_buttons ("Organizer",  nullptr, (GtkDialogFlags)0,  "_Done",GTK_RESPONSE_NONE,nullptr);//still is on top
+			//GtkWidget *dialog = gtk_dialog_new_with_buttons("Organizer",  nullptr, (GtkDialogFlags)0,  "_Done",GTK_RESPONSE_NONE,nullptr);//still is on top
 
-			gtk_window_set_title ((GtkWindow*)dialog, "Organizer");
-			g_signal_connect_data (dialog,"destroy",G_CALLBACK(organizer_destroy_from_selfclose),ps,nullptr,G_CONNECT_SWAPPED);
+			gtk_window_set_title((GtkWindow*)dialog, "Organizer");
+			g_signal_connect_data(dialog,"destroy",G_CALLBACK(organizer_destroy_from_selfclose),ps,nullptr,G_CONNECT_SWAPPED);
 
 			int w;int h;
-			gtk_window_get_size (ps->main_win,&w,&h);w*=0xf;
+			gtk_window_get_size(ps->main_win,&w,&h);w*=0xf;
 			gtk_window_set_default_size((GtkWindow*)dialog,w/0x10,h);//h is not doing right for this width
 
 			organizer_populate(dialog,ps);
 
-			gtk_widget_show_all (dialog);
+			gtk_widget_show_all(dialog);
 			//gtk_window_unmaximize((GtkWindow*)dialog);//at this dims will be automaximized, at dims/2 will not be automaximized  //is not working here
 		}
 	}else gtk_window_present((GtkWindow*)ps->organizer);
