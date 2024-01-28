@@ -1098,14 +1098,34 @@ static void add_name(GtkListStore*lst,char*t,gpointer ps){
 	if(nickname_start(t)){add_name_lowuser(lst,t);return;}
 	add_name_highuser(lst,t);
 }
+
+static char*server_channel(struct stk_s*ps,char*channel,size_t channel_size){
+	const char*h=gtk_notebook_get_menu_label_text(ps->notebook,home_page);
+	h+=homestart_size;
+	size_t hs=strlen(h);
+	char*z=(char*)malloc(hs+channel_size+1);
+	if(z!=nullptr){
+		memcpy(z   ,h,hs);
+		memcpy(z+hs,channel,channel_size);
+		z[hs+channel_size]='\0';
+	}
+	return z;
+}
+
 static void pars_names_org(struct stk_s*ps,char*channm){
 	gtk_list_store_clear(ps->organizer_entry_names);
-	gtk_notebook_set_tab_label_text(ps->organizer_notebook,ps->organizer_entry_widget,channm);
+	char*a=server_channel(ps,channm,strlen(channm));
+	if(a!=nullptr){
+		gtk_notebook_set_tab_label_text(ps->organizer_notebook,ps->organizer_entry_widget,a);
+		gtk_notebook_set_menu_label_text(ps->organizer_notebook,ps->organizer_entry_widget,a);
+		free(a);
+	}
 }
 static void pars_names(GtkWidget*pan,char*b,size_t s,gpointer ps,char*channm){
 	GtkListStore*lst=contf_get_list(pan);
 	if(listing_test(pan,lst)){
-		pars_names_org((struct stk_s*)ps,channm);
+		if(((struct stk_s*)ps)->organizer!=nullptr)
+			pars_names_org((struct stk_s*)ps,channm);
 	}
 	size_t j=0;
 	for(size_t i=0;i<s;i++){
@@ -2372,20 +2392,14 @@ static BOOL to_organizer_folder(BOOL is_remove,BOOL remove){//for the moment thi
 static void deciderfn(struct stk_s*ps){
 	const char*b=gtk_notebook_get_menu_label_text(ps->notebook,gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook)));
 	if(*b==chanstart){
-		const char*h=gtk_notebook_get_menu_label_text(ps->notebook,home_page);
-		size_t hs=strlen(h)-homestart_size;size_t bs=strlen(b);
-		char*z=(char*)malloc(hs+bs+1);
+		size_t bs=strlen(b);
+		char*z=server_channel(ps,(char*)b,bs);
 		if(z!=nullptr){
-			memcpy(z,   h+homestart_size,hs);
-			memcpy(z+hs,b,bs);
-			z[hs+bs]='\0';
-
 			int current=gtk_combo_box_get_active(ps->organizer_dirs);
 			if(set_combo_box_text(ps->organizer_dirs,z)==FALSE){//is an existent entry
 				if(gtk_combo_box_get_active(ps->organizer_dirs)==current)//is same entry already selected
 					send_channel_related((char*)names_str,(char*)b,bs);
 			}else gtk_widget_set_sensitive(ps->organizer_rc,TRUE);
-
 			free(z);
 		}
 	}
@@ -2552,6 +2566,7 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 
 	GtkNotebook*nb = (GtkNotebook*)gtk_notebook_new ();
 	ps->organizer_notebook=nb;
+	gtk_notebook_popup_enable(nb);
 	ps->organizer_entry_names=organizer_tab_add(nb,(char*)org_new_names,&ps->organizer_entry_widget);
 	gtk_box_pack_start((GtkBox*)box,(GtkWidget*)nb,TRUE,TRUE,0);
 
