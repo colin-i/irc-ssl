@@ -2532,19 +2532,43 @@ static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**chil
 	return list;
 }
 
+static int organizer_populate_dirs(const char*dir,void*box){
+	int r=chdir("chans");
+	if(r==0){
+		gtk_combo_box_text_append_text((GtkComboBoxText*)box,dir);
+		return chdir("..");
+	}
+	return r;
+}
+
+static void iterate_folders_enter(int (*f)(const char*, void*),void*data){
+	if(GDir*entries=g_dir_open(".",0,nullptr)){
+		while(const char*dir=g_dir_read_name(entries)){
+			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
+				if(chdir(dir)==0){
+					if(f(dir,data)!=0)break;
+					if(chdir("..")!=0)break;
+				}else break;
+			}
+		}
+		g_dir_close(entries);
+	}
+}
+
 static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	//.local .global read
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 
-	GtkWidget*dirs=gtk_combo_box_text_new();
-	g_signal_connect_data (dirs, "changed",G_CALLBACK(org_changed),ps,nullptr,(GConnectFlags)0);	ps->organizer_dirs=(GtkComboBox*)dirs;
-
 	GtkWidget*decider=gtk_button_new_with_label("Populate");
 	g_signal_connect_data (decider, "clicked",G_CALLBACK(deciderfn),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_box_pack_start((GtkBox*)top,decider,FALSE,FALSE,0);
 
+	GtkWidget*dirs=gtk_combo_box_text_new();
+	g_signal_connect_data (dirs, "changed",G_CALLBACK(org_changed),ps,nullptr,(GConnectFlags)0);	ps->organizer_dirs=(GtkComboBox*)dirs;
 	gtk_box_pack_start((GtkBox*)top,dirs,TRUE,TRUE,0);
+
+	iterate_folders_enter(organizer_populate_dirs,dirs);
 
 	GtkWidget*buttonspack=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 

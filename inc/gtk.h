@@ -17,7 +17,9 @@ typedef gulong GType;
 typedef signed long long gint64;
 typedef double gdouble;
 typedef void GApplication;
+typedef void GClosure;
 typedef void GDateTime;
+typedef void GDir;
 typedef void GError;
 typedef void GVariant;
 typedef void GVariantDict;
@@ -74,7 +76,9 @@ typedef gboolean(*GSourceFunc)(gpointer user_data);
 typedef enum{G_APPLICATION_FLAGS_NONE}
  GApplicationFlags;
 typedef enum{G_CONNECT_SWAPPED = 1 << 1}
-GConnectFlags;//_BEFORE G_CONNECT_AFTER = 1 << 0,
+ GConnectFlags;//_BEFORE G_CONNECT_AFTER = 1 << 0,
+typedef enum{  G_FILE_TEST_IS_DIR = 1 << 2 }// G_FILE_TEST_IS_REGULAR = 1 << 0,  G_FILE_TEST_IS_SYMLINK = 1 << 1,       ,  G_FILE_TEST_IS_EXECUTABLE = 1 << 3,  G_FILE_TEST_EXISTS = 1 << 4 }
+ GFileTest;
 typedef enum{  G_OPTION_ARG_NONE,  G_OPTION_ARG_STRING,  G_OPTION_ARG_INT,  G_OPTION_ARG_CALLBACK,  G_OPTION_ARG_FILENAME}//,  G_OPTION_ARG_STRING_ARRAY,  G_OPTION_ARG_FILENAME_ARRAY,  G_OPTION_ARG_DOUBLE,  G_OPTION_ARG_INT64
  GOptionArg;
 typedef enum{G_OPTION_FLAG_IN_MAIN = 1 << 1,G_OPTION_FLAG_OPTIONAL_ARG = 1 << 5}
@@ -96,7 +100,7 @@ typedef enum{  GTK_ICON_SIZE_INVALID,  GTK_ICON_SIZE_MENU}
  GtkIconSize;
 typedef enum{ GTK_MESSAGE_INFO, GTK_MESSAGE_WARNING, GTK_MESSAGE_QUESTION }
  GtkMessageType;
-typedef enum{GDK_SHIFT_MASK = 1 << 0, GDK_LOCK_MASK = 1 << 1, GDK_CONTROL_MASK = 1 << 2}
+typedef enum{GDK_SHIFT_MASK = 1 << 0, GDK_CONTROL_MASK = 1 << 2} // GDK_LOCK_MASK = 1 << 1,
  GdkModifierType;
 typedef enum{GTK_ORIENTATION_HORIZONTAL,GTK_ORIENTATION_VERTICAL}
  GtkOrientation;
@@ -113,7 +117,6 @@ typedef enum{ GTK_SORT_ASCENDING,  GTK_SORT_DESCENDING }
 typedef enum{  GTK_WRAP_NONE,  GTK_WRAP_CHAR,  GTK_WRAP_WORD,  GTK_WRAP_WORD_CHAR}
  GtkWrapMode;
 
-typedef struct _GClosure GClosure;
 typedef struct _GList GList;
 struct _GList
 {
@@ -223,12 +226,16 @@ void g_application_add_main_option (GApplication *application, const char *long_
 void g_application_add_main_option_entries (GApplication *application,const GOptionEntry *entries);
 void g_application_quit (GApplication *application);
 int g_application_run (GApplication *application,int argc,char **argv);
-gint g_date_time_get_hour (GDateTime *datetime);
-gint g_date_time_get_minute (GDateTime *datetime);
-gint g_date_time_get_second (GDateTime *datetime);
+gint        g_date_time_get_hour (GDateTime *datetime);
+gint        g_date_time_get_minute (GDateTime *datetime);
+gint        g_date_time_get_second (GDateTime *datetime);
 GDateTime * g_date_time_new_now_local (void);
-gint64 g_date_time_to_unix (GDateTime *datetime);
-void g_date_time_unref (GDateTime *datetime);
+gint64      g_date_time_to_unix (GDateTime *datetime);
+void        g_date_time_unref (GDateTime *datetime);
+void         g_dir_close (GDir *dir);
+GDir *       g_dir_open (const gchar *path, guint flags, GError **error);
+const gchar *g_dir_read_name (GDir *dir);
+gboolean g_file_test (const gchar *filename, GFileTest test);
 void g_free (gpointer mem);
 guint g_idle_add (GSourceFunc function,gpointer data);
 void g_list_free (GList *list);
