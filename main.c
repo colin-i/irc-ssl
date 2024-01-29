@@ -213,12 +213,12 @@ struct stk_s{
 	unsigned char proced_n;
 	char*proced_hostname;
 
-	GtkComboBox*organizer_dirs;
-	GtkWidget*organizer_rc;  //remove chan button X
-	GtkToggleButton*organizer_del_confirmation;
-	GtkListStore*organizer_entry_names;
+	GtkComboBox*organizer_dirs;GtkWidget*organizer_rc;  //remove chan button X
+	                           GtkToggleButton*organizer_del_confirmation;
 	GtkNotebook*organizer_notebook;
 	GtkWidget*organizer_entry_widget;
+	GtkListStore*organizer_entry_names;
+	GtkWidget*organizer_bot_move;
 };
 static int autoconnect=-1;static BOOL autoconnect_pending=FALSE;
 static GSList*con_group;
@@ -291,7 +291,6 @@ static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 //% for half operators, +h
 //+ for voiced users, +v
 
-#define populate "Populate"
 #define dirback ".."
 #define org_c "chans"
 #define org_u "users"
@@ -1112,20 +1111,25 @@ static char*server_channel(struct stk_s*ps,char*channel,size_t channel_size){
 	return z;
 }
 
-static void pars_names_org(struct stk_s*ps,char*channm){
-	gtk_list_store_clear(ps->organizer_entry_names);
-	char*a=server_channel(ps,channm,strlen(channm));
-	if(a!=nullptr){
-		gtk_notebook_set_tab_label_text(ps->organizer_notebook,ps->organizer_entry_widget,a);
-		gtk_notebook_set_menu_label_text(ps->organizer_notebook,ps->organizer_entry_widget,a);
-		free(a);
-	}
+static void pars_names_org(struct stk_s*ps,char*serv_chan){
+	gtk_list_store_clear(ps->organizer_entry_names);//clear previous names
+	gtk_notebook_set_tab_label_text(ps->organizer_notebook,ps->organizer_entry_widget,serv_chan);
+	gtk_notebook_set_menu_label_text(ps->organizer_notebook,ps->organizer_entry_widget,serv_chan);
 }
-static void pars_names(GtkWidget*pan,char*b,size_t s,gpointer ps,char*channm){
+static void pars_names(GtkWidget*pan,char*b,size_t s,struct stk_s* ps,char*channm){
 	GtkListStore*lst=contf_get_list(pan);
 	if(listing_test(pan,lst)){
-		if(((struct stk_s*)ps)->organizer!=nullptr)
-			pars_names_org((struct stk_s*)ps,channm);
+		if(ps->organizer!=nullptr)
+			if(char*a=server_channel(ps,channm,strlen(channm))){
+				pars_names_org(ps,a);
+				if(gchar*text=gtk_combo_box_text_get_active_text(ps->organizer_dirs)){//can be a blank organizer too
+					if(strcmp(text,a)==0){
+						gtk_widget_set_sensitive(ps->organizer_bot_move,TRUE);
+					}
+					g_free(text);
+				}
+				free(a);
+			}
 	}
 	size_t j=0;
 	for(size_t i=0;i<s;i++){
@@ -1509,7 +1513,7 @@ static gboolean incsafe(gpointer ps){
 					GtkWidget*p=chan_pan(channm);
 					if(p!=nullptr){
 						b=strchr(b,':');//join #q:w is error
-						if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a),ps,channm);
+						if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a),(struct stk_s*)ps,channm);
 					}
 				}
 			}else if(d==366){//RPL_ENDOFNAMES
@@ -2405,11 +2409,12 @@ static void deciderfn(struct stk_s*ps){
 	}
 	else addattextmain("Must be in a channel",-1);
 }
-static void org_changed (GtkComboBoxText *combo_box)//, gpointer user_data)
+static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer user_data)
 {
+	gtk_widget_set_sensitive(ps->organizer_bot_move,FALSE);//will be TRUE when names comes in
 	if(gtk_combo_box_get_active (combo_box)!=-1){//this is the case when last entry is deleted
 		if(to_organizer_folder(FALSE,FALSE)){//is possible to be in another folder
-			char*text=gtk_combo_box_text_get_active_text (combo_box);
+			gchar*text=gtk_combo_box_text_get_active_text (combo_box);
 			//not this check, is the server folder there//if(*text!=chanstart){//only if the folder is malevolently changed(this case is at list repopulation)
 			char*chan=strchr(text,chanstart);
 			//not this check, is the channel folder there//if(chan!=nullptr){//only if the folder is malevolently changed(this case is at list repopulation)
@@ -2445,7 +2450,7 @@ static void org_removechan(struct stk_s*ps){
 	}else response=GTK_RESPONSE_YES;
 	if(to_organizer_folder(FALSE,FALSE)){//is possible to be in another folder
 		GtkComboBoxText *combo_box=ps->organizer_dirs;
-		char*text=gtk_combo_box_text_get_active_text (combo_box);
+		gchar*text=gtk_combo_box_text_get_active_text (combo_box);
 		char*chan=strchr(text,chanstart);
 		*chan='\0';chan++;
 		if(chdir(text)==0&&chdir(org_c)==0&&chdir(chan)==0){
@@ -2533,9 +2538,9 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 
 	GtkWidget*dirs=gtk_combo_box_text_new();
-	g_signal_connect_data (dirs, "changed",G_CALLBACK(org_changed),nullptr,nullptr,(GConnectFlags)0);	ps->organizer_dirs=(GtkComboBox*)dirs;
+	g_signal_connect_data (dirs, "changed",G_CALLBACK(org_changed),ps,nullptr,(GConnectFlags)0);	ps->organizer_dirs=(GtkComboBox*)dirs;
 
-	GtkWidget*decider=gtk_button_new_with_label(populate);
+	GtkWidget*decider=gtk_button_new_with_label("Populate");
 	g_signal_connect_data (decider, "clicked",G_CALLBACK(deciderfn),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_box_pack_start((GtkBox*)top,decider,FALSE,FALSE,0);
 
@@ -2569,6 +2574,13 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	gtk_notebook_popup_enable(nb);
 	ps->organizer_entry_names=organizer_tab_add(nb,(char*)org_new_names,&ps->organizer_entry_widget);
 	gtk_box_pack_start((GtkBox*)box,(GtkWidget*)nb,TRUE,TRUE,0);
+
+	GtkWidget*bot=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
+	GtkWidget*move=gtk_button_new_with_label("Move");
+	ps->organizer_bot_move=move;
+	gtk_widget_set_sensitive(move,FALSE);
+	gtk_box_pack_start((GtkBox*)bot,move,FALSE,FALSE,0);
+	gtk_box_pack_start((GtkBox*)box,bot,FALSE,FALSE,0);
 
 	gtk_container_add ((GtkContainer*)window, box);
 }
@@ -2782,12 +2794,11 @@ activate (GtkApplication* app,
 	gtk_box_pack_start((GtkBox*)box,(GtkWidget*)ps->notebook,TRUE,TRUE,0);
 	gtk_box_pack_start((GtkBox*)box,ps->sen_entry,FALSE,FALSE,0);
 	gtk_container_add ((GtkContainer*)window, box);
-	//
-	if(ps->maximize)gtk_window_maximize((GtkWindow*)window);
-	if(ps->minimize)gtk_window_iconify((GtkWindow*)window);
-	//
 	gtk_widget_show_all (window);
 	ps->main_win=(GtkWindow*)window;
+	//
+	if(ps->maximize)gtk_window_maximize((GtkWindow*)window);//if still will have a problem here, gtk_test_widget_wait_for_draw(window)
+	if(ps->minimize)gtk_window_iconify((GtkWindow*)window);
 	//
 	GtkWidget*info=gtk_image_new_from_icon_name ("dialog-information",GTK_ICON_SIZE_MENU);
 	gtk_notebook_set_action_widget(ps->notebook,info,GTK_PACK_END);
