@@ -2545,15 +2545,25 @@ static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**chil
 	return list;
 }
 
-//chdir's 0/-1  is called the second time inside same loop(chdir in server, then same chdir in channel)
-static int iterate_folders_enter(int (*f)(const char*, void*),void*data){
+static void iterate_folders_enter(int (*f)(const char*, void*),void*data){
 	if(GDir*entries=g_dir_open(".",0,nullptr)){
 		while(const char*dir=g_dir_read_name(entries)){
 			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
 				if(chdir(dir)==0){
-					if(f(dir,data)!=0)return -1;
-					if(chdir("..")!=0)return -1;
-				}else return -1;
+					if(f(dir,data)!=0)break;
+					if(chdir("..")!=0)break;
+				}else break;
+			}
+		}
+		g_dir_close(entries);
+	}
+}
+//upper chdir's 0/-1
+static int iterate_folders(int (*f)(const char*, void*),void*data){
+	if(GDir*entries=g_dir_open(".",0,nullptr)){
+		while(const char*dir=g_dir_read_name(entries)){
+			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
+				if(f(dir,data)!=0)return -1;
 			}
 		}
 		g_dir_close(entries);
@@ -2561,7 +2571,7 @@ static int iterate_folders_enter(int (*f)(const char*, void*),void*data){
 	return 0;
 }
 
-//chdir's 0/-1
+//upper chdir's 0/-1
 static int organizer_populate_dirs_chans(const char*dir,void*s){
 	char*nm=server_channel_base((char*)dir,strlen(dir),((organizer_from_storage*)s)->server,FALSE);
 	if(nm!=nullptr){
@@ -2575,7 +2585,7 @@ static int organizer_populate_dirs(const char*dir,void*box){
 	int r=chdir("chans");
 	if(r==0){
 		organizer_from_storage s={box,dir};
-		if(iterate_folders_enter(organizer_populate_dirs_chans,&s)==0){
+		if(iterate_folders(organizer_populate_dirs_chans,&s)==0){
 			return chdir("..");
 		}
 		return -1;
