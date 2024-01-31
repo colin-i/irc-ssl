@@ -213,7 +213,8 @@ struct stk_s{
 	unsigned char proced_n;
 	char*proced_hostname;
 
-	GtkComboBox*organizer_dirs;GtkWidget*organizer_rc;  //remove chan button X
+	GtkComboBox*organizer_dirs;GtkWidget*organizer_removeentry;
+	                           GtkWidget*organizer_removerule;
 	                           GtkToggleButton*organizer_del_confirmation;
 	GtkNotebook*organizer_notebook;
 	GtkWidget*organizer_entry_widget;
@@ -2414,7 +2415,7 @@ static void deciderfn(struct stk_s*ps){
 			if(set_combo_box_text(ps->organizer_dirs,z)==FALSE){//is an existent entry
 				if(gtk_combo_box_get_active(ps->organizer_dirs)==current)//is same entry already selected
 					send_channel_related((char*)names_str,(char*)b,bs);
-			}else gtk_widget_set_sensitive(ps->organizer_rc,TRUE);
+			}else gtk_widget_set_sensitive(ps->organizer_removeentry,TRUE);
 			free(z);
 		}
 	}
@@ -2478,7 +2479,7 @@ static void org_removechan(struct stk_s*ps){
 					}
 					gtk_combo_box_text_remove(combo_box,gtk_combo_box_get_active (combo_box));
 					if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(combo_box),nullptr)==0){//if was last
-						gtk_widget_set_sensitive(ps->organizer_rc,FALSE);
+						gtk_widget_set_sensitive(ps->organizer_removeentry,FALSE);
 						pars_names_org(ps,(char*)org_new_names);
 					}
 				}
@@ -2612,9 +2613,22 @@ static void org_addrule(struct stk_s*ps){
 			GtkWidget*s;
 			organizer_tab_add(ps->organizer_notebook,(char*)text,&s);
 			gtk_widget_show_all(s);//to see the tab
+			gtk_widget_set_sensitive(ps->organizer_removerule,TRUE);
 		}
 	}
 	gtk_widget_destroy (dialog);
+}
+static void org_removerule(GtkWidget*thisone,struct stk_s*ps){
+	GtkNotebook*nb=ps->organizer_notebook;
+	gint index=gtk_notebook_get_current_page(nb);
+	if(index>0){//first page is with New
+		gtk_notebook_remove_page(nb,index);
+		if(index==1){//maybe was last
+			if(gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1))==0){
+				gtk_widget_set_sensitive(thisone,FALSE);
+			}
+		}
+	}
 }
 
 static void organizer_populate(GtkWidget*window,struct stk_s*ps){
@@ -2635,14 +2649,15 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	GtkWidget*buttonspack=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 
 	GtkWidget*buttons=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
-	GtkWidget*remove_chan=gtk_button_new_with_label("X");	ps->organizer_rc=remove_chan;
+	GtkWidget*remove_chan=gtk_button_new_with_label("X");	ps->organizer_removeentry=remove_chan;
 	gtk_widget_set_sensitive (remove_chan,FALSE);
 	g_signal_connect_data (remove_chan, "clicked",G_CALLBACK(org_removechan),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_box_pack_start((GtkBox*)buttons,remove_chan,FALSE,FALSE,0);
 	GtkWidget*add_folder=gtk_button_new_with_label("+");
 	g_signal_connect_data (add_folder, "clicked",G_CALLBACK(org_addrule),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_box_pack_start((GtkBox*)buttons,add_folder,FALSE,FALSE,0);
-	GtkWidget*remove_folder=gtk_button_new_with_label("-");
+	GtkWidget*remove_folder=gtk_button_new_with_label("-");    ps->organizer_removerule=remove_folder;
+	g_signal_connect_data (remove_folder, "clicked",G_CALLBACK(org_removerule),ps,nullptr,(GConnectFlags)0);
 	gtk_widget_set_sensitive (remove_folder,FALSE);
 	gtk_box_pack_start((GtkBox*)buttons,remove_folder,FALSE,FALSE,0);
 	gtk_box_pack_start((GtkBox*)buttonspack,buttons,FALSE,FALSE,0);
