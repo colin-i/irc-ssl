@@ -49,6 +49,7 @@ typedef void GtkMenuItem;
 typedef void GtkMenuShell;
 typedef void GtkNotebook;
 typedef void GtkPaned;
+typedef void GtkRadioButton;
 typedef void GtkRadioMenuItem;
 typedef void GtkScrolledWindow;
 typedef void GtkTextBuffer;
@@ -110,7 +111,7 @@ typedef enum{  GTK_POLICY_ALWAYS,  GTK_POLICY_AUTOMATIC,  GTK_POLICY_NEVER,  GTK
  GtkPolicyType;
 typedef enum{  GTK_RELIEF_NORMAL,  GTK_RELIEF_HALF,  GTK_RELIEF_NONE}
  GtkReliefStyle;
-typedef enum{ GTK_RESPONSE_NONE = -1, GTK_RESPONSE_OK = -5, GTK_RESPONSE_YES = -8 }//, GTK_RESPONSE_CANCEL = -6}//, GTK_RESPONSE_REJECT = -2,GTK_RESPONSE_ACCEPT = -3,GTK_RESPONSE_DELETE_EVENT = -4
+typedef enum{ GTK_RESPONSE_NONE = -1, GTK_RESPONSE_OK = -5, GTK_RESPONSE_CANCEL = -6, GTK_RESPONSE_YES = -8 }//, GTK_RESPONSE_REJECT = -2,GTK_RESPONSE_ACCEPT = -3,GTK_RESPONSE_DELETE_EVENT = -4
  GtkResponseType;
 typedef enum{ GTK_SORT_ASCENDING,  GTK_SORT_DESCENDING }
  GtkSortType;
@@ -363,7 +364,9 @@ GtkWidget *gtk_paned_get_child2 (GtkPaned *paned);
 GtkWidget * gtk_paned_new (GtkOrientation orientation);
 void gtk_paned_pack1 (GtkPaned *paned, GtkWidget *child, gboolean resize, gboolean shrink);
 void gtk_paned_pack2 (GtkPaned *paned, GtkWidget *child, gboolean resize, gboolean shrink);
-GSList* gtk_radio_menu_item_get_group (GtkRadioMenuItem *radio_menu_item);
+GtkWidget *gtk_radio_button_new_with_label (GSList *group, const gchar *label);
+GtkWidget *gtk_radio_button_new_with_label_from_widget (GtkRadioButton *radio_group_member, const gchar *label);
+GSList*    gtk_radio_menu_item_get_group (GtkRadioMenuItem *radio_menu_item);
 GtkWidget* gtk_radio_menu_item_new_with_label (GSList *group, const gchar *label);
 GtkAdjustment* gtk_scrolled_window_get_vadjustment (GtkScrolledWindow *scrolled_window);
 void           gtk_scrolled_window_set_policy (GtkScrolledWindow *scrolled_window,GtkPolicyType hscrollbar_policy,GtkPolicyType vscrollbar_policy);

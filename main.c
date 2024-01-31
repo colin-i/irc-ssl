@@ -2537,6 +2537,7 @@ static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**chil
 	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Idle",ORG_IDLE,sort);
 
 	GtkWidget*scroll = gtk_scrolled_window_new(nullptr, nullptr);
+	//if(child_out!=nullptr)
 	*child_out=scroll;
 	gtk_container_add((GtkContainer*)scroll,treeV);
 	gtk_notebook_append_page_menu(nb,scroll,gtk_label_new(title),gtk_label_new(title));
@@ -2581,6 +2582,41 @@ static int organizer_populate_dirs(const char*dir,void*box){
 	return r;
 }
 
+static void org_addrule(struct stk_s*ps){
+	GtkWidget*dialog= gtk_dialog_new_with_buttons ("Add Rule",ps->organizer,(GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
+			    "_Cancel",GTK_RESPONSE_CANCEL,"_OK",GTK_RESPONSE_OK,nullptr);
+	GtkWidget*content=gtk_dialog_get_content_area((GtkDialog*)dialog);
+	GtkWidget*options=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
+
+	GtkWidget*name=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
+
+	GtkWidget*nm=gtk_label_new("Name");
+	gtk_box_pack_start((GtkBox*)name,nm,FALSE,FALSE,0);
+	GtkWidget*entry = gtk_entry_new();
+	gtk_box_pack_start((GtkBox*)name, entry, TRUE, TRUE, 0);
+	gtk_box_pack_start((GtkBox*)options,name,TRUE,TRUE,0);
+
+	GtkWidget*scope=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
+	GtkWidget*r1=gtk_radio_button_new_with_label(nullptr,"Local");//no mnemonics here
+	gtk_box_pack_start((GtkBox*)scope,r1,FALSE,FALSE,0);
+	GtkWidget*r2=gtk_radio_button_new_with_label_from_widget(r1,"Global");
+	gtk_box_pack_start((GtkBox*)scope,r2,FALSE,FALSE,0);
+
+	gtk_box_pack_start((GtkBox*)options,scope,FALSE,FALSE,0);
+	gtk_box_pack_start((GtkBox*)content,options,TRUE,TRUE,0);
+	gtk_widget_show_all (dialog);//this to see the new widgets
+	int response=gtk_dialog_run((GtkDialog*)dialog);
+	if(response==GTK_RESPONSE_OK){
+		const char*text=gtk_entry_get_text(entry);
+		if(strlen(text)!=0){
+			GtkWidget*s;
+			organizer_tab_add(ps->organizer_notebook,(char*)text,&s);
+			gtk_widget_show_all(s);//to see the tab
+		}
+	}
+	gtk_widget_destroy (dialog);
+}
+
 static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	//.local .global read
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
@@ -2604,7 +2640,7 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	g_signal_connect_data (remove_chan, "clicked",G_CALLBACK(org_removechan),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_box_pack_start((GtkBox*)buttons,remove_chan,FALSE,FALSE,0);
 	GtkWidget*add_folder=gtk_button_new_with_label("+");
-	gtk_widget_set_sensitive (add_folder,FALSE);
+	g_signal_connect_data (add_folder, "clicked",G_CALLBACK(org_addrule),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_box_pack_start((GtkBox*)buttons,add_folder,FALSE,FALSE,0);
 	GtkWidget*remove_folder=gtk_button_new_with_label("-");
 	gtk_widget_set_sensitive (remove_folder,FALSE);
