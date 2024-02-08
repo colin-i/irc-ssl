@@ -242,6 +242,7 @@ guint g_idle_add (GSourceFunc function,gpointer data);
 void g_list_free (GList *list);
 GList* g_list_last (GList *list);
 #define g_list_next(list) ((list) ? (((GList *)(list))->next) : nullptr)
+gchar *g_markup_printf_escaped (const char *format, ...);
 #ifdef FN_G_MEMDUP2
 	gpointer g_memdup2 (gconstpointer mem, gsize byte_size);
 #else
@@ -309,20 +310,21 @@ GtkWidget *gtk_dialog_get_widget_for_response (GtkDialog *dialog, gint response_
 GtkWidget* gtk_dialog_new_with_buttons (const gchar *title,  GtkWindow *parent, GtkDialogFlags flags, const gchar *first_button_text, ...) __attribute__((__sentinel__));
 gint gtk_dialog_run (GtkDialog *dialog);
 void gtk_editable_set_position (GtkEditable *editable, gint position);
-guint gtk_entry_buffer_delete_text (GtkEntryBuffer *buffer, guint position, gint n_chars);
-const gchar* gtk_entry_buffer_get_text (GtkEntryBuffer *buffer);
-guint gtk_entry_buffer_insert_text (GtkEntryBuffer *buffer,guint position,const gchar *chars,gint n_chars);
+guint           gtk_entry_buffer_delete_text (GtkEntryBuffer *buffer, guint position, gint n_chars);
+const gchar*    gtk_entry_buffer_get_text (GtkEntryBuffer *buffer);
+guint           gtk_entry_buffer_insert_text (GtkEntryBuffer *buffer,guint position,const gchar *chars,gint n_chars);
 GtkEntryBuffer *gtk_entry_get_buffer (GtkEntry *entry);
-const gchar *gtk_entry_get_text (GtkEntry *entry);
-GtkWidget* gtk_entry_new (void);
-void gtk_entry_set_placeholder_text (GtkEntry *entry, const gchar *text);
-void gtk_entry_set_text (GtkEntry *entry, const gchar *text);
+const gchar *   gtk_entry_get_text (GtkEntry *entry);
+GtkWidget*      gtk_entry_new (void);
+void            gtk_entry_set_placeholder_text (GtkEntry *entry, const gchar *text);
+void            gtk_entry_set_text (GtkEntry *entry, const gchar *text);
 GType gtk_image_get_type (void) __attribute__((__const__));
 GtkWidget* gtk_image_new_from_icon_name (const gchar *icon_name, GtkIconSize size);
-GtkWidget *gtk_label_get_mnemonic_widget (GtkLabel *label);
-void gtk_label_set_mnemonic_widget (GtkLabel *label, GtkWidget *widget);
+GtkWidget *  gtk_label_get_mnemonic_widget (GtkLabel *label);
+void         gtk_label_set_markup (GtkLabel *label, const gchar *str);
+void         gtk_label_set_mnemonic_widget (GtkLabel *label, GtkWidget *widget);
 const gchar* gtk_label_get_text (GtkLabel *label);
-GtkWidget* gtk_label_new (const gchar *str);
+GtkWidget*   gtk_label_new (const gchar *str);
 void          gtk_list_store_append (GtkListStore *list_store, GtkTreeIter *iter);
 void          gtk_list_store_clear (GtkListStore *list_store);
 void          gtk_list_store_insert_after (GtkListStore *list_store, GtkTreeIter *iter, GtkTreeIter *sibling);

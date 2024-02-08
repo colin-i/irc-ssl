@@ -2481,6 +2481,8 @@ static void org_removechan(struct stk_s*ps){
 					if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(combo_box),nullptr)==0){//if was last
 						gtk_widget_set_sensitive(ps->organizer_removeentry,FALSE);
 						pars_names_org(ps,(char*)org_new_names);
+					}else{//there is segmentation at the moment if clicked again and nothing selected
+						gtk_combo_box_set_active(combo_box,0);
 					}
 				}
 			}
@@ -2520,7 +2522,7 @@ static void organizer_tab_column_add(GtkTreeView*tree,char*name,int pos,GtkTreeM
 		gtk_tree_view_append_column(tree, column);
 	}
 }
-static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**child_out){
+static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**child_out,gboolean is_global){
 	//                                          nick             user                 gender         idle in minutes
 	GtkListStore*list=gtk_list_store_new(ORG_N, G_TYPE_STRING,   G_TYPE_STRING,       G_TYPE_STRING, G_TYPE_INT);
 	//any filter can come here
@@ -2541,7 +2543,16 @@ static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**chil
 	//if(child_out!=nullptr)
 	*child_out=scroll;
 	gtk_container_add((GtkContainer*)scroll,treeV);
-	gtk_notebook_append_page_menu(nb,scroll,gtk_label_new(title),gtk_label_new(title));
+	GtkWidget*tab;
+	if(is_global){
+		tab = gtk_label_new (nullptr);
+		char *markup= g_markup_printf_escaped ("<u>\%s</u>", title);
+		gtk_label_set_markup (((GtkLabel*)tab), markup);
+		g_free (markup);
+	}else{
+		tab=gtk_label_new(title);
+	}
+	gtk_notebook_append_page_menu(nb,scroll,tab,gtk_label_new(title));
 	return list;
 }
 
@@ -2621,7 +2632,7 @@ static void org_addrule(struct stk_s*ps){
 		const char*text=gtk_entry_get_text(entry);
 		if(strlen(text)!=0){
 			GtkWidget*s;
-			organizer_tab_add(ps->organizer_notebook,(char*)text,&s);
+			organizer_tab_add(ps->organizer_notebook,(char*)text,&s,gtk_toggle_button_get_active(r2));
 			gtk_widget_show_all(s);//to see the tab
 			gtk_widget_set_sensitive(ps->organizer_removerule,TRUE);
 		}
@@ -2658,9 +2669,18 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 
 	GtkWidget*buttonspack=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 
+	GtkWidget*move=gtk_button_new_with_label("Move");
+	ps->organizer_bot_move=move;//used if repopulation and set active, changed callback
+
 	GtkWidget*buttons=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 	GtkWidget*remove_chan=gtk_button_new_with_label("X");	ps->organizer_removeentry=remove_chan;
-	gtk_widget_set_sensitive (remove_chan,FALSE);
+	if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(dirs),nullptr)==0){
+		//is after repopulation
+		gtk_widget_set_sensitive (remove_chan,FALSE);
+	}
+	else{
+		gtk_combo_box_set_active((GtkComboBox*)dirs,0);
+	}
 	g_signal_connect_data (remove_chan, "clicked",G_CALLBACK(org_removechan),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_box_pack_start((GtkBox*)buttons,remove_chan,FALSE,FALSE,0);
 	GtkWidget*add_folder=gtk_button_new_with_label("+");
@@ -2683,12 +2703,10 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	GtkNotebook*nb = (GtkNotebook*)gtk_notebook_new ();
 	ps->organizer_notebook=nb;
 	gtk_notebook_popup_enable(nb);
-	ps->organizer_entry_names=organizer_tab_add(nb,(char*)org_new_names,&ps->organizer_entry_widget);
+	ps->organizer_entry_names=organizer_tab_add(nb,(char*)org_new_names,&ps->organizer_entry_widget,false);
 	gtk_box_pack_start((GtkBox*)box,(GtkWidget*)nb,TRUE,TRUE,0);
 
 	GtkWidget*bot=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
-	GtkWidget*move=gtk_button_new_with_label("Move");
-	ps->organizer_bot_move=move;
 	gtk_widget_set_sensitive(move,FALSE);
 	gtk_box_pack_start((GtkBox*)bot,move,FALSE,FALSE,0);
 	gtk_box_pack_start((GtkBox*)box,bot,FALSE,FALSE,0);
@@ -2908,14 +2926,14 @@ activate (GtkApplication* app,
 	gtk_widget_show_all (window);
 	ps->main_win=(GtkWindow*)window;
 	//
-	if(ps->maximize)gtk_window_maximize((GtkWindow*)window);//if still will have a problem here, gtk_test_widget_wait_for_draw(window)
-	if(ps->minimize)gtk_window_iconify((GtkWindow*)window);
-	//
 	GtkWidget*info=gtk_image_new_from_icon_name ("dialog-information",GTK_ICON_SIZE_MENU);
 	gtk_notebook_set_action_widget(ps->notebook,info,GTK_PACK_END);
 	g_signal_connect_data (ps->notebook, "switch-page",G_CALLBACK (nb_switch_page),ps->sen_entry,nullptr,(GConnectFlags)0);//this,before show,was critical;
 	info_path_name_restore((GtkComboBoxText*)en,entext,ps);
 	g_signal_connect_data (window, "key-press-event",G_CALLBACK (prog_key_press),ps,nullptr,G_CONNECT_SWAPPED);
+	//
+	if(ps->maximize)gtk_window_maximize((GtkWindow*)window);//problem? maybe is since dual monitor and only after reboot. gtk_test_widget_wait_for_draw(window) ?
+	if(ps->minimize)gtk_window_iconify((GtkWindow*)window);
 }
 static void parse_autojoin(struct stk_s*ps){
 	gather_parse(&ps->ajoins_sum,ps->ajoins_mem,&ps->ajoins);
