@@ -395,7 +395,6 @@ gint         gtk_tree_model_iter_n_children (GtkTreeModel *tree_model, GtkTreeIt
 gboolean     gtk_tree_model_iter_next (GtkTreeModel *tree_model, GtkTreeIter *iter);
 gboolean     gtk_tree_model_iter_nth_child (GtkTreeModel *tree_model, GtkTreeIter *iter, GtkTreeIter *parent, gint n);
 gboolean     gtk_tree_model_iter_previous (GtkTreeModel *tree_model, GtkTreeIter *iter);
-GtkTreeModel*gtk_tree_model_sort_new_with_model (GtkTreeModel *child_model);
 gint *gtk_tree_path_get_indices (GtkTreePath *path);
 void gtk_tree_path_free (GtkTreePath *path);
 gboolean gtk_tree_selection_get_selected (GtkTreeSelection *selection,GtkTreeModel **model,GtkTreeIter *iter);
