@@ -297,12 +297,13 @@ static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 #define org_u "users"
 #define org_g "global"
 enum {
-  ORG_ID1    = 0,
-  ORG_ID2    = 1,
-  ORG_GEN    = 2,
-  ORG_IDLE   = 3,
-  ORG_SERVER = 4,
-  ORG_ID     = 5,
+  ORG_ID1     = 0,
+  ORG_ID2     = 1,
+  ORG_GEN     = 2,
+  ORG_IDLE    = 3,
+  ORG_SERVER  = 4,
+  ORG_ID      = 5,
+  ORG_PRIVATE = 6,
   ORG_N
 };
 struct org_col{
@@ -1097,7 +1098,7 @@ static void add_name_organizer(char*name,gpointer ps){
 		GtkTreeIter it;//=GtkTreeIter();
 		gint n=gtk_tree_model_iter_n_children(new_entries,nullptr);
 		gtk_list_store_append(new_entries,&it);
-		gtk_list_store_set(new_entries, &it, ORG_ID1, name, ORG_IDLE, 0x7fFFffFF, ORG_ID, n, -1);
+		gtk_list_store_set(new_entries, &it, ORG_ID1, name, ORG_IDLE, 0x7fFFffFF, ORG_ID, n, ORG_PRIVATE, n, -1);
 	}
 }
 static void add_name(GtkListStore*lst,char*t,gpointer ps){
@@ -2526,8 +2527,8 @@ static void organizer_tab_column_add(GtkTreeView*tree,char*name,int pos,GtkTreeM
 	}
 }
 static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**child_out,gboolean is_global){
-	//                                          nick             user                 gender         idle in minutes server         internal id for sorting back
-	GtkListStore*sort=gtk_list_store_new(ORG_N, G_TYPE_STRING,   G_TYPE_STRING,       G_TYPE_STRING, G_TYPE_INT,     G_TYPE_STRING, G_TYPE_INT);//is already sortable
+	//                                          nick             user                 gender         idle in minutes server         id of append internal id for sorting back
+	GtkListStore*sort=gtk_list_store_new(ORG_N, G_TYPE_STRING,   G_TYPE_STRING,       G_TYPE_STRING, G_TYPE_INT,     G_TYPE_STRING, G_TYPE_INT,  G_TYPE_INT);//is already sortable
 	//any filter can come here
 	//GtkTreeModel*sort=gtk_tree_model_sort_new_with_model(list);
 	//g_object_unref(list);
@@ -2657,21 +2658,89 @@ static void org_removerule(GtkWidget*thisone,struct stk_s*ps){
 	}
 }
 
+static BOOL org_query_append_str(char**mem,size_t*sz,char*fast_append,size_t*all_size,char separator){
+	char extra=separator!=0?1:0;
+	size_t appended=strlen(fast_append);
+	size_t new_size=*sz+appended+extra;
+	if(new_size>*all_size){
+		char*m=(char*)realloc(*mem,new_size);
+		if(m==nullptr)return FALSE;
+		*mem=m;
+		*all_size=new_size;
+	}
+	if(separator!=0){
+		(*mem)[*sz]=separator;
+	}
+	memcpy(*mem+*sz+extra,fast_append,appended);
+	*sz=new_size;
+	return TRUE;
+}
+
 static void org_query(GtkNotebook*nb){
 	GtkWidget*current=gtk_notebook_get_nth_page(nb,gtk_notebook_get_current_page(nb));//scroll
 	GtkWidget*tv=gtk_bin_get_child((GtkBin*)current);
 	GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
-	GtkTreeIter it;
-	gboolean valid=gtk_tree_model_get_iter_first (tm, &it);
-	while(valid){//possible to have first a 0 if end of names has no names
-		int id;
-		gtk_tree_model_get (tm, &it, ORG_ID, &id, -1);
-		valid = gtk_tree_model_iter_next( tm, &it);
-	}
-	//will get current order at ORG_ID
+
+	//get current order
+	//-1(GTK_TREE_SORTABLE_DEFAULT_SORT_COLUMN_ID) is critical without a func and -2(GTK_TREE_SORTABLE_UNSORTED_SORT_COLUMN_ID) will not sort like original, so ORG_PRIVATE is required
+	//ORG_ID can be changed if sorting by another column and saving that way
+	gint pos;GtkSortType type;
+	gboolean orig_sort=gtk_tree_sortable_get_sort_column_id(tm, &pos, &type);
+
 	//sort by ORG_SERVER
+	gtk_tree_sortable_set_sort_column_id(tm,ORG_SERVER,GTK_SORT_ASCENDING);
+
 	//sending whois server n1,..,nN
+	GtkTreeIter iter;
+	gboolean valid = gtk_tree_model_get_iter_first (tm, &iter);
+	if(valid){//don't send wrong command if no names received
+		size_t all_size=0;
+		char*command=nullptr;
+		char*current_server=nullptr;BOOL current_server_is_solid=FALSE;
+		size_t sz;
+		BOOL ok;
+		do{
+			gchar*server;gchar*nick;
+			gtk_tree_model_get (tm, &iter, ORG_ID1, &nick, ORG_SERVER, &server, -1);//are these allocs NULL if not ok? so a simple access violation on NULL will be next
+			if(current_server==nullptr||strcmp(current_server,server==nullptr?"":server)!=0){
+				if(command!=nullptr){
+					//send command
+					if(current_server_is_solid)free(current_server);
+				}
+				sz=0;
+				if(server==nullptr){
+					current_server=(char*)"";current_server_is_solid=FALSE;
+				}else{
+					current_server=server;current_server_is_solid=TRUE;
+				}
+				if(ok=org_query_append_str(&command,&sz,(char*)"WHOIS",&all_size,0)){
+					if(ok=org_query_append_str(&command,&sz,current_server,&all_size,' ')){
+						ok=org_query_append_str(&command,&sz,nick,&all_size,' ');
+					}
+				}
+				g_free(nick);//g_free is also checking for NULL, nothing else more
+			}else{
+				ok=org_query_append_str(&command,&sz,nick,&all_size,',');
+				g_free(server);g_free(nick);
+			}
+			if(ok==FALSE)break;
+			valid = gtk_tree_model_iter_next(tm, &iter);
+		}while(valid);
+		if(current_server!=nullptr){
+			if(current_server_is_solid)free(current_server);
+			if(command!=nullptr){
+				//send command
+				free(command);
+			}
+		}
+	}
+
 	//sort back
+	if(orig_sort==FALSE){
+		gtk_tree_sortable_set_sort_column_id(tm,ORG_PRIVATE,GTK_SORT_ASCENDING);
+	}else{
+		gtk_tree_sortable_set_sort_column_id(tm,pos,type);
+	}
 }
 
 static void organizer_populate(GtkWidget*window,struct stk_s*ps){
