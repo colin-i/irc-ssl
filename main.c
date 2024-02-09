@@ -1095,8 +1095,9 @@ static void add_name_organizer(char*name,gpointer ps){
 	if(((struct stk_s*)ps)->organizer!=nullptr){
 		GtkListStore*new_entries=((struct stk_s*)ps)->organizer_entry_names;
 		GtkTreeIter it;//=GtkTreeIter();
+		gint n=gtk_tree_model_iter_n_children(new_entries,nullptr);
 		gtk_list_store_append(new_entries,&it);
-		gtk_list_store_set(new_entries, &it, ORG_ID1, name, ORG_IDLE, 0x7fFFffFF, -1);
+		gtk_list_store_set(new_entries, &it, ORG_ID1, name, ORG_IDLE, 0x7fFFffFF, ORG_ID, n, -1);
 	}
 }
 static void add_name(GtkListStore*lst,char*t,gpointer ps){
@@ -2540,6 +2541,8 @@ static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**chil
 	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"AKA",ORG_ID2,sort);
 	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Gender",ORG_GEN,sort);
 	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Idle",ORG_IDLE,sort);
+	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Server",ORG_SERVER,sort);
+	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Index",ORG_ID,sort);
 
 	GtkWidget*scroll = gtk_scrolled_window_new(nullptr, nullptr);
 	//if(child_out!=nullptr)
@@ -2655,6 +2658,16 @@ static void org_removerule(GtkWidget*thisone,struct stk_s*ps){
 }
 
 static void org_query(GtkNotebook*nb){
+	GtkWidget*current=gtk_notebook_get_nth_page(nb,gtk_notebook_get_current_page(nb));//scroll
+	GtkWidget*tv=gtk_bin_get_child((GtkBin*)current);
+	GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
+	GtkTreeIter it;
+	gboolean valid=gtk_tree_model_get_iter_first (tm, &it);
+	while(valid){//possible to have first a 0 if end of names has no names
+		int id;
+		gtk_tree_model_get (tm, &it, ORG_ID, &id, -1);
+		valid = gtk_tree_model_iter_next( tm, &it);
+	}
 	//will get current order at ORG_ID
 	//sort by ORG_SERVER
 	//sending whois server n1,..,nN
