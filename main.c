@@ -2565,7 +2565,7 @@ static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**chil
 	GtkWidget*tab;
 	if(is_global){
 		tab = gtk_label_new (nullptr);
-		char *markup= g_markup_printf_escaped ("<u>\%s</u>", title);
+		gchar *markup= g_markup_printf_escaped ("<u>\%s</u>", title);
 		gtk_label_set_markup (((GtkLabel*)tab), markup);
 		g_free (markup);
 	}else{
