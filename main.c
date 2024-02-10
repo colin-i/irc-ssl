@@ -283,14 +283,6 @@ static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 #define folderseparator *folder_separator
 #define removed_string " removed"
 #define remove_ignored " ignored (maybe is not empty)"
-//nick format: A..}
-//             -0..9; but not at [0]
-//hostname -.0..9a..z
-//~ for owners, +q, tilde ascii is after }
-//& for admins, +a
-//@ for full operators, +o
-//% for half operators, +h
-//+ for voiced users, +v
 
 #define dirback ".."
 #define org_c "chans"
@@ -799,6 +791,14 @@ static GtkWidget* name_join_nb(char*t,GtkNotebook*nb){
 	return scrl;
 }
 #define nickname_start(a) ('A'<=*a&&*a<='}')
+//nick format: A..}
+//             -0..9; but not at [0]
+//hostname -.0..9a..z
+//~ for owners, +q, tilde ascii is after }
+//& for admins, +a
+//@ for full operators, +o
+//% for half operators, +h
+//+ for voiced users, +v
 static gboolean name_join(GtkTreeView*tree,GdkEvent*ignored,struct stk_s*ps){
 	(void)ignored;
 	GtkTreeSelection *sel=gtk_tree_view_get_selection(tree);
@@ -2675,7 +2675,7 @@ static BOOL org_query_append_str(char**mem,size_t*sz,char*fast_append,size_t*all
 	*sz=new_size;
 	return TRUE;
 }
-
+#define org_query_send if(org_query_append_str(&command,&sz,(char*)irc_term,&all_size,0))send_data(command,sz);
 static void org_query(GtkNotebook*nb){
 	GtkWidget*current=gtk_notebook_get_nth_page(nb,gtk_notebook_get_current_page(nb));//scroll
 	GtkWidget*tv=gtk_bin_get_child((GtkBin*)current);
@@ -2704,7 +2704,7 @@ static void org_query(GtkNotebook*nb){
 			gtk_tree_model_get (tm, &iter, ORG_ID1, &nick, ORG_SERVER, &server, -1);//are these allocs NULL if not ok? so a simple access violation on NULL will be next
 			if(current_server==nullptr||strcmp(current_server,server==nullptr?"":server)!=0){
 				if(command!=nullptr){
-					//send command
+					org_query_send
 					if(current_server_is_solid)free(current_server);
 				}
 				sz=0;
@@ -2715,12 +2715,16 @@ static void org_query(GtkNotebook*nb){
 				}
 				if(ok=org_query_append_str(&command,&sz,(char*)"WHOIS",&all_size,0)){
 					if(ok=org_query_append_str(&command,&sz,current_server,&all_size,' ')){
-						ok=org_query_append_str(&command,&sz,nick,&all_size,' ');
+						if nickname_start(nick) {
+							ok=org_query_append_str(&command,&sz,nick,&all_size,' ');
+						}else ok=org_query_append_str(&command,&sz,nick+1,&all_size,' ');
 					}
 				}
 				g_free(nick);//g_free is also checking for NULL, nothing else more
 			}else{
-				ok=org_query_append_str(&command,&sz,nick,&all_size,',');
+				if nickname_start(nick) {
+					ok=org_query_append_str(&command,&sz,nick,&all_size,',');
+				}else ok=org_query_append_str(&command,&sz,nick+1,&all_size,',');
 				g_free(server);g_free(nick);
 			}
 			if(ok==FALSE)break;
@@ -2729,7 +2733,7 @@ static void org_query(GtkNotebook*nb){
 		if(current_server!=nullptr){
 			if(current_server_is_solid)free(current_server);
 			if(command!=nullptr){
-				//send command
+				org_query_send
 				free(command);
 			}
 		}
