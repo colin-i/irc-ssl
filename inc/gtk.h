@@ -240,7 +240,7 @@ void         g_dir_close (GDir *dir);
 GDir *       g_dir_open (const gchar *path, guint flags, GError **error);
 const gchar *g_dir_read_name (GDir *dir);
 gboolean g_file_test (const gchar *filename, GFileTest test);
-void g_free (gpointer mem);//use it if can be NULL. if already used it is ok to not check for NULL
+void g_free (gpointer mem);//it isn't in general. g_free() frees a memory chunk with the registered free function in the GLib's memory VTable, which by default is libc's free() -- and then g_free() and free() are equivalent. But if for a reason or another the VTable is set to another one, a plain free() may be invalid since the memory may not have been allocated by libc's malloc(), calloc() or realloc().
 guint g_idle_add (GSourceFunc function,gpointer data);
 void    g_list_free (GList *list);
 GList*  g_list_last (GList *list);
