@@ -495,7 +495,7 @@ static BOOL parse_host_str(const char*indata,char*hostname,char*psw,char*nkn,uns
 		(indata+i,psz+1);
 		p[psz]='\0';
 		gchar*up=g_uri_unescape_string(p,nullptr);
-		g_free(p);
+		free(p);
 		if(strlen(up)>=password_sz){free(up);return FALSE;}
 		strcpy(psw,up);free(up);
 		sz-=(size_t)(left+1-indata);indata=left+1;
@@ -583,7 +583,7 @@ static int pars_chan_counted(char*chan,unsigned int nr,int max){
 		char*c=strchr(text,' ');*c='\0';
 		unsigned int n=(unsigned int)atoi(c+1);
 		int a=strcmp(chan,text);
-		g_free(text);
+		free(text);
 		if(nr>n||(nr==n&&a<0)){
 			pars_chan_insert(&it,chan,nr,max);
 			return -1;
@@ -600,7 +600,7 @@ static int pars_chan_alpha(char*chan,unsigned int nr,int max){
 		gtk_tree_model_get ((GtkTreeModel*)channels, &it, 0, &text, -1);
 		char*c=strchr(text,' ');*c='\0';
 		int a=strcmp(chan,text);
-		g_free(text);
+		free(text);
 		if(a<0){
 			pars_chan_insert(&it,chan,nr,max);
 			return -1;
@@ -814,7 +814,7 @@ static void name_join_main(GtkTreeView*tree,struct stk_s*ps){
 		char*a=nickname_start(item_text)?item_text:item_text+1;
 		if(name_join_isnew(ps,a))
 			gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,name_join_nb(a,ps->notebook)));
-		g_free(item_text);
+		free(item_text);
 	}
 }
 static gboolean name_join(GtkTreeView*tree,GdkEvent*ignored,struct stk_s*ps){
@@ -855,7 +855,7 @@ static void chan_change_nr_gain(GtkTreeIter*iter,char*chn,unsigned int nr){
 		sscanf(text,channame_scan " %u",c,&n);
 		if(n>nr)break;
 		int a=strcmp(c,chn);
-		g_free(text);
+		free(text);
 		if(n==nr&&a<0)break;
 		if(gtk_tree_model_iter_previous((GtkTreeModel*)channels, &it)==FALSE){
 			gtk_list_store_move_after(channels,iter,nullptr);
@@ -875,7 +875,7 @@ static void chan_change_nr_loss(GtkTreeIter*iter,char*chn,unsigned int nr){
 		sscanf(text,channame_scan " %u",c,&n);
 		if(nr>n)break;
 		int a=strcmp(c,chn);
-		g_free(text);
+		free(text);
 		if(nr==n&&a>0)break;
 		if(gtk_tree_model_iter_next((GtkTreeModel*)channels, &it)==FALSE){
 			gtk_list_store_move_before(channels,iter,nullptr);
@@ -884,25 +884,25 @@ static void chan_change_nr_loss(GtkTreeIter*iter,char*chn,unsigned int nr){
 	}
 	gtk_list_store_move_before(channels,iter,&it);
 }
-static BOOL get_chan_counted(const char*chan,char*c,GtkTreeIter*it,char**text){
+static BOOL get_chan_counted(const char*chan,char*c,GtkTreeIter*it,gchar**text){
 	gboolean valid=gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, it);
 	while(valid){
 		gtk_tree_model_get ((GtkTreeModel*)channels, it, 0, text, -1);
 		sscanf(*text,channame_scan,c);
 		if(strcmp(chan,c)==0)return TRUE;
-		g_free(*text);
+		free(*text);
 		valid = gtk_tree_model_iter_next( (GtkTreeModel*)channels, it);
 	}
 	return FALSE;
 }
-static BOOL get_chan_alpha(const char*chan,char*c,GtkTreeIter*it,char**text){
+static BOOL get_chan_alpha(const char*chan,char*c,GtkTreeIter*it,gchar**text){
 	gboolean valid=gtk_tree_model_get_iter_first ((GtkTreeModel*)channels, it);
 	while(valid){
 		gtk_tree_model_get ((GtkTreeModel*)channels, it, 0, text, -1);
 		sscanf(*text,channame_scan,c);
 		int a=strcmp(chan,c);
 		if(a==0)return TRUE;
-		g_free(*text);
+		free(*text);
 		if(a<0)return FALSE;
 		valid = gtk_tree_model_iter_next( (GtkTreeModel*)channels, it);
 	}
@@ -920,7 +920,7 @@ static BOOL chan_change_nr(const char*chan,int v){
 		size_t s=strlen(c);size_t ss=s;
 		unsigned int n;
 		s++;sscanf(text+s,"%u",&n);
-		g_free(text);
+		free(text);
 		n+=(unsigned int)v;
 		if(ac){
 			if(v>0)chan_change_nr_gain(&it,c,n);
@@ -968,14 +968,14 @@ static void pars_join_user(char*channm,char*nicknm){
 		gchar*text;
 		gtk_tree_model_get ((GtkTreeModel*)lst, &it, LIST_ITEM, &text, -1);
 		if(strcmp(nicknm,text)>0||nickname_start(text)==FALSE){
-			g_free(text);
+			free(text);
 			GtkTreeIter i;
 			gtk_list_store_insert_after(lst,&i,&it);
 			gtk_list_store_set(lst, &i, LIST_ITEM, nicknm, -1);
 			chan_change_nr(channm,1);
 			return;
 		}
-		g_free(text);
+		free(text);
 		if(gtk_tree_model_iter_previous( (GtkTreeModel*)lst,&it)==FALSE)break;
 	}
 	gtk_list_store_prepend(lst,&it);
@@ -1072,12 +1072,12 @@ static void add_name_lowuser(GtkListStore*lst,char*t){
 		do{
 			gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
 			if(strcmp(t,text)>0||nickname_start(text)==FALSE){
-				g_free(text);
+				free(text);
 				gtk_list_store_insert_after(lst,&i,&it);
 				gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
 				return;
 			}
-			g_free(text);
+			free(text);
 		}while(gtk_tree_model_iter_previous( (GtkTreeModel*)lst, &it));
 	}
 	gtk_list_store_prepend(lst,&it);
@@ -1091,12 +1091,12 @@ static void add_name_highuser(GtkListStore*lst,char*t){
 		do{
 			gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
 			if(strcmp(t,text)<0||nickname_start(text)){
-				g_free(text);
+				free(text);
 				gtk_list_store_insert_before(lst,&i,&it);
 				gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
 				return;
 			}
-			g_free(text);
+			free(text);
 		}while(gtk_tree_model_iter_next( (GtkTreeModel*)lst, &it));
 	}
 	gtk_list_store_append(lst,&it);
@@ -1152,7 +1152,7 @@ static void pars_names(GtkWidget*pan,char*b,size_t s,struct stk_s* ps,char*chann
 					if(strcmp(text,a)==0){
 						gtk_widget_set_sensitive(ps->organizer_bot,TRUE);
 					}
-					g_free(text);
+					free(text);
 				}
 				free(a);
 			}
@@ -1433,7 +1433,7 @@ static void names_end(GtkWidget*p,char*chan){
 		int n;
 		size_t len=strlen(c);
 		sscanf(text+len+1,"%u",&n);
-		g_free(text);
+		free(text);
 		GtkListStore*list=contf_get_list(p);
 		int z=gtk_tree_model_iter_n_children((GtkTreeModel*)list,nullptr);
 		int dif=z-n;
@@ -1893,11 +1893,11 @@ static void save_combo_box(GtkTreeModel*list){
 			while(valid){
 				gchar*text;
 				gtk_tree_model_get (list, &it, 0, &text, -1);
-				if(i){if(write(f,"\n",1)!=1){g_free(text);break;}}
+				if(i){if(write(f,"\n",1)!=1){free(text);break;}}
 				else i=TRUE;
 				size_t sz=strlen(text);
-				if((size_t)write(f,text,sz)!=sz){g_free(text);break;}
-				g_free(text);
+				if((size_t)write(f,text,sz)!=sz){free(text);break;}
+				free(text);
 				valid = gtk_tree_model_iter_next( list, &it);
 			}
 			close(f);
@@ -1921,10 +1921,10 @@ static BOOL set_combo_box_text(GtkComboBox * box,const char*txt)
 		gtk_tree_model_get (list_store, &iter, 0, &item_text, -1);
 		if (strcmp(item_text, txt) == 0) { 
 			gtk_combo_box_set_active(box, i);
-			g_free(item_text);
+			free(item_text);
 			return FALSE;
 		}    
-		g_free(item_text);
+		free(item_text);
 		i++; 
 		valid = gtk_tree_model_iter_next( list_store, &iter);
 	}
@@ -2115,7 +2115,7 @@ static void organize_connections (struct stk_s*ps){
 			gtk_list_store_append(store, &iterTo);
 			gtk_list_store_set(store, &iterTo, LIST_ITEM, item_text, -1);
 			//
-			g_free(item_text);
+			free(item_text);
 			i++; 
 			valid = gtk_tree_model_iter_next( list, &iterFrom);
 		}while (valid);
@@ -2240,7 +2240,7 @@ static void clipboard_tev(GtkNotebook*notebook){
 	gchar*text = gtk_text_buffer_get_text (buffer, &start, &end, FALSE);
 	//an allocated UTF-8 string
 	gtk_clipboard_set_text (gtk_clipboard_get(GDK_SELECTION_CLIPBOARD),text,-1);
-	g_free(text);
+	free(text);
 }
 static void channels_sort(){
 	send_list_if
@@ -2355,7 +2355,7 @@ static void gather_parse(size_t*sum,gchar*mem,struct ajoin**ons){
 }
 static void gather_free(size_t sum,gchar*mem,struct ajoin*ins){
 	if(sum>0){
-		g_free(mem);
+		free(mem);
 		for(size_t i=0;i<sum;i++)if(ins[i].chans!=&dummy)
 			free(ins[i].chans);
 		free(ins);
@@ -2466,7 +2466,7 @@ static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer 
 					}
 				}
 			}
-			g_free(text);
+			free(text);
 		}
 	}
 }
@@ -2504,7 +2504,7 @@ static void org_removechan(struct stk_s*ps){
 				}
 			}
 		}
-		g_free(text);
+		free(text);
 	}
 }
 
@@ -2567,7 +2567,7 @@ static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**chil
 		tab = gtk_label_new (nullptr);
 		gchar *markup= g_markup_printf_escaped ("<u>\%s</u>", title);
 		gtk_label_set_markup (((GtkLabel*)tab), markup);
-		g_free (markup);
+		g_free(markup);
 	}else{
 		tab=gtk_label_new(title);
 	}
@@ -2733,12 +2733,13 @@ static void org_query(GtkNotebook*nb){
 						}else ok=org_query_append_str(&command,&sz,nick+1,&all_size,' ');
 					}
 				}
-				g_free(nick);//g_free is also checking for NULL, nothing else more
+				free(nick);
 			}else{
 				if nickname_start(nick) {
 					ok=org_query_append_str(&command,&sz,nick,&all_size,',');
 				}else ok=org_query_append_str(&command,&sz,nick+1,&all_size,',');
-				g_free(server);g_free(nick);
+				free(nick);
+				g_free(server);//can be NULL if not set
 			}
 			if(ok==FALSE)break;
 			valid = gtk_tree_model_iter_next(tm, &iter);
@@ -2931,7 +2932,7 @@ static gboolean prog_key_press (struct stk_s*ps, GdkEventKey  *event){
 			}
 		}
 	}
-	return FALSE;//propagation seems fine, since i don't have "other handlers"
+	return FALSE;//propagation seems fine, for "other handlers"
 }
 
 static void
@@ -3133,7 +3134,7 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 		if(b!=nullptr){*b='\0';b++;}
 		ps->dim[0]=atoi(result);
 		ps->dim[1]=b!=nullptr?atoi(b):ps->dim[0];
-		g_free(result);
+		free(result);
 	}else ps->dim[0]=-1;//this is default at gtk
 	//2 connection_number_id
 	int nr;
@@ -3150,13 +3151,13 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 	//4 refresh_id
 	//if (g_variant_dict_lookup (options,ps->args[refresh_id], "i", &ps->refresh)==FALSE)//but at 0 is not ok
 	//same for gpointer p;g_hash_table_lookup_extended(GVSD(options)->values,ps->args[refresh_id],nullptr,&p);//pointer(not getting the value)/0
-	char*temp;
+	gchar*temp;
 	if (g_variant_dict_lookup (options,ps->args[refresh_id], "s", &temp)){
 		if(sscanf(temp,"%u",&ps->refresh)!=1){//EOF is not, "" is error catched before entering the dict
 			puts("Refresh interval argument error");
 			return EXIT_FAILURE;
 		}
-		g_free(temp);
+		free(temp);
 	}else ps->refresh=default_refresh;//passed to g_timeout_add
 	//5 timestamp_id
 	ps->timestamp=g_variant_dict_contains(options,ps->args[timestamp_id]);
@@ -3301,14 +3302,14 @@ int main (int    argc,
 		g_queue_free_full(send_entry_list,g_free);
 
 		if(ps.handle_command_line_callback_was_executed==TRUE){//or !=EXIT_FAILURE, but can be many exit scenarios
-			if(ps.nick!=nullptr)g_free(ps.nick);
-			if(ps.welcome!=nullptr)g_free(ps.welcome);
+			if(ps.nick!=nullptr)free(ps.nick);
+			if(ps.welcome!=nullptr)free(ps.welcome);
 			#pragma GCC diagnostic push
 			#pragma GCC diagnostic ignored "-Wcast-qual"
-			if(ps.user_irc_free)g_free((gpointer)ps.user_irc);
+			if(ps.user_irc_free)free((gpointer)ps.user_irc);
 			#pragma GCC diagnostic pop
 			if(log_file!=-1)close(log_file);
-			if(ps.execute_newmsg!=nullptr)g_free(ps.execute_newmsg);
+			if(ps.execute_newmsg!=nullptr)free(ps.execute_newmsg);
 			gather_free(ps.ajoins_sum,ps.ajoins_mem,ps.ajoins);
 			gather_free(ps.ignores_sum,ps.ignores_mem,ps.ignores);
 		}

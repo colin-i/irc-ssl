@@ -237,7 +237,7 @@ void         g_dir_close (GDir *dir);
 GDir *       g_dir_open (const gchar *path, guint flags, GError **error);
 const gchar *g_dir_read_name (GDir *dir);
 gboolean g_file_test (const gchar *filename, GFileTest test);
-void g_free (gpointer mem);//use it if can be NULL. when using gchar that was not checked against NULL or was not *first_char
+void g_free (gpointer mem);//use it if can be NULL. if already used it is ok to not check for NULL
 guint g_idle_add (GSourceFunc function,gpointer data);
 void    g_list_free (GList *list);
 GList*  g_list_last (GList *list);
