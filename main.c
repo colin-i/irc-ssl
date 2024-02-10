@@ -2199,26 +2199,27 @@ static BOOL icmpAmemBstr(const char*s1,const char*s2){
 static void send_activate(GtkEntry*entry,struct stk_s*ps){
 	GtkEntryBuffer*t=gtk_entry_get_buffer(entry);
 	const gchar*text=gtk_entry_buffer_get_text(t);
-	//
-	GtkWidget*pg=gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook));
-	const char*a=gtk_notebook_get_menu_label_text(ps->notebook,pg);
-	if(is_home(a)){
-		show_from_clause(text,"list",RPL_LIST)
-		else show_from_clause(text,"names",RPL_NAMREPLY)
-		size_t sz=strlen(text);
-		char*b=(char*)malloc(sz+irc_term_sz);
-		if(b==nullptr)return;
-		memcpy(b,text,sz);
-		memcpy(b+sz,irc_term,irc_term_sz);
-		send_data(b,sz+irc_term_sz);
-		free(b);
-	}else send_msg(ps->nknnow,a,text,pg);
-	if(ps->send_history>0){
-		if(send_entry_list->length==ps->send_history)g_free(g_queue_pop_head(send_entry_list));
-		g_queue_push_tail(send_entry_list,g_strdup(text));
-		send_entry_list_cursor=nullptr;
+	size_t sz=strlen(text);
+	if(sz!=0){//nothing to send else
+		GtkWidget*pg=gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook));
+		const char*a=gtk_notebook_get_menu_label_text(ps->notebook,pg);
+		if(is_home(a)){
+			show_from_clause(text,"list",RPL_LIST)
+			else show_from_clause(text,"names",RPL_NAMREPLY)
+			char*b=(char*)malloc(sz+irc_term_sz);
+			if(b==nullptr)return;
+			memcpy(b,text,sz);
+			memcpy(b+sz,irc_term,irc_term_sz);
+			send_data(b,sz+irc_term_sz);
+			free(b);
+		}else send_msg(ps->nknnow,a,text,pg);
+		if(ps->send_history>0){
+			if(send_entry_list->length==ps->send_history)free(g_queue_pop_head(send_entry_list));
+			g_queue_push_tail(send_entry_list,g_strdup(text));
+			send_entry_list_cursor=nullptr;
+		}
+		gtk_entry_buffer_delete_text(t,0,-1);
 	}
-	gtk_entry_buffer_delete_text(t,0,-1);
 }
 #define menu_con_add_item(n,s,a,b,c,d)\
 a = gtk_radio_menu_item_new_with_label (b, s);\
@@ -2567,7 +2568,7 @@ static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**chil
 		tab = gtk_label_new (nullptr);
 		gchar *markup= g_markup_printf_escaped ("<u>\%s</u>", title);
 		gtk_label_set_markup (((GtkLabel*)tab), markup);
-		g_free(markup);
+		free(markup);
 	}else{
 		tab=gtk_label_new(title);
 	}
@@ -2920,16 +2921,16 @@ static gboolean prog_key_press (struct stk_s*ps, GdkEventKey  *event){
 					send_entry_list->tail
 					:send_entry_list_cursor->prev;
 				gtk_entry_set_text((GtkEntry*)ps->sen_entry,(const char*)send_entry_list_cursor->data);
-				return TRUE;//lost focus other way
 			}
+			return TRUE;//lost focus other way
 		}else if(event->keyval==GDK_KEY_Down&&gtk_widget_is_focus(ps->sen_entry)){
 			if(send_entry_list_cursor!=nullptr){
 				send_entry_list_cursor=send_entry_list_cursor->next;
 				GtkEntryBuffer*buf=gtk_entry_get_buffer((GtkEntry*)ps->sen_entry);
 				gtk_entry_buffer_delete_text(buf,0,-1);
 				if(send_entry_list_cursor!=nullptr)gtk_entry_buffer_insert_text(buf,0,(const char*)send_entry_list_cursor->data,-1);
-				return TRUE;//is trying to switch focus
 			}
+			return TRUE;//is trying to switch focus
 		}
 	}
 	return FALSE;//propagation seems fine, for "other handlers"
@@ -3299,7 +3300,7 @@ int main (int    argc,
 		g_object_unref (app);
 
 		if(info_path_name!=nullptr)free(info_path_name);
-		g_queue_free_full(send_entry_list,g_free);
+		g_queue_free_full(send_entry_list,free);
 
 		if(ps.handle_command_line_callback_was_executed==TRUE){//or !=EXIT_FAILURE, but can be many exit scenarios
 			if(ps.nick!=nullptr)free(ps.nick);

@@ -223,10 +223,13 @@ typedef struct _GdkAtom *GdkAtom;
 extern "C" {
 #endif
 
+//gio
 void g_application_add_main_option (GApplication *application, const char *long_name, char short_name, GOptionFlags flags, GOptionArg arg, const char *description, const char *arg_description);
 void g_application_add_main_option_entries (GApplication *application,const GOptionEntry *entries);
 void g_application_quit (GApplication *application);
 int  g_application_run (GApplication *application,int argc,char **argv);
+
+//glib
 gint        g_date_time_get_hour (GDateTime *datetime);
 gint        g_date_time_get_minute (GDateTime *datetime);
 gint        g_date_time_get_second (GDateTime *datetime);
@@ -248,30 +251,33 @@ gchar *g_markup_printf_escaped (const char *format, ...);
 #else
 	gpointer g_memdup (gconstpointer mem, guint byte_size);
 #endif
-gpointer g_object_ref (gpointer object);
-void     g_object_set (gpointer object, const gchar *first_property_name, ...) __attribute__((__sentinel__));
-void     g_object_unref (gpointer object);
 void      g_queue_free_full (GQueue *queue,GDestroyNotify free_func);
 GQueue *  g_queue_new (void);
 gpointer  g_queue_pop_head (GQueue *queue);
 void      g_queue_push_tail (GQueue *queue,gpointer data);
-gulong g_signal_connect_data (gpointer instance,const gchar *detailed_signal,GCallback c_handler,gpointer data,GClosureNotify destroy_data,GConnectFlags connect_flags);
-void   g_signal_handler_block (gpointer instance, gulong handler_id);
-gulong g_signal_handler_find (gpointer instance,GSignalMatchType mask,guint signal_id,GQuark detail,GClosure *closure,gpointer func,gpointer data);
-void   g_signal_handler_unblock (gpointer instance, gulong handler_id);
-guint  g_signal_lookup (const gchar *name, GType itype);
 gboolean g_source_remove (guint tag);
 gboolean g_spawn_command_line_async (const gchar *command_line, GError **error);
-gchar * g_strdup ( const gchar *str );
 guint g_timeout_add (guint interval, GSourceFunc function, gpointer data);
 char *g_uri_unescape_string (const char *escaped_string, const char *illegal_characters);
+gchar * g_strdup ( const gchar *str );
 gboolean     g_variant_dict_contains (GVariantDict *dict, const gchar *key);
 gboolean     g_variant_dict_lookup (GVariantDict *dict, const gchar *key, const gchar *format_string, ...);
 GVariant *   g_variant_dict_lookup_value (GVariantDict *dict, const gchar *key, const GVariantType *expected_type);
 const gchar *g_variant_get_string (GVariant *value, gsize *length);
 void         g_variant_unref (GVariant *value);
+
+gpointer g_object_ref (gpointer object);
+void     g_object_set (gpointer object, const gchar *first_property_name, ...) __attribute__((__sentinel__));
+void     g_object_unref (gpointer object);
+gulong g_signal_connect_data (gpointer instance,const gchar *detailed_signal,GCallback c_handler,gpointer data,GClosureNotify destroy_data,GConnectFlags connect_flags);
+void   g_signal_handler_block (gpointer instance, gulong handler_id);
+gulong g_signal_handler_find (gpointer instance,GSignalMatchType mask,guint signal_id,GQuark detail,GClosure *closure,gpointer func,gpointer data);
+void   g_signal_handler_unblock (gpointer instance, gulong handler_id);
+guint  g_signal_lookup (const gchar *name, GType itype);
+
 guint gdk_keyval_to_upper (guint keyval) __attribute__((__const__));
 GdkPixbuf *gdk_pixbuf_new_from_data (const guchar *data,GdkColorspace colorspace,gboolean has_alpha,int bits_per_sample,int width, int height,int rowstride,GdkPixbufDestroyNotify destroy_fn,gpointer destroy_fn_data);
+
 void gtk_adjustment_set_value (GtkAdjustment *adjustment, gdouble value);
 GtkApplication *gtk_application_new (const gchar *application_id, GApplicationFlags flags);
 GtkWidget *     gtk_application_window_new (GtkApplication *application);
