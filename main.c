@@ -235,6 +235,7 @@ static unsigned int maximummodes=0;
 #define show_to_clause(a) if(show_msg==a)show_msg=RPL_NONE;
 static int show_msg=RPL_NONE;
 #define digits_in_uint 10
+#define digits_in_posInt 10
 static int log_file=-1;
 static char*dummy=nullptr;
 static char**ignores;
@@ -1416,7 +1417,7 @@ static void line_switch(char*n,GtkWidget*from,GtkWidget*to,const char*msg){
 }
 static void counting_the_list(GtkWidget*w,const char*a){
 	gtk_widget_set_has_tooltip(w,FALSE);
-	char buf[digits_in_uint+counting_the_list_size+sizeof(list_end_str)];
+	char buf[digits_in_posInt+counting_the_list_size+sizeof(list_end_str)];
 	size_t n=(size_t)sprintf(buf,"%u %s" list_end_str,gtk_tree_model_iter_n_children(contf_get_model(w),nullptr),a);
 	if(w==home_page)addattextmain(buf,n);
 	else addatchans(user_info,buf,w);
@@ -1479,6 +1480,7 @@ static gboolean incsafe(gpointer ps){
 		size_t ln=strlen(com);
 		char*b=strchr(a,' ')+1+ln;if(*b==' ')b++;
 		char channm[chan_sz+1+digits_in_uint+1];//+ to set the "chan nr" at join on the same string
+		char channm_simple[channul_sz];
 		char nicknm[namenul_sz];
 		char c;
 		BOOL is_privmsg=strcmp(com,priv_msg_str)==0;
@@ -1510,9 +1512,9 @@ static gboolean incsafe(gpointer ps){
 				pars_mod(channm,mod,nicknm);
 			else if(sscanf(b,"%*s :" mod_scan,mod)==1)pars_mod_self((struct stk_s*)ps,mod);
 		}else if(strcmp(com,"INVITE")==0){
-			if(nick_extract(a,nicknm)&&sscanf(b,"%*s " channame_scan,channm)==1){
+			if(nick_extract(a,nicknm)&&sscanf(b,"%*s " channame_scan,channm_simple)==1){
 				char buf[name_sz+sizeof(invite_str)+chan_sz];//invite_str size includes null
-				sprintf(buf,"%s" invite_str "%s",nicknm,channm);//is ok channm is only chan_sz here
+				sprintf(buf,"%s" invite_str "%s",nicknm,channm_simple);
 				pars_pmsg_name(nicknm,buf,(struct stk_s*)ps,TRUE,"*Invite");
 			}
 		}else if(strlen(com)!=3)showmsg=FALSE;
@@ -2780,7 +2782,7 @@ static void org_move(GtkButton*b,GtkNotebook*nb){
 			gchar*item_text;
 			GtkTreeModel*tm=gtk_tree_view_get_model(tv);
 			gint tree_index=get_pos_from_model(tm,&iterator);
-			if(char*space=(char*)malloc(digits_in_uint+1+digits_in_uint+1)){
+			if(char*space=(char*)malloc(digits_in_posInt+1+digits_in_posInt+1)){
 				sprintf(space,"%u" defaultstart "%u",nb_page_index,tree_index);
 				gtk_button_set_label(b,space);
 				free(space);
