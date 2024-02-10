@@ -2777,15 +2777,12 @@ static void org_move(GtkButton*b,GtkNotebook*nb){
 		if(gtk_tree_selection_get_selected (sel,nullptr,&iterator)){
 			gchar*item_text;
 			GtkTreeModel*tm=gtk_tree_view_get_model(tv);
-			gtk_tree_model_get (tm, &iterator, ORG_ID1, &item_text, -1);
-			char*a=nickname_start(item_text)?item_text:item_text+1;
 			gint tree_index=get_pos_from_model(tm,&iterator);
-			if(char*space=(char*)malloc(strlen(a)+1+digits_in_uint+1+digits_in_uint+1)){
-				sprintf(space,"%s" defaultstart "%u" defaultstart "%u",a,nb_page_index,tree_index);
+			if(char*space=(char*)malloc(digits_in_uint+1+digits_in_uint+1)){
+				sprintf(space,"%u" defaultstart "%u",nb_page_index,tree_index);
 				gtk_button_set_label(b,space);
 				free(space);
 			}
-			free(item_text);
 		}
 	}else{
 		gtk_button_set_label(b,movestart);
