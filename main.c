@@ -1158,7 +1158,7 @@ static void pars_names(GtkWidget*pan,char*b,size_t s,struct stk_s* ps,char*chann
 				if(gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)ps->organizer_dirs)){//can be a blank organizer too
 					if(strcmp(text,a)==0){
 						ps->organizer_can_add_names=TRUE;
-						gtk_list_store_clear(ps->organizer_entry_names);//not required only after org_changed
+						gtk_list_store_clear(ps->organizer_entry_names);//required in all cases
 					}
 					g_free(text);
 				}else ps->organizer_can_add_names=TRUE;//blank organizer
@@ -2455,7 +2455,7 @@ static void deciderfn(struct stk_s*ps){
 }
 static void org_clear_rules(GtkNotebook*nb){
 	gint last=gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1));
-	for(int i=0;i<=last;i++){
+	for(int i=1;i<=last;i++){
 		GtkWidget*sc=gtk_notebook_get_nth_page(nb,gtk_notebook_get_current_page(nb));//scroll
 		GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
 		GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
@@ -2524,6 +2524,7 @@ static void org_removechan(struct stk_s*ps){
 					if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(combo_box),nullptr)==0){//if was last
 						gtk_widget_set_sensitive(ps->organizer_removeentry,FALSE);
 						pars_names_org(ps,(char*)org_new_names);
+						gtk_list_store_clear(ps->organizer_entry_names);
 						org_clear_rules(ps->organizer_notebook);
 					}else{//there is segmentation at the moment if clicked again and nothing selected
 						gtk_combo_box_set_active(combo_box,0);
