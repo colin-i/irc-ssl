@@ -1154,7 +1154,7 @@ static void pars_names(GtkWidget*pan,char*b,size_t s,struct stk_s* ps,char*chann
 				if(gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)ps->organizer_dirs)){//can be a blank organizer too
 					if(strcmp(text,a)==0){
 						ps->organizer_can_add_names=TRUE;
-						gtk_list_store_clear(ps->organizer_entry_names);//this is not required in most cases, but when "names" multiple times, clear previous names
+						gtk_list_store_clear(ps->organizer_entry_names);//required at multiple populate or manual names
 					}
 					g_free(text);
 				}else ps->organizer_can_add_names=TRUE;//blank organizer
