@@ -2451,9 +2451,14 @@ static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer 
 			if(chdir(text)==0||(mkdir(text,0700)==0&&chdir(text)==0)){
 				if(access(org_u,F_OK)==0||mkdir(org_u,0700)==0){//users conversations
 					if(chdir(org_g)==0||(mkdir(org_g,0700)==0&&chdir(org_g)==0)){
-						//close current global/local
+						//empty current global/local
 						gint last=gtk_notebook_page_num(ps->organizer_notebook,gtk_notebook_get_nth_page(ps->organizer_notebook,-1));
-						for(int i=1;i<=last;i++)gtk_notebook_remove_page(ps->organizer_notebook,i);
+						for(int i=1;i<=last;i++){
+							GtkWidget*sc=gtk_notebook_get_nth_page(ps->organizer_notebook,gtk_notebook_get_current_page(ps->organizer_notebook));//scroll
+							GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
+							GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
+							gtk_list_store_clear((GtkListStore*)tm);
+						}
 						//retake global lists
 						if(chdir(dirback)==0){
 							if(chdir(org_c)==0||(mkdir(org_c,0700)==0&&chdir(org_c)==0)){
@@ -2807,6 +2812,10 @@ static void org_move(GtkButton*button,GtkNotebook*nb){
 					gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,a,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_ID,n,ORG_PRIVATE,n,-1);
 					g_free(a);g_free(b);g_free(c);g_free(e);
 					gtk_button_set_label(button,movestart);
+					//and select the moved item
+					GtkTreePath * path = gtk_tree_model_get_path ( tm , &iterator );
+					gtk_tree_view_set_cursor((GtkTreeView*)tv,path,nullptr,false);
+					gtk_tree_path_free(path);
 				}
 			}
 		}
@@ -2814,7 +2823,8 @@ static void org_move(GtkButton*button,GtkNotebook*nb){
 }
 
 static void organizer_populate(GtkWidget*window,struct stk_s*ps){
-	//.local .global read
+	//_local _global read
+
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 
@@ -2882,11 +2892,12 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	gtk_container_add ((GtkContainer*)window, box);
 }
 
-static void organizer_destroy_from_mainclose(struct stk_s*ps){
+static void everything_destroy_from_mainclose(struct stk_s*ps){
 	gtk_widget_destroy(menuwithtabs);
 	if(ps->organizer!=nullptr)gtk_window_close((GtkWindow*)ps->organizer);
 }
 static void organizer_destroy_from_selfclose(struct stk_s*ps){
+	//here is also coming from main close
 	ps->organizer=nullptr;
 }
 static void organizer_popup(struct stk_s*ps){
@@ -2967,9 +2978,9 @@ activate (GtkApplication* app,
 	GtkWidget *window = gtk_application_window_new (app);
 	menuwithtabs=gtk_menu_new();
 	//
-	g_signal_connect_data (window,"destroy",G_CALLBACK(organizer_destroy_from_mainclose),ps,nullptr,G_CONNECT_SWAPPED);
+	g_signal_connect_data (window,"destroy",G_CALLBACK(everything_destroy_from_mainclose),ps,nullptr,G_CONNECT_SWAPPED);
 	ps->organizer=nullptr;
-	//moved to organizer_destroy_from_mainclose: g_signal_connect_data (window,"destroy",G_CALLBACK(gtk_widget_destroy),menuwithtabs,nullptr,G_CONNECT_SWAPPED);
+	//moved to everything_destroy_from_mainclose: g_signal_connect_data (window,"destroy",G_CALLBACK(gtk_widget_destroy),menuwithtabs,nullptr,G_CONNECT_SWAPPED);
 	//
 	gtk_window_set_title ((GtkWindow*) window, "IRC");
 	if(ps->dim[0]!=-1)

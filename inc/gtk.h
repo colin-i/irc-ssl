@@ -150,6 +150,14 @@ struct _GSList
   gpointer data;
   GSList *next;
 };
+typedef struct{
+  GType g_type;
+} GTypeClass;
+typedef struct{
+  GTypeClass *g_class;
+} GTypeInstance;
+
+typedef struct _GdkAtom *GdkAtom;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpadded"
 typedef struct GdkEventKey {
@@ -193,13 +201,6 @@ typedef struct _GtkTreeIter
   gpointer user_data2;
   gpointer user_data3;
 }GtkTreeIter;
-typedef struct{
-  GType g_type;
-} GTypeClass;
-typedef struct{
-  GTypeClass *g_class;
-} GTypeInstance;
-typedef struct _GdkAtom *GdkAtom;
 
 #define G_CALLBACK(f) ((GCallback)(f))
 #define G_TYPE_FROM_CLASS(g_class) (((GTypeClass*) (g_class))->g_type)
@@ -310,7 +311,7 @@ GtkWidget*   gtk_combo_box_text_new (void);
 GtkWidget*   gtk_combo_box_text_new_with_entry (void);
 void         gtk_combo_box_text_remove (GtkComboBoxText *combo_box, gint position);
 void   gtk_container_add (GtkContainer *container, GtkWidget *widget);
-GList* gtk_container_get_children (GtkContainer *container);
+GList* gtk_container_get_children (GtkContainer *container);//[transfer container] You should free this list using g_list_free() when you are done with it
 void   gtk_container_remove (GtkContainer *container, GtkWidget *widget);
 void   gtk_container_set_border_width (GtkContainer *container,guint border_width);
 GtkWidget *gtk_dialog_get_content_area (GtkDialog *dialog);
@@ -417,6 +418,7 @@ GtkTreeModel *    gtk_tree_view_get_model (GtkTreeView *tree_view);
 GtkTreeSelection *gtk_tree_view_get_selection (GtkTreeView *tree_view);
 GtkWidget *       gtk_tree_view_new (void);
 GtkWidget *       gtk_tree_view_new_with_model (GtkTreeModel *model);
+void              gtk_tree_view_set_cursor (GtkTreeView *tree_view, GtkTreePath *path, GtkTreeViewColumn *focus_column, gboolean start_editing);
 void              gtk_tree_view_set_headers_visible (GtkTreeView *tree_view, gboolean headers_visible);
 void              gtk_tree_view_set_model (GtkTreeView *tree_view, GtkTreeModel *model);
 gboolean   gtk_widget_activate (GtkWidget *widget);
