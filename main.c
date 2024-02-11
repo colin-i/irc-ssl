@@ -232,7 +232,7 @@ static unsigned int maximummodes=0;
 #define RPL_NONE -1
 #define RPL_LIST 322
 #define RPL_NAMREPLY 353
-#define show_from_clause(a,b,c) if(icmpAmemBstr(a,b))show_msg=c;
+#define show_from_clause(a,b,c) if(icmpAmemBstrlownotempty(a,b))show_msg=c;
 #define show_to_clause(a) if(show_msg==a)show_msg=RPL_NONE;
 static int show_msg=RPL_NONE;
 #define digits_in_uint 10
@@ -364,6 +364,7 @@ static void addattextmain(const char*data,size_t len){
 	gtk_text_buffer_insert(text_buffer,&it,data,(int)len);
 	addattextview_scroll(b,text_view);
 }
+#define addattextmain_n(a,b) addattextmain(a "\n",b)
 #define addattextmain_struct(s) addattextmain(s->data,s->len)
 static void addattextv(GtkTextView*v,const char*n,const char*msg){
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (v);
@@ -1145,25 +1146,29 @@ static void pars_names_org(struct stk_s*ps,char*serv_chan){
 	gtk_notebook_set_tab_label_text(ps->organizer_notebook,ps->organizer_entry_widget,serv_chan);
 	gtk_notebook_set_menu_label_text(ps->organizer_notebook,ps->organizer_entry_widget,serv_chan);
 }
-static void pars_names(GtkWidget*pan,char*b,size_t s,struct stk_s* ps,char*channm){
+static void pars_names(GtkWidget*pan,char*b,size_t s,struct stk_s* ps,char*channm,BOOL is_auto_command){
 	GtkListStore*lst=contf_get_list(pan);
 	if(listing_test(pan,lst)){//if first from a series of names until endNames
-		if(ps->organizer!=nullptr)
-			if(char*a=server_channel(ps,channm,strlen(channm))){
-				ps->organizer_can_add_names=FALSE;
-				if(gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)ps->organizer_dirs)){//can be a blank organizer too
-					if(strcmp(text,a)==0){
-						ps->organizer_can_add_names=TRUE;
-						gtk_list_store_clear(ps->organizer_entry_names);//required at multiple manual names(too much to compare s#c there), and good for multiple populate
+		if(ps->organizer!=nullptr){
+			ps->organizer_can_add_names=FALSE;
+			if(is_auto_command){
+			//can hit Populate instead of manual "names #x", else will have to clear the list here
+			//and don't worry at fast Populate and two later names here, will test every entry for uniquenes in organizer
+				if(char*a=server_channel(ps,channm,strlen(channm))){
+					if(gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)ps->organizer_dirs)){//can be a blank organizer too
+						if(strcmp(text,a)==0){
+							ps->organizer_can_add_names=TRUE;
+						}
+						g_free(text);
+					}else ps->organizer_can_add_names=TRUE;//blank organizer
+					if(ps->organizer_can_add_names){
+						pars_names_org(ps,a);
+						gtk_widget_set_sensitive(ps->organizer_bot,TRUE);
 					}
-					g_free(text);
-				}else ps->organizer_can_add_names=TRUE;//blank organizer
-				if(ps->organizer_can_add_names){
-					pars_names_org(ps,a);
-					gtk_widget_set_sensitive(ps->organizer_bot,TRUE);
+					free(a);
 				}
-				free(a);
 			}
+		}
 	}
 	size_t j=0;
 	for(size_t i=0;i<s;i++){
@@ -1543,12 +1548,13 @@ static gboolean incsafe(gpointer ps){
 				show_to_clause(RPL_LIST)
 				list_end();
 			}else if(d==RPL_NAMREPLY){
-				if(show_msg!=RPL_NAMREPLY)showmsg=FALSE;
+				BOOL is_auto_command=show_msg!=RPL_NAMREPLY;
+				if(is_auto_command)showmsg=FALSE;
 				if(sscanf(b,"%*s %*c " channame_scan,channm)==1){
 					GtkWidget*p=chan_pan(channm);
 					if(p!=nullptr){
 						b=strchr(b,':');//join #q:w is error
-						if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a),(struct stk_s*)ps,channm);
+						if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a),(struct stk_s*)ps,channm,is_auto_command);
 					}
 				}
 			}else if(d==366){//RPL_ENDOFNAMES
@@ -2192,16 +2198,17 @@ static void help_popup(struct stk_s*ps){
 	gtk_box_pack_start((GtkBox*)box, scrolled_window, TRUE, TRUE, 0);
 	gtk_widget_show_all (dialog);
 }
-static BOOL icmpAmemBstr(const char*s1,const char*s2){
-	for(size_t i=0;;i++){
+static BOOL icmpAmemBstrlownotempty(const char*s1,const char*s2){
+	char b=s2[0];
+	for(size_t i=0;;){
 		char a=s1[i];
-		char c=a-s2[i];
-		if(c!='\0'){
-			if('A'<=a&&a<='Z'){if(a+('a'-'A')!=s2[i])return FALSE;}
-			else if('a'<=a&&a<='z'){if(a-('a'-'A')!=s2[i])return FALSE;}
-			else if(s2[i]=='\0')return TRUE;
-			else return FALSE;
-		}else if(a=='\0')return TRUE;
+		if(a!=b){
+			a+='a'-'A';
+			if(a!=b)return FALSE;
+		}
+		i++;
+		b=s2[i];
+		if(b=='\0')return TRUE;
 	}
 }
 #define is_home(a) *a==*home_string
@@ -2437,13 +2444,15 @@ static void deciderfn(struct stk_s*ps){
 		if(z!=nullptr){
 			int current=gtk_combo_box_get_active(ps->organizer_dirs);
 			if(set_combo_box_text(ps->organizer_dirs,z)==FALSE){//is an existent entry
-				if(gtk_combo_box_get_active(ps->organizer_dirs)==current)//is same entry already selected
+				if(gtk_combo_box_get_active(ps->organizer_dirs)==current){//is same entry already selected
 					send_channel_related((char*)names_str,(char*)b,bs);
+					gtk_list_store_clear(ps->organizer_entry_names);
+				}
 			}else gtk_widget_set_sensitive(ps->organizer_removeentry,TRUE);
 			free(z);
 		}
 	}
-	else addattextmain("Must be in a channel",-1);
+	else addattextmain_n("Must be in a channel",-1);
 }
 static void org_clear_rules(GtkNotebook*nb){
 	gint last=gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1));
