@@ -221,6 +221,7 @@ struct stk_s{
 	GtkWidget*organizer_entry_widget;
 	GtkListStore*organizer_entry_names;
 	GtkWidget*organizer_bot;
+	BOOL organizer_can_add_names;
 };
 static int autoconnect=-1;static BOOL autoconnect_pending=FALSE;
 static GSList*con_group;
@@ -1103,15 +1104,19 @@ static void add_name_highuser(GtkListStore*lst,char*t){
 	gtk_list_store_append(lst,&it);
 	gtk_list_store_set(lst, &it, LIST_ITEM, t, -1);
 }
-static void add_name_organizer(char*name,gpointer ps){
-	GtkListStore*new_entries=((struct stk_s*)ps)->organizer_entry_names;
-	GtkTreeIter it;//=GtkTreeIter();
-	gint n=gtk_tree_model_iter_n_children((GtkTreeModel*)new_entries,nullptr);
-	gtk_list_store_append(new_entries,&it);
-	gtk_list_store_set(new_entries, &it, ORG_ID1, name, ORG_IDLE, 0x7fFFffFF, ORG_ID, n, ORG_PRIVATE, n, -1);
+static void add_name_organizer(char*name,struct stk_s*ps){
+	if(ps->organizer!=nullptr){
+		if(ps->organizer_can_add_names){
+			GtkListStore*new_entries=ps->organizer_entry_names;
+			GtkTreeIter it;//=GtkTreeIter();
+			gint n=gtk_tree_model_iter_n_children((GtkTreeModel*)new_entries,nullptr);
+			gtk_list_store_append(new_entries,&it);
+			gtk_list_store_set(new_entries, &it, ORG_ID1, name, ORG_IDLE, 0x7fFFffFF, ORG_ID, n, ORG_PRIVATE, n, -1);
+		}
+	}
 }
-static void add_name(GtkListStore*lst,char*t,gpointer ps,BOOL organizer_ok){
-	if(organizer_ok)add_name_organizer(t,ps);//show with prefix
+static void add_name(GtkListStore*lst,char*t,gpointer ps){
+	add_name_organizer(t,(struct stk_s*)ps);//show with prefix
 	if(nickname_start(t)){add_name_lowuser(lst,t);return;}
 	add_name_highuser(lst,t);
 }
@@ -1142,18 +1147,18 @@ static void pars_names_org(struct stk_s*ps,char*serv_chan){
 }
 static void pars_names(GtkWidget*pan,char*b,size_t s,struct stk_s* ps,char*channm){
 	GtkListStore*lst=contf_get_list(pan);
-	bool ok=FALSE;
-	if(listing_test(pan,lst)){
+	if(listing_test(pan,lst)){//if first from a series of names until endNames
 		if(ps->organizer!=nullptr)
 			if(char*a=server_channel(ps,channm,strlen(channm))){
+				ps->organizer_can_add_names=FALSE;
 				if(gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)ps->organizer_dirs)){//can be a blank organizer too
 					if(strcmp(text,a)==0){
-						ok=TRUE;
+						ps->organizer_can_add_names=TRUE;
 						gtk_list_store_clear(ps->organizer_entry_names);//this is not required in most cases, but when "names" multiple times, clear previous names
 					}
 					g_free(text);
-				}else ok=TRUE;//blank organizer
-				if(ok){
+				}else ps->organizer_can_add_names=TRUE;//blank organizer
+				if(ps->organizer_can_add_names){
 					pars_names_org(ps,a);
 					gtk_widget_set_sensitive(ps->organizer_bot,TRUE);
 				}
@@ -1162,9 +1167,9 @@ static void pars_names(GtkWidget*pan,char*b,size_t s,struct stk_s* ps,char*chann
 	}
 	size_t j=0;
 	for(size_t i=0;i<s;i++){
-		if(b[i]==' '){b[i]='\0';add_name(lst,b+j,ps,ok);b[i]=' ';j=i+1;}
+		if(b[i]==' '){b[i]='\0';add_name(lst,b+j,ps);b[i]=' ';j=i+1;}
 	}
-	add_name(lst,b+j,ps,ok);
+	add_name(lst,b+j,ps);
 }
 static void pars_quit(char*nk){
 	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
