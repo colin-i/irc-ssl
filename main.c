@@ -1104,16 +1104,14 @@ static void add_name_highuser(GtkListStore*lst,char*t){
 	gtk_list_store_set(lst, &it, LIST_ITEM, t, -1);
 }
 static void add_name_organizer(char*name,gpointer ps){
-	if(((struct stk_s*)ps)->organizer!=nullptr){
-		GtkListStore*new_entries=((struct stk_s*)ps)->organizer_entry_names;
-		GtkTreeIter it;//=GtkTreeIter();
-		gint n=gtk_tree_model_iter_n_children((GtkTreeModel*)new_entries,nullptr);
-		gtk_list_store_append(new_entries,&it);
-		gtk_list_store_set(new_entries, &it, ORG_ID1, name, ORG_IDLE, 0x7fFFffFF, ORG_ID, n, ORG_PRIVATE, n, -1);
-	}
+	GtkListStore*new_entries=((struct stk_s*)ps)->organizer_entry_names;
+	GtkTreeIter it;//=GtkTreeIter();
+	gint n=gtk_tree_model_iter_n_children((GtkTreeModel*)new_entries,nullptr);
+	gtk_list_store_append(new_entries,&it);
+	gtk_list_store_set(new_entries, &it, ORG_ID1, name, ORG_IDLE, 0x7fFFffFF, ORG_ID, n, ORG_PRIVATE, n, -1);
 }
-static void add_name(GtkListStore*lst,char*t,gpointer ps){
-	add_name_organizer(t,ps);//show with prefix
+static void add_name(GtkListStore*lst,char*t,gpointer ps,BOOL organizer_ok){
+	if(organizer_ok)add_name_organizer(t,ps);//show with prefix
 	if(nickname_start(t)){add_name_lowuser(lst,t);return;}
 	add_name_highuser(lst,t);
 }
@@ -1139,30 +1137,34 @@ static char*server_channel(struct stk_s*ps,char*channel,size_t channel_size){
 }
 
 static void pars_names_org(struct stk_s*ps,char*serv_chan){
-	gtk_list_store_clear(ps->organizer_entry_names);//clear previous names
 	gtk_notebook_set_tab_label_text(ps->organizer_notebook,ps->organizer_entry_widget,serv_chan);
 	gtk_notebook_set_menu_label_text(ps->organizer_notebook,ps->organizer_entry_widget,serv_chan);
 }
 static void pars_names(GtkWidget*pan,char*b,size_t s,struct stk_s* ps,char*channm){
 	GtkListStore*lst=contf_get_list(pan);
+	bool ok=FALSE;
 	if(listing_test(pan,lst)){
 		if(ps->organizer!=nullptr)
 			if(char*a=server_channel(ps,channm,strlen(channm))){
-				pars_names_org(ps,a);
 				if(gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)ps->organizer_dirs)){//can be a blank organizer too
 					if(strcmp(text,a)==0){
-						gtk_widget_set_sensitive(ps->organizer_bot,TRUE);
+						ok=TRUE;
+						gtk_list_store_clear(ps->organizer_entry_names);//this is not required in most cases, but when "names" multiple times, clear previous names
 					}
 					g_free(text);
+				}else ok=TRUE;//blank organizer
+				if(ok){
+					pars_names_org(ps,a);
+					gtk_widget_set_sensitive(ps->organizer_bot,TRUE);
 				}
 				free(a);
 			}
 	}
 	size_t j=0;
 	for(size_t i=0;i<s;i++){
-		if(b[i]==' '){b[i]='\0';add_name(lst,b+j,ps);b[i]=' ';j=i+1;}
+		if(b[i]==' '){b[i]='\0';add_name(lst,b+j,ps,ok);b[i]=' ';j=i+1;}
 	}
-	add_name(lst,b+j,ps);
+	add_name(lst,b+j,ps,ok);
 }
 static void pars_quit(char*nk){
 	GList*list=gtk_container_get_children((GtkContainer*)chan_menu);
@@ -2438,6 +2440,15 @@ static void deciderfn(struct stk_s*ps){
 	}
 	else addattextmain("Must be in a channel",-1);
 }
+static void org_clear_rules(GtkNotebook*nb){
+	gint last=gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1));
+	for(int i=0;i<=last;i++){
+		GtkWidget*sc=gtk_notebook_get_nth_page(nb,gtk_notebook_get_current_page(nb));//scroll
+		GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
+		GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
+		gtk_list_store_clear((GtkListStore*)tm);
+	}
+}
 static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer user_data)
 {
 	gtk_widget_set_sensitive(ps->organizer_bot,FALSE);//will be TRUE when names comes in
@@ -2452,13 +2463,7 @@ static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer 
 				if(access(org_u,F_OK)==0||mkdir(org_u,0700)==0){//users conversations
 					if(chdir(org_g)==0||(mkdir(org_g,0700)==0&&chdir(org_g)==0)){
 						//empty current global/local
-						gint last=gtk_notebook_page_num(ps->organizer_notebook,gtk_notebook_get_nth_page(ps->organizer_notebook,-1));
-						for(int i=1;i<=last;i++){
-							GtkWidget*sc=gtk_notebook_get_nth_page(ps->organizer_notebook,gtk_notebook_get_current_page(ps->organizer_notebook));//scroll
-							GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
-							GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
-							gtk_list_store_clear((GtkListStore*)tm);
-						}
+						org_clear_rules(ps->organizer_notebook);
 						//retake global lists
 						if(chdir(dirback)==0){
 							if(chdir(org_c)==0||(mkdir(org_c,0700)==0&&chdir(org_c)==0)){
@@ -2506,6 +2511,7 @@ static void org_removechan(struct stk_s*ps){
 					if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(combo_box),nullptr)==0){//if was last
 						gtk_widget_set_sensitive(ps->organizer_removeentry,FALSE);
 						pars_names_org(ps,(char*)org_new_names);
+						org_clear_rules(ps->organizer_notebook);
 					}else{//there is segmentation at the moment if clicked again and nothing selected
 						gtk_combo_box_set_active(combo_box,0);
 					}
