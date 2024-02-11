@@ -303,7 +303,7 @@ enum {
 };
 struct org_col{
 	int pos;
-	GtkTreeModel*sort;
+	GtkTreeSortable*sort;
 };
 #define org_new_names "New"
 struct organizer_from_storage{
@@ -1107,7 +1107,7 @@ static void add_name_organizer(char*name,gpointer ps){
 	if(((struct stk_s*)ps)->organizer!=nullptr){
 		GtkListStore*new_entries=((struct stk_s*)ps)->organizer_entry_names;
 		GtkTreeIter it;//=GtkTreeIter();
-		gint n=gtk_tree_model_iter_n_children(new_entries,nullptr);
+		gint n=gtk_tree_model_iter_n_children((GtkTreeModel*)new_entries,nullptr);
 		gtk_list_store_append(new_entries,&it);
 		gtk_list_store_set(new_entries, &it, ORG_ID1, name, ORG_IDLE, 0x7fFFffFF, ORG_ID, n, ORG_PRIVATE, n, -1);
 	}
@@ -1149,7 +1149,7 @@ static void pars_names(GtkWidget*pan,char*b,size_t s,struct stk_s* ps,char*chann
 		if(ps->organizer!=nullptr)
 			if(char*a=server_channel(ps,channm,strlen(channm))){
 				pars_names_org(ps,a);
-				if(gchar*text=gtk_combo_box_text_get_active_text(ps->organizer_dirs)){//can be a blank organizer too
+				if(gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)ps->organizer_dirs)){//can be a blank organizer too
 					if(strcmp(text,a)==0){
 						gtk_widget_set_sensitive(ps->organizer_bot,TRUE);
 					}
@@ -2267,8 +2267,8 @@ static gboolean to_placeholder(GtkEntry*en,GdkEventKey*event){
 			//gtk_entry_buffer_insert_text(buf,gtk_entry_buffer_get_length(buf), //coming back there is not relevant at this point
 			//gtk_entry_buffer_set_text(buf, //this is delete text and isert at 0
 			gtk_entry_buffer_insert_text(buf,0,(const gchar*)&event->keyval,1);//this is the faster
-			gtk_widget_grab_focus(en);
-			gtk_editable_set_position(en, -1);//the text is selected all, need to move cursor to end
+			gtk_widget_grab_focus((GtkWidget*)en);
+			gtk_editable_set_position((GtkEditable*)en, -1);//the text is selected all, need to move cursor to end
 			return TRUE;
 		}
 	}
@@ -2441,7 +2441,7 @@ static void deciderfn(struct stk_s*ps){
 static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer user_data)
 {
 	gtk_widget_set_sensitive(ps->organizer_bot,FALSE);//will be TRUE when names comes in
-	if(gtk_combo_box_get_active (combo_box)!=-1){//this is the case when last entry is deleted
+	if(gtk_combo_box_get_active ((GtkComboBox*)combo_box)!=-1){//this is the case when last entry is deleted
 		if(to_organizer_folder(FALSE,FALSE)){//is possible to be in another folder
 			gchar*text=gtk_combo_box_text_get_active_text (combo_box);
 			//not this check, is the server folder there//if(*text!=chanstart){//only if the folder is malevolently changed(this case is at list repopulation)
@@ -2476,13 +2476,13 @@ static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer 
 static void org_removechan(struct stk_s*ps){
 	gint response;
 	if(gtk_toggle_button_get_active(ps->organizer_del_confirmation)){
-		GtkWidget*dialog=gtk_message_dialog_new(ps->organizer,GTK_DIALOG_DESTROY_WITH_PARENT/*modal will be at dialog_run*/,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"And delete stored data?");
+		GtkWidget*dialog=gtk_message_dialog_new((GtkWindow*)ps->organizer,GTK_DIALOG_DESTROY_WITH_PARENT/*modal will be at dialog_run*/,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"And delete stored data?");
 		response=gtk_dialog_run((GtkDialog*)dialog);
 		gtk_widget_destroy (dialog);
 	}else response=GTK_RESPONSE_YES;
 	if(to_organizer_folder(FALSE,FALSE)){//is possible to be in another folder
-		GtkComboBoxText *combo_box=ps->organizer_dirs;
-		gchar*text=gtk_combo_box_text_get_active_text (combo_box);
+		GtkComboBox *combo_box=ps->organizer_dirs;
+		gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)combo_box);
 		char*chan=strchr(text,chanstart);
 		*chan='\0';chan++;
 		if(chdir(text)==0&&chdir(org_c)==0&&chdir(chan)==0){
@@ -2497,7 +2497,7 @@ static void org_removechan(struct stk_s*ps){
 							rmdir(text);
 						}
 					}
-					gtk_combo_box_text_remove(combo_box,gtk_combo_box_get_active (combo_box));
+					gtk_combo_box_text_remove((GtkComboBoxText*)combo_box,gtk_combo_box_get_active (combo_box));
 					if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(combo_box),nullptr)==0){//if was last
 						gtk_widget_set_sensitive(ps->organizer_removeentry,FALSE);
 						pars_names_org(ps,(char*)org_new_names);
@@ -2513,7 +2513,7 @@ static void org_removechan(struct stk_s*ps){
 
 void organizer_tab_column_click(org_col*st){
 	gint pos=st->pos;
-	GtkTreeModel*sort=st->sort;
+	GtkTreeSortable*sort=st->sort;
 	gint i;GtkSortType s;
 	gboolean b=gtk_tree_sortable_get_sort_column_id (sort, &i, &s);
 	// It returns TRUE unless the sort_column_id is GTK_TREE_SORTABLE_DEFAULT_SORT_COLUMN_ID or GTK_TREE_SORTABLE_UNSORTED_SORT_COLUMN_ID.
@@ -2530,7 +2530,7 @@ void organizer_tab_column_click(org_col*st){
 		gtk_tree_sortable_set_sort_column_id(sort,pos,GTK_SORT_DESCENDING);
 	}
 }
-static void organizer_tab_column_add(GtkTreeView*tree,char*name,int pos,GtkTreeModel*sort){
+static void organizer_tab_column_add(GtkTreeView*tree,char*name,int pos,GtkTreeSortable*sort){
 	if(org_col*s=(org_col*)malloc(sizeof(org_col))){
 		s->pos=pos;s->sort=sort;
 		GtkCellRenderer *renderer= gtk_cell_renderer_text_new();
@@ -2544,14 +2544,14 @@ static void organizer_tab_column_add(GtkTreeView*tree,char*name,int pos,GtkTreeM
 }
 static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**child_out,gboolean is_global){
 	//                                          nick             user                 gender         idle in minutes server         id of append internal id for sorting back
-	GtkListStore*sort=gtk_list_store_new(ORG_N, G_TYPE_STRING,   G_TYPE_STRING,       G_TYPE_STRING, G_TYPE_INT,     G_TYPE_STRING, G_TYPE_INT,  G_TYPE_INT);//is already sortable
+	GtkTreeSortable*sort=(GtkTreeSortable*)gtk_list_store_new(ORG_N, G_TYPE_STRING,   G_TYPE_STRING,       G_TYPE_STRING, G_TYPE_INT,     G_TYPE_STRING, G_TYPE_INT,  G_TYPE_INT);//is already sortable
 	//any filter can come here
 	//GtkTreeModel*sort=gtk_tree_model_sort_new_with_model(list);
 	//g_object_unref(list);
 
 	//GtkTreeIter it;gtk_list_store_append(list,&it);gtk_list_store_set(list, &it, 0, "a", 1, "x", 2,"x",3,1,-1);gtk_list_store_append(list,&it);gtk_list_store_set(list, &it, 0, "b", 1, "x", 2,"x",3,2,-1);
 
-	GtkWidget*treeV=gtk_tree_view_new_with_model(sort);
+	GtkWidget*treeV=gtk_tree_view_new_with_model((GtkTreeModel*)sort);
 	g_object_unref(sort);
 
 	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Id",ORG_ID1,sort);
@@ -2575,7 +2575,7 @@ static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**chil
 		tab=gtk_label_new(title);
 	}
 	gtk_notebook_append_page_menu(nb,scroll,tab,gtk_label_new(title));
-	return sort;
+	return (GtkListStore*)sort;
 }
 
 static void iterate_folders_enter(int (*f)(const char*, void*),void*data){
@@ -2617,7 +2617,7 @@ static int organizer_populate_dirs_chans(const char*dir,void*s){
 static int organizer_populate_dirs(const char*dir,void*box){
 	int r=chdir("chans");
 	if(r==0){
-		organizer_from_storage s={box,dir};
+		organizer_from_storage s={(GtkComboBoxText*)box,dir};
 		if(iterate_folders(organizer_populate_dirs_chans,&s)==0){
 			return chdir("..");
 		}
@@ -2627,7 +2627,7 @@ static int organizer_populate_dirs(const char*dir,void*box){
 }
 
 static void org_addrule(struct stk_s*ps){
-	GtkWidget*dialog= gtk_dialog_new_with_buttons ("Add Rule",ps->organizer,(GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
+	GtkWidget*dialog= gtk_dialog_new_with_buttons ("Add Rule",(GtkWindow*)ps->organizer,(GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
 			    "_Cancel",GTK_RESPONSE_CANCEL,"_OK",GTK_RESPONSE_OK,nullptr);
 	GtkWidget*content=gtk_dialog_get_content_area((GtkDialog*)dialog);
 	GtkWidget*options=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
@@ -2643,7 +2643,7 @@ static void org_addrule(struct stk_s*ps){
 	GtkWidget*scope=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 	GtkWidget*r1=gtk_radio_button_new_with_label(nullptr,"Local");//no mnemonics here
 	gtk_box_pack_start((GtkBox*)scope,r1,FALSE,FALSE,0);
-	GtkWidget*r2=gtk_radio_button_new_with_label_from_widget(r1,"Global");
+	GtkWidget*r2=gtk_radio_button_new_with_label_from_widget((GtkRadioButton*)r1,"Global");
 	gtk_box_pack_start((GtkBox*)scope,r2,FALSE,FALSE,0);
 
 	gtk_box_pack_start((GtkBox*)options,scope,FALSE,FALSE,0);
@@ -2651,10 +2651,10 @@ static void org_addrule(struct stk_s*ps){
 	gtk_widget_show_all (dialog);//this to see the new widgets
 	int response=gtk_dialog_run((GtkDialog*)dialog);
 	if(response==GTK_RESPONSE_OK){
-		const gchar*text=gtk_entry_get_text(entry);
+		const gchar*text=gtk_entry_get_text((GtkEntry*)entry);
 		if(strlen(text)!=0){
 			GtkWidget*s;
-			organizer_tab_add(ps->organizer_notebook,(char*)text,&s,gtk_toggle_button_get_active(r2));
+			organizer_tab_add(ps->organizer_notebook,(char*)text,&s,gtk_toggle_button_get_active((GtkToggleButton*)r2));
 			gtk_widget_show_all(s);//to see the tab
 			gtk_widget_set_sensitive(ps->organizer_removerule,TRUE);
 		}
@@ -2701,10 +2701,10 @@ static void org_query(GtkNotebook*nb){
 	//-1(GTK_TREE_SORTABLE_DEFAULT_SORT_COLUMN_ID) is critical without a func and -2(GTK_TREE_SORTABLE_UNSORTED_SORT_COLUMN_ID) will not sort like original, so ORG_PRIVATE is required
 	//ORG_ID can be changed if sorting by another column and saving that way
 	gint pos;GtkSortType type;
-	gboolean orig_sort=gtk_tree_sortable_get_sort_column_id(tm, &pos, &type);
+	gboolean orig_sort=gtk_tree_sortable_get_sort_column_id((GtkTreeSortable*)tm, &pos, &type);
 
 	//sort by ORG_SERVER
-	gtk_tree_sortable_set_sort_column_id(tm,ORG_SERVER,GTK_SORT_ASCENDING);
+	gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)tm,ORG_SERVER,GTK_SORT_ASCENDING);
 
 	//sending whois server n1,..,nN
 	GtkTreeIter iter;
@@ -2758,9 +2758,9 @@ static void org_query(GtkNotebook*nb){
 
 	//sort back
 	if(orig_sort==FALSE){
-		gtk_tree_sortable_set_sort_column_id(tm,ORG_PRIVATE,GTK_SORT_ASCENDING);
+		gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)tm,ORG_PRIVATE,GTK_SORT_ASCENDING);
 	}else{
-		gtk_tree_sortable_set_sort_column_id(tm,pos,type);
+		gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)tm,pos,type);
 	}
 }
 
@@ -2770,26 +2770,46 @@ static void org_chat(struct stk_s*ps){
 	name_join_main((GtkTreeView*)tv,ps);//will add an if inside the function
 }
 
-static void org_move(GtkButton*b,GtkNotebook*nb){
-	const gchar*user=gtk_button_get_label(b);
+#define org_move_scan "%u" defaultstart "%u"
+static void org_move(GtkButton*button,GtkNotebook*nb){
+	const gchar*user=gtk_button_get_label(button);
+	//the attributions are not required if user click wrong, but this case is rare
+	gint nb_page_index=gtk_notebook_get_current_page(nb);
+	GtkWidget*current=gtk_notebook_get_nth_page(nb,nb_page_index);//scroll
+	GtkWidget*tv=gtk_bin_get_child((GtkBin*)current);
+	GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
+	GtkTreeIter iterator;
 	if(*user==*movestart){
-		gint nb_page_index=gtk_notebook_get_current_page(nb);
-		GtkWidget*current=gtk_notebook_get_nth_page(nb,nb_page_index);//scroll
-		GtkWidget*tv=gtk_bin_get_child((GtkBin*)current);
-		GtkTreeSelection *sel=gtk_tree_view_get_selection(tv);
-		GtkTreeIter iterator;
-		if(gtk_tree_selection_get_selected (sel,nullptr,&iterator)){
+		GtkTreeSelection *sel=gtk_tree_view_get_selection((GtkTreeView*)tv);
+		gboolean selected=gtk_tree_selection_get_selected (sel,nullptr,&iterator);
+		if(selected){
 			gchar*item_text;
-			GtkTreeModel*tm=gtk_tree_view_get_model(tv);
 			gint tree_index=get_pos_from_model(tm,&iterator);
 			if(char*space=(char*)malloc(digits_in_posInt+1+digits_in_posInt+1)){
-				sprintf(space,"%u" defaultstart "%u",nb_page_index,tree_index);
-				gtk_button_set_label(b,space);
+				sprintf(space,org_move_scan,nb_page_index,tree_index);
+				gtk_button_set_label(button,space);
 				free(space);
 			}
 		}
 	}else{
-		gtk_button_set_label(b,movestart);
+		gint tab,pos;
+		sscanf(user,org_move_scan,&tab,&pos);
+		if(tab!=nb_page_index){
+			if(GtkWidget*previous=gtk_notebook_get_nth_page(nb,tab)){//can be deleted between the clicks
+				GtkWidget*tvprev=gtk_bin_get_child((GtkBin*)previous);
+				GtkTreeModel*tmprev=gtk_tree_view_get_model((GtkTreeView*)tvprev);
+				if(gtk_tree_model_iter_nth_child(tmprev,&iterator,nullptr,pos)){//can be deleted between the clicks
+					gchar*a;gchar*b;gchar*c;int d;gchar*e;
+					gtk_tree_model_get(tmprev,&iterator,ORG_ID1,&a,ORG_ID2,&b,ORG_GEN,&c,ORG_IDLE,&d,ORG_SERVER,&e,-1);
+					gtk_list_store_remove((GtkListStore*)tmprev,&iterator);
+					gint n=gtk_tree_model_iter_n_children(tm,nullptr);
+					gtk_list_store_append((GtkListStore*)tm,&iterator);
+					gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,a,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_ID,n,ORG_PRIVATE,n,-1);
+					g_free(a);g_free(b);g_free(c);g_free(e);
+					gtk_button_set_label(button,movestart);
+				}
+			}
+		}
 	}
 }
 
@@ -2817,7 +2837,7 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 
 	GtkWidget*buttons=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 	GtkWidget*remove_chan=gtk_button_new_with_label("X");	ps->organizer_removeentry=remove_chan;
-	if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(dirs),nullptr)==0){
+	if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model((GtkComboBox*)dirs),nullptr)==0){
 		//is after repopulation
 		gtk_widget_set_sensitive (remove_chan,FALSE);
 		gtk_widget_set_sensitive(bot,FALSE);//else is set inside changed callback
@@ -2839,7 +2859,7 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	GtkWidget*del_confirmation=gtk_check_button_new_with_mnemonic("_Delete confirmation");//Alt+D
 	gtk_toggle_button_set_active((GtkToggleButton*)del_confirmation,TRUE);
 	gtk_box_pack_start((GtkBox*)buttonspack,del_confirmation,FALSE,FALSE,0);
-	ps->organizer_del_confirmation=del_confirmation;
+	ps->organizer_del_confirmation=(GtkToggleButton*)del_confirmation;
 
 	gtk_box_pack_start((GtkBox*)top,buttonspack,FALSE,FALSE,0);
 	gtk_box_pack_start((GtkBox*)box,top,FALSE,FALSE,0);
