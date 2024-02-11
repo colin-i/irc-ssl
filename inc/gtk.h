@@ -433,7 +433,6 @@ gboolean   gtk_widget_is_focus (GtkWidget *widget);
 void       gtk_widget_set_has_tooltip (GtkWidget *widget, gboolean has_tooltip);
 void       gtk_widget_set_sensitive (GtkWidget *widget, gboolean sensitive);
 void       gtk_widget_set_size_request (GtkWidget *widget,gint width,gint height);
-void       gtk_widget_set_tooltip_text (GtkWidget *widget, const gchar *text);
 void       gtk_widget_show (GtkWidget *widget);
 void       gtk_widget_show_all (GtkWidget *widget);
 void     gtk_window_close (GtkWindow *window);

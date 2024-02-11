@@ -955,7 +955,10 @@ static void pars_join(char*chan,struct stk_s*ps){
 	GtkWidget*pan=chan_pan(chan);
 	if(pan==nullptr){//can be kick and let the channel window
 		pan=container_frame(ps->separator,G_CALLBACK(name_join),ps);
-		gtk_widget_set_tooltip_text(pan,listing_info("names"));//is also a NAMES flag here
+
+		//this was only stopping blank names clear, but now will stop organizer otherwise
+		//gtk_widget_set_tooltip_text(pan,listing_info("names"));//is also a NAMES flag here
+
 		GtkWidget*close;GtkWidget*lb=add_new_tab(pan,chan,&close,ps->notebook,chan_menu,FALSE);
 		g_signal_connect_data (close, "clicked",G_CALLBACK (close_channel),lb,nullptr,G_CONNECT_SWAPPED);//but will close the notebook page only on PART received from the server
 	}
@@ -1146,27 +1149,24 @@ static void pars_names_org(struct stk_s*ps,char*serv_chan){
 	gtk_notebook_set_tab_label_text(ps->organizer_notebook,ps->organizer_entry_widget,serv_chan);
 	gtk_notebook_set_menu_label_text(ps->organizer_notebook,ps->organizer_entry_widget,serv_chan);
 }
-static void pars_names(GtkWidget*pan,char*b,size_t s,struct stk_s* ps,char*channm,BOOL is_auto_command){
+static void pars_names(GtkWidget*pan,char*b,size_t s,struct stk_s* ps,char*channm){
 	GtkListStore*lst=contf_get_list(pan);
 	if(listing_test(pan,lst)){//if first from a series of names until endNames
 		if(ps->organizer!=nullptr){
 			ps->organizer_can_add_names=FALSE;
-			if(is_auto_command){
-			//can hit Populate instead of manual "names #x", else will have to clear the list here
-			//and don't worry at fast Populate and two later names here, will test every entry for uniquenes in organizer
-				if(char*a=server_channel(ps,channm,strlen(channm))){
-					if(gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)ps->organizer_dirs)){//can be a blank organizer too
-						if(strcmp(text,a)==0){
-							ps->organizer_can_add_names=TRUE;
-						}
-						g_free(text);
-					}else ps->organizer_can_add_names=TRUE;//blank organizer
-					if(ps->organizer_can_add_names){
-						pars_names_org(ps,a);
-						gtk_widget_set_sensitive(ps->organizer_bot,TRUE);
+			if(char*a=server_channel(ps,channm,strlen(channm))){
+				if(gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)ps->organizer_dirs)){//can be a blank organizer too
+					if(strcmp(text,a)==0){
+						ps->organizer_can_add_names=TRUE;
+						gtk_list_store_clear(ps->organizer_entry_names);//not required only after org_changed
 					}
-					free(a);
+					g_free(text);
+				}else ps->organizer_can_add_names=TRUE;//blank organizer
+				if(ps->organizer_can_add_names){
+					pars_names_org(ps,a);
+					gtk_widget_set_sensitive(ps->organizer_bot,TRUE);
 				}
+				free(a);
 			}
 		}
 	}
@@ -1548,13 +1548,12 @@ static gboolean incsafe(gpointer ps){
 				show_to_clause(RPL_LIST)
 				list_end();
 			}else if(d==RPL_NAMREPLY){
-				BOOL is_auto_command=show_msg!=RPL_NAMREPLY;
-				if(is_auto_command)showmsg=FALSE;
+				if(show_msg!=RPL_NAMREPLY)showmsg=FALSE;
 				if(sscanf(b,"%*s %*c " channame_scan,channm)==1){
 					GtkWidget*p=chan_pan(channm);
 					if(p!=nullptr){
 						b=strchr(b,':');//join #q:w is error
-						if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a),(struct stk_s*)ps,channm,is_auto_command);
+						if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a),(struct stk_s*)ps,channm);
 					}
 				}
 			}else if(d==366){//RPL_ENDOFNAMES
@@ -2445,8 +2444,8 @@ static void deciderfn(struct stk_s*ps){
 			int current=gtk_combo_box_get_active(ps->organizer_dirs);
 			if(set_combo_box_text(ps->organizer_dirs,z)==FALSE){//is an existent entry
 				if(gtk_combo_box_get_active(ps->organizer_dirs)==current){//is same entry already selected
+					gtk_widget_set_sensitive(ps->organizer_bot,FALSE);//will be TRUE when names comes in
 					send_channel_related((char*)names_str,(char*)b,bs);
-					gtk_list_store_clear(ps->organizer_entry_names);
 				}
 			}else gtk_widget_set_sensitive(ps->organizer_removeentry,TRUE);
 			free(z);
