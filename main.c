@@ -94,8 +94,17 @@ static BOOL close_intention;
 //"510"
 #define irc_term "\r\n"
 #define irc_term_sz sizeof(irc_term)-1
-#define hostname_sz 512//arranging
-#define password_sz 505+1//fitting
+
+//#define _POSIX_HOST_NAME_MAX 255
+#define hostname_sz 256//arranging
+//at rfc level, for whois queries
+//and Servers are uniquely identified by their name, which has a maximum length of sixty three
+//Back in ancient times (v1 era) the maximum was bumped up from 63 to 64 for user hostnames (for some reason).
+#define hostnamerfc_sz 64
+#define hostnamerfcnul_sz hostnamerfc_sz+1
+#define hostnamerfc_scan "%64s"
+
+#define password_sz 256
 #define password_con "PASS %s" irc_term
 #define nickname_con "NICK %s" irc_term
 static char*info_path_name=nullptr;
@@ -1550,6 +1559,7 @@ static gboolean incsafe(gpointer ps){
 		char channm[chan_sz+1+digits_in_uint+1];//+ to set the "chan nr" at join on the same string
 		char channm_simple[channul_sz];
 		char nicknm[namenul_sz];
+		char hostname[hostnamerfcnul_sz];
 		char c;
 		BOOL is_privmsg=strcmp(com,priv_msg_str)==0;
 		if(is_privmsg||strcmp(com,not_msg_str)==0){
@@ -1589,7 +1599,12 @@ static gboolean incsafe(gpointer ps){
 		else{
 			showmsg=TRUE;
 			int d=atoi(com);//If no valid conversion could be performed, it returns zero;below,d==0
-			if(d==RPL_LIST){
+			if(d==312){//312 	RPL_WHOISSERVER 	RFC1459 	<nick> <server> :<server_info>
+				int s=sscanf(b,"%*s %*s " hostnamerfc_scan,hostname);
+				if(s==1){
+					//
+				}
+			}if(d==RPL_LIST){//if -f 0 or the option, this is rare
 				if(show_msg!=RPL_LIST)showmsg=FALSE;
 				unsigned int e;
 				//if its >nr ,c is not 2
@@ -3392,7 +3407,7 @@ int main (int    argc,
 		ps.args[password_id]="password";ps.args_short[password_id]='p';
 		g_application_add_main_option((GApplication*)app,ps.args[password_id],ps.args_short[password_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Default password (blank overwrite with \"" parse_host_left "host...\", the format is at the g.u.i. help)","PASSWORD");
 		ps.args[refresh_id]="refresh";ps.args_short[refresh_id]='f';//when ARG_INT and comming 0 it will not go further into the dict to know, ARG_STRING can do it
-		g_application_add_main_option((GApplication*)app,ps.args[refresh_id],ps.args_short[refresh_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Refresh channels interval in seconds. Default " INT_CONV_STR(default_refresh) ". Less than 1 to disable.","SECONDS");
+		g_application_add_main_option((GApplication*)app,ps.args[refresh_id],ps.args_short[refresh_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_STRING,"Refresh channels interval in seconds. Default " INT_CONV_STR(default_refresh) ". Less than 1 to disable.","SECONDS");//-f -1 is valid less than 1
 		ps.args[right_id]="right";ps.args_short[right_id]='r';
 		g_application_add_main_option((GApplication*)app,ps.args[right_id],ps.args_short[right_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_INT,"Right pane size, default " INT_CONV_STR(default_right),"WIDTH");
 		ps.args[run_id]="run";ps.args_short[run_id]='x';

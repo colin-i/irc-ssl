@@ -1,8 +1,14 @@
 
+a=0
 if [ -n "${d}" ]; then #debug
 dbg="gdb --args "
 fi
 if [ -n "${s}" ]; then #another dummy user
-extra="-y -n john"
+	if [ ${s} = 1 ]; then
+		extra="-y -n john"
+	else
+		extra="-y -n don"
+		a=1
+	fi
 fi
-${dbg} ./sirc -z -t -f 0 -a 0 -j 0,#q,#w ${extra} $@
+${dbg} ./sirc -z -t -f 0 -a ${a} -j ${a},#q,#w ${extra} $@
