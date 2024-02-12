@@ -151,6 +151,7 @@ e.g. newNick" parse_host_delim "a%40c" parse_host_left "127.0.0.1" parse_host_de
 #define channul_sz chan_sz+1
 #define channame_scan "%50s"
 #define name_sz 9
+#define prefix_name_sz 1+name_sz
 //"max. 9 characters"
 #define namenul_sz name_sz+1
 #define name_scan1 "%9"
@@ -298,7 +299,7 @@ enum {
   ORG_GEN     = 2,
   ORG_IDLE    = 3,
   ORG_SERVER  = 4,
-  ORG_ID      = 5,
+  ORG_INDEX   = 5,
   ORG_PRIVATE = 6,
   ORG_N
 };
@@ -1115,7 +1116,7 @@ static void add_name_organizer(char*name,struct stk_s*ps){
 			GtkTreeIter it;//=GtkTreeIter();
 			gint n=gtk_tree_model_iter_n_children((GtkTreeModel*)new_entries,nullptr);
 			gtk_list_store_append(new_entries,&it);
-			gtk_list_store_set(new_entries, &it, ORG_ID1, name, ORG_IDLE, 0x7fFFffFF, ORG_ID, n, ORG_PRIVATE, n, -1);
+			gtk_list_store_set(new_entries, &it, ORG_ID1, name, ORG_IDLE, 0x7fFFffFF, ORG_INDEX, n, ORG_PRIVATE, n, -1);
 		}
 	}
 }
@@ -1193,7 +1194,7 @@ static void pars_mod_set(GtkListStore*lst,char*n,int pos,BOOL plus){
 	if(plus){
 		if(get_iter_unmodes(lst,&it,n)){
 			gtk_list_store_remove(lst,&it);
-			char buf[1+name_sz+1];*buf=chanmodessigns[pos];
+			char buf[prefix_name_sz+1];*buf=chanmodessigns[pos];
 			strcpy(buf+1,n);
 			add_name_highuser(lst,buf);
 			return;
@@ -1202,7 +1203,7 @@ static void pars_mod_set(GtkListStore*lst,char*n,int pos,BOOL plus){
 		if(prevmod!='\0'){
 			if(pos<(strchr(chanmodessigns,prevmod)-chanmodessigns)){
 				gtk_list_store_remove(lst,&it);
-				char buf[1+name_sz+1];*buf=chanmodessigns[pos];
+				char buf[prefix_name_sz+1];*buf=chanmodessigns[pos];
 				strcpy(buf+1,n);
 				add_name_highuser(lst,buf);
 			}
@@ -1427,6 +1428,7 @@ static void line_switch(char*n,GtkWidget*from,GtkWidget*to,const char*msg){
 		g_list_free(lst);
 	}
 }
+
 static void counting_the_list(GtkWidget*w,const char*a){
 	gtk_widget_set_has_tooltip(w,FALSE);
 	char buf[digits_in_posInt+counting_the_list_size+sizeof(list_end_str)];
@@ -1434,7 +1436,60 @@ static void counting_the_list(GtkWidget*w,const char*a){
 	if(w==home_page)addattextmain(buf,n);
 	else addatchans(user_info,buf,w);
 }
-static void names_end(GtkWidget*p,char*chan){
+static void names_end_org(struct stk_s* ps){//N*U uniqueness, this kind of check also at whois end
+	if(ps->organizer!=nullptr){
+		if(ps->organizer_can_add_names){
+			GtkListStore*list=gtk_list_store_new(1,G_TYPE_STRING);
+			gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)list,0,GTK_SORT_ASCENDING);
+
+			GtkTreeIter it;gchar*nick;gboolean valid;GtkTreeIter iter;
+			GtkNotebook*nb=ps->organizer_notebook;
+			gint last=gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1));
+			for(int i=1;i<=last;i++){
+				GtkWidget*sc=gtk_notebook_get_nth_page(nb,i);//scroll
+				GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
+				GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
+				valid=gtk_tree_model_get_iter_first (tm, &it);
+				while(valid){
+					//gchar*user;
+					gtk_tree_model_get (tm, &it, ORG_ID1, &nick, -1);//ORG_ID2, &user,-1);
+					//char n_u[prefix_name_sz+1+prefix_name_sz+1];
+					//sprintf(n_u,"%s" defaultstart "%s",nick,user==nullptr?"":user);
+					gtk_list_store_append(list, &iter);
+					gtk_list_store_set(list,&iter,0,nick,-1);//is sorted
+					g_free(nick);//g_free(user);
+					valid = gtk_tree_model_iter_next(tm, &it);
+				}
+			}
+			GtkListStore*new_entries=ps->organizer_entry_names;
+			valid=gtk_tree_model_get_iter_first (new_entries, &it);//then End of NAMES list can come without users, tested for unexistent channel
+			while(valid){
+				gtk_tree_model_get(new_entries, &it, 0, &nick, -1);
+				gtk_list_store_append(list, &iter);
+				gtk_list_store_set(list,&iter,0,nick,-1);
+
+				//check only for previous if is same, is sorted
+				if(gtk_tree_model_iter_previous((GtkTreeModel*)list, &iter)){
+					gchar*nickprev;
+					gtk_tree_model_get((GtkTreeModel*)list, &iter, 0, &nickprev, -1);
+					if(strcmp(nick,nickprev)==0){
+						g_free(nickprev);g_free(nick);
+						gtk_list_store_remove(list,&iter);
+						valid=gtk_list_store_remove(new_entries,&it);//iter is next valid row
+						continue;
+					}
+					g_free(nickprev);
+				}
+
+				g_free(nick);
+				valid = gtk_tree_model_iter_next(new_entries, &it);
+			}
+			g_object_unref(list);
+		}
+	}
+}
+static void names_end(GtkWidget*p,char*chan,gpointer ps){
+	names_end_org((struct stk_s*)ps);
 	counting_the_list(p,names_small_str);
 	char c[chan_sz+1+digits_in_uint+1];
 	GtkTreeIter it;gchar*text;
@@ -1463,6 +1518,7 @@ static void list_end(){
 	if(gtk_widget_get_has_tooltip(home_page))//can be zero channels and this
 		counting_the_list(home_page,chans_small_str);
 }
+
 static void send_autojoin(struct stk_s*ps){
 	for(size_t i=0;i<ps->ajoins_sum;i++)
 		if(ps->ajoins[i].c==ps->active){
@@ -1560,7 +1616,7 @@ static gboolean incsafe(gpointer ps){
 				show_to_clause(RPL_NAMREPLY)
 				if(sscanf(b,"%*s " channame_scan,channm)==1){
 					GtkWidget*p=chan_pan(channm);
-					if(p!=nullptr)names_end(p,channm);//at a join
+					if(p!=nullptr)names_end(p,channm,ps);//at a join
 				}
 			}else if(d==332){//RPL_TOPIC
 				if(sscanf(b,name_scan " " channame_scan " %c",nicknm,channm,&c)==3)
@@ -2456,7 +2512,7 @@ static void deciderfn(struct stk_s*ps){
 static void org_clear_rules(GtkNotebook*nb){
 	gint last=gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1));
 	for(int i=1;i<=last;i++){
-		GtkWidget*sc=gtk_notebook_get_nth_page(nb,gtk_notebook_get_current_page(nb));//scroll
+		GtkWidget*sc=gtk_notebook_get_nth_page(nb,i);//scroll
 		GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
 		GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
 		gtk_list_store_clear((GtkListStore*)tm);
@@ -2584,7 +2640,7 @@ static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**chil
 	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Gender",ORG_GEN,sort);
 	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Idle",ORG_IDLE,sort);
 	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Server",ORG_SERVER,sort);
-	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Index",ORG_ID,sort);
+	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Index",ORG_INDEX,sort);
 
 	GtkWidget*scroll = gtk_scrolled_window_new(nullptr, nullptr);
 	//if(child_out!=nullptr)
@@ -2724,7 +2780,7 @@ static void org_query(GtkNotebook*nb){
 
 	//get current order
 	//-1(GTK_TREE_SORTABLE_DEFAULT_SORT_COLUMN_ID) is critical without a func and -2(GTK_TREE_SORTABLE_UNSORTED_SORT_COLUMN_ID) will not sort like original, so ORG_PRIVATE is required
-	//ORG_ID can be changed if sorting by another column and saving that way
+	//ORG_INDEX can be changed if sorting by another column and saving that way
 	gint pos;GtkSortType type;
 	gboolean orig_sort=gtk_tree_sortable_get_sort_column_id((GtkTreeSortable*)tm, &pos, &type);
 
@@ -2795,12 +2851,24 @@ static void org_chat(struct stk_s*ps){
 	name_join_main((GtkTreeView*)tv,ps);//will add an if inside the function
 }
 
+static void org_move_indexed(GtkTreeModel*m,int col,gint pos){
+	GtkTreeIter it;
+	gboolean valid=gtk_tree_model_get_iter_first (m, &it);
+	while(valid){
+		gint p;
+		gtk_tree_model_get (m, &it, col, &p, -1);
+		if(p>pos)
+			gtk_list_store_set((GtkListStore*)m, &it, col, p-1, -1);
+		valid = gtk_tree_model_iter_next(m, &it);
+	}
+}
 #define org_move_scan "%u" defaultstart "%u"
 static void org_move(GtkButton*button,GtkNotebook*nb){
 	const gchar*user=gtk_button_get_label(button);
 	//the attributions are not required if user click wrong, but this case is rare
 	gint nb_page_index=gtk_notebook_get_current_page(nb);
 	GtkWidget*current=gtk_notebook_get_nth_page(nb,nb_page_index);//scroll
+	//const gchar* rule=gtk_label_get_text(gtk_notebook_get_tab_label(nb,current)); see if is global with use-markup prop
 	GtkWidget*tv=gtk_bin_get_child((GtkBin*)current);
 	GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
 	GtkTreeIter iterator;
@@ -2819,19 +2887,21 @@ static void org_move(GtkButton*button,GtkNotebook*nb){
 	}else{
 		gint tab,pos;
 		sscanf(user,org_move_scan,&tab,&pos);
-		if(tab!=nb_page_index){
+		if(tab!=nb_page_index){//this is same place
 			if(GtkWidget*previous=gtk_notebook_get_nth_page(nb,tab)){//can be deleted between the clicks
 				GtkWidget*tvprev=gtk_bin_get_child((GtkBin*)previous);
 				GtkTreeModel*tmprev=gtk_tree_view_get_model((GtkTreeView*)tvprev);
 				if(gtk_tree_model_iter_nth_child(tmprev,&iterator,nullptr,pos)){//can be deleted between the clicks
-					gchar*a;gchar*b;gchar*c;int d;gchar*e;
-					gtk_tree_model_get(tmprev,&iterator,ORG_ID1,&a,ORG_ID2,&b,ORG_GEN,&c,ORG_IDLE,&d,ORG_SERVER,&e,-1);
+					gchar*a;gchar*b;gchar*c;gint d;gchar*e;
+					gint f;gint g;//indexes are not ok with holes, at sorting
+					gtk_tree_model_get(tmprev,&iterator,ORG_ID1,&a,ORG_ID2,&b,ORG_GEN,&c,ORG_IDLE,&d,ORG_SERVER,&e,ORG_INDEX,&f,ORG_PRIVATE,&g,-1);
 					gtk_list_store_remove((GtkListStore*)tmprev,&iterator);
+					org_move_indexed(tmprev,ORG_INDEX,f);
+					org_move_indexed(tmprev,ORG_PRIVATE,g);
 					gint n=gtk_tree_model_iter_n_children(tm,nullptr);
 					gtk_list_store_append((GtkListStore*)tm,&iterator);
-					gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,a,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_ID,n,ORG_PRIVATE,n,-1);
+					gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,a,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_INDEX,n,ORG_PRIVATE,n,-1);
 					g_free(a);g_free(b);g_free(c);g_free(e);
-					gtk_button_set_label(button,movestart);
 					//and select the moved item
 					GtkTreePath * path = gtk_tree_model_get_path ( tm , &iterator );
 					gtk_tree_view_set_cursor((GtkTreeView*)tv,path,nullptr,false);
@@ -2839,6 +2909,7 @@ static void org_move(GtkButton*button,GtkNotebook*nb){
 				}
 			}
 		}
+		gtk_button_set_label(button,movestart);
 	}
 }
 
@@ -2923,21 +2994,21 @@ static void organizer_destroy_from_selfclose(struct stk_s*ps){
 static void organizer_popup(struct stk_s*ps){
 	if(ps->organizer==nullptr){
 		if(to_organizer_folder(FALSE,FALSE)){
-			GtkWidget *dialog = gtk_application_window_new ((GtkApplication*)ps->app);
-			ps->organizer=dialog;
+			GtkWidget *win = gtk_application_window_new ((GtkApplication*)ps->app);
+			ps->organizer=win;
 			//GtkWidget *dialog = gtk_dialog_new_with_buttons("Organizer",  nullptr, (GtkDialogFlags)0,  "_Done",GTK_RESPONSE_NONE,nullptr);//still is on top
 
-			gtk_window_set_title((GtkWindow*)dialog, "Organizer");
-			g_signal_connect_data(dialog,"destroy",G_CALLBACK(organizer_destroy_from_selfclose),ps,nullptr,G_CONNECT_SWAPPED);
+			gtk_window_set_title((GtkWindow*)win, "Organizer");
+			g_signal_connect_data(win,"destroy",G_CALLBACK(organizer_destroy_from_selfclose),ps,nullptr,G_CONNECT_SWAPPED);
 
 			int w;int h;
 			gtk_window_get_size(ps->main_win,&w,&h);w*=0xf;
-			gtk_window_set_default_size((GtkWindow*)dialog,w/0x10,h);//h is not doing right for this width
+			gtk_window_set_default_size((GtkWindow*)win,w/0x10,h);//h is not doing right for this width
 
-			organizer_populate(dialog,ps);
+			organizer_populate(win,ps);
 
-			gtk_widget_show_all(dialog);
-			//gtk_window_unmaximize((GtkWindow*)dialog);//at this dims will be automaximized, at dims/2 will not be automaximized  //is not working here
+			gtk_widget_show_all(win);
+			//gtk_window_unmaximize((GtkWindow*)win);//at this dims will be automaximized, at dims/2 will not be automaximized  //is not working here
 		}
 	}else gtk_window_present((GtkWindow*)ps->organizer);
 }
@@ -2956,7 +3027,7 @@ static gboolean prog_key_press (struct stk_s*ps, GdkEventKey  *event){
 						gtk_widget_destroy((GtkWidget*)list->data);
 					}
 					g_list_free(lst);
-					reload_tabs(chan_menu,menuwithtabs,ps->notebook);
+					reload_tabs(chan_menu,menuwithtabs,ps->notebook);//sorted from here
 					reload_tabs(name_on_menu,menuwithtabs,ps->notebook);
 					reload_tabs(name_off_menu,menuwithtabs,ps->notebook);
 					gtk_menu_popup_at_widget((GtkMenu*)menuwithtabs,(GtkWidget*)ps->notebook,GDK_GRAVITY_NORTH_WEST,GDK_GRAVITY_NORTH_WEST,nullptr);
