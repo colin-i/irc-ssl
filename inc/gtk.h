@@ -330,6 +330,7 @@ void            gtk_entry_set_text (GtkEntry *entry, const gchar *text);
 GType      gtk_image_get_type (void) __attribute__((__const__));
 GtkWidget* gtk_image_new_from_icon_name (const gchar *icon_name, GtkIconSize size);
 GtkWidget *  gtk_label_get_mnemonic_widget (GtkLabel *label);
+gboolean     gtk_label_get_use_markup (GtkLabel *label);
 void         gtk_label_set_markup (GtkLabel *label, const gchar *str);
 void         gtk_label_set_mnemonic_widget (GtkLabel *label, GtkWidget *widget);
 const gchar* gtk_label_get_text (GtkLabel *label);

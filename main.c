@@ -91,18 +91,33 @@ static BOOL close_intention;
 #define ssl_con_try "Trying with SSL.\n"
 #define ssl_con_plain "Trying unencrypted.\n"
 #define irc_bsz 64
-//"510"
+//"there are 510 characters maximum allowed for the command and its parameters"
 #define irc_term "\r\n"
 #define irc_term_sz sizeof(irc_term)-1
 
 //#define _POSIX_HOST_NAME_MAX 255
 #define hostname_sz 256//arranging
 //at rfc level, for whois queries
-//and Servers are uniquely identified by their name, which has a maximum length of sixty three
+//and "Servers are uniquely identified by their name, which has a maximum length of sixty three (63)"
 //Back in ancient times (v1 era) the maximum was bumped up from 63 to 64 for user hostnames (for some reason).
 #define hostnamerfc_sz 64
 #define hostnamerfcnul_sz hostnamerfc_sz+1
 #define hostnamerfc_scan "%64s"
+#define chan_sz 50
+//"up to fifty (50) characters"
+#define channul_sz chan_sz+1
+#define channame_scan "%50s"
+#define name_sz 9
+#define prefix_name_sz 1+name_sz
+//"max. 9 characters"
+#define namenul_sz name_sz+1
+#define name_scan1 "%9"
+#define name_scan name_scan1 "s"
+#define mod_scan "%4s"
+//"Ident userid limited to 10 chars"
+#define user_sz 10
+#define usernul_sz user_sz+1
+#define user_scan "%10s"
 
 #define password_sz 256
 #define password_con "PASS %s" irc_term
@@ -155,17 +170,6 @@ A " parse_host_ports_macro_text " (" parse_host_ports_macro ") will override the
 Escape " parse_host_left " in password with the uri format (\"%40\").\n\
 e.g. newNick" parse_host_delim "a%40c" parse_host_left "127.0.0.1" parse_host_delim "7000" parse_host_ports_macro "6660" parse_host_ports_delim "6665" parse_host_ports_micro "6669"
 
-#define chan_sz 50
-//"up to fifty (50) characters"
-#define channul_sz chan_sz+1
-#define channame_scan "%50s"
-#define name_sz 9
-#define prefix_name_sz 1+name_sz
-//"max. 9 characters"
-#define namenul_sz name_sz+1
-#define name_scan1 "%9"
-#define name_scan name_scan1 "s"
-#define mod_scan "%4s"
 struct data_len{
 	const char*data;size_t len;
 };
@@ -820,13 +824,14 @@ static GtkWidget* name_join_nb(char*t,GtkNotebook*nb){
 //@ for full operators, +o
 //% for half operators, +h
 //+ for voiced users, +v
+#define nickname_prefixless(a) nickname_start(a)?a:a+1
 static void name_join_main(GtkTreeView*tree,struct stk_s*ps){
 	GtkTreeSelection *sel=gtk_tree_view_get_selection(tree);
 	GtkTreeIter iterator;
 	if(gtk_tree_selection_get_selected (sel,nullptr,&iterator)){//this is required at org_chat call only
 		gchar*item_text;
 		gtk_tree_model_get (gtk_tree_view_get_model(tree), &iterator, LIST_ITEM_OR_ORG_ID1, &item_text, -1);
-		char*a=nickname_start(item_text)?item_text:item_text+1;
+		char*a=nickname_prefixless(item_text);
 		if(name_join_isnew(ps,a))
 			gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,name_join_nb(a,ps->notebook)));
 		g_free(item_text);
@@ -1447,46 +1452,83 @@ static void counting_the_list(GtkWidget*w,const char*a){
 	if(w==home_page)addattextmain(buf,n);
 	else addatchans(user_info,buf,w);
 }
+static void names_org_changeprefix(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter,gchar*nick){
+	gint tab;gint pos;
+	gtk_tree_model_get((GtkTreeModel*)list, iter, 3,&tab, 4,&pos, -1);
+
+	GtkWidget*sc=gtk_notebook_get_nth_page(nb,tab);
+	GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
+	GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
+
+	gtk_tree_model_iter_nth_child(tm, iter, nullptr, pos);
+	gtk_list_store_set((GtkListStore*)tm,iter, ORG_ID1,nick, -1);
+}
 static void names_end_org(struct stk_s* ps){//N*U uniqueness, this kind of check also at whois end
 	if(ps->organizer!=nullptr){
 		if(ps->organizer_can_add_names){
-			GtkListStore*list=gtk_list_store_new(1,G_TYPE_STRING);
+			GtkListStore*list=gtk_list_store_new(5,G_TYPE_STRING,G_TYPE_INT,G_TYPE_INT,G_TYPE_INT,G_TYPE_INT);//second is for prefix, third for is_global to not change prefix there, tab,pos
 			gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)list,0,GTK_SORT_ASCENDING);
 
 			GtkTreeIter it;gchar*nick;gboolean valid;GtkTreeIter iter;
+			gchar*nick_new;gint nick_new_has_pref;
 			GtkNotebook*nb=ps->organizer_notebook;
 			gint last=gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1));
-			for(int i=1;i<=last;i++){
-				GtkWidget*sc=gtk_notebook_get_nth_page(nb,i);//scroll
+			for(int tab=1;tab<=last;tab++){
+				GtkWidget*sc=gtk_notebook_get_nth_page(nb,tab);//scroll
 				GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
 				GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
-				valid=gtk_tree_model_get_iter_first (tm, &it);
+				gboolean is_global=gtk_label_get_use_markup(gtk_notebook_get_tab_label(nb,sc));
+
+				valid=gtk_tree_model_get_iter_first (tm, &it);int pos=0;
 				while(valid){
 					//gchar*user;
 					gtk_tree_model_get (tm, &it, ORG_ID1, &nick, -1);//ORG_ID2, &user,-1);
 					//char n_u[prefix_name_sz+1+prefix_name_sz+1];
 					//sprintf(n_u,"%s" defaultstart "%s",nick,user==nullptr?"":user);
 					gtk_list_store_append(list, &iter);
-					gtk_list_store_set(list,&iter,0,nick,-1);//is sorted
+					if nickname_start(nick) {nick_new=nick;nick_new_has_pref=0;}
+					else{nick_new=nick+1;nick_new_has_pref=1;}
+					gtk_list_store_set(list,&iter, 0,nick_new, 1,nick_new_has_pref, 2,is_global, 3,tab, 4,pos, -1);
 					g_free(nick);//g_free(user);
-					valid = gtk_tree_model_iter_next(tm, &it);
+					valid = gtk_tree_model_iter_next(tm, &it);pos++;
 				}
 			}
 			GtkListStore*new_entries=ps->organizer_entry_names;
 			valid=gtk_tree_model_get_iter_first (new_entries, &it);//then End of NAMES list can come without users, tested for unexistent channel
 			while(valid){
 				gtk_tree_model_get(new_entries, &it, 0, &nick, -1);
+				if nickname_start(nick){nick_new=nick;nick_new_has_pref=0;}
+				else{nick_new=nick+1;nick_new_has_pref=1;}
+
 				gtk_list_store_append(list, &iter);
-				gtk_list_store_set(list,&iter,0,nick,-1);
+				gtk_list_store_set(list,&iter,0,nick_new,-1);
 
 				//check only for previous if is same, is sorted
+				GtkTreeIter new_iter=iter;//delete this new iter and let prev with has_pref,is_global,tab,pos
 				if(gtk_tree_model_iter_previous((GtkTreeModel*)list, &iter)){
 					gchar*nickprev;
-					gtk_tree_model_get((GtkTreeModel*)list, &iter, 0, &nickprev, -1);
-					if(strcmp(nick,nickprev)==0){
-						g_free(nickprev);g_free(nick);
-						gtk_list_store_remove(list,&iter);
+					gtk_tree_model_get((GtkTreeModel*)list,&iter, 0,&nickprev, -1);
+					if(strcmp(nick_new,nickprev)==0){
+						g_free(nickprev);
+						gtk_list_store_remove(list,&new_iter);
+
 						valid=gtk_list_store_remove(new_entries,&it);//iter is next valid row
+						//and ignore ORG_INDEX ORG_PRIVATE , this list is volatile
+
+						gint has_pref;gint is_global;
+						gtk_tree_model_get((GtkTreeModel*)list, &iter, 1,&has_pref, 2,&is_global, -1);
+						if(is_global==FALSE){//only when prefix can be changed
+							if(has_pref){//and has pref
+								if(nick_new_has_pref==FALSE){//remove prefix at the stored entry
+									names_org_changeprefix(nb,list,&iter,nick);
+								}
+							}else{
+								if(nick_new_has_pref){//add prefix at the stored entry
+									names_org_changeprefix(nb,list,&iter,nick);
+								}
+							}
+						}
+						g_free(nick);
 						continue;
 					}
 					g_free(nickprev);
@@ -1543,6 +1585,27 @@ static void action_to_close(){
 	if(ssl!=nullptr)SSL_shutdown(ssl);
 	else if(plain_socket!=-1)shutdown(plain_socket,2);
 }
+
+static void whois_update(GtkNotebook*nb,int col,char*nick,char*text){
+	gint nb_page_index=gtk_notebook_get_current_page(nb);
+	GtkWidget*current=gtk_notebook_get_nth_page(nb,nb_page_index);//scroll
+	GtkWidget*tv=gtk_bin_get_child((GtkBin*)current);
+	GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
+	GtkTreeIter it;
+	gboolean valid=gtk_tree_model_get_iter_first (tm, &it);
+	while(valid){//compare at first?yes, is coming from online, no rule to freeze organizer in the meantime yet
+		gchar*n;
+		gtk_tree_model_get (tm, &it, ORG_ID1, &n, -1);
+		if(strcmp(nickname_prefixless(n),nick)==0){
+			g_free(n);
+			gtk_list_store_set((GtkListStore*)tm,&it, col,text, -1);
+			return;
+		}
+		g_free(n);
+		valid = gtk_tree_model_iter_next(tm, &it);
+	}
+}
+
 static gboolean incsafe(gpointer ps){
 	#pragma GCC diagnostic push
 	#pragma GCC diagnostic ignored "-Wcast-qual"
@@ -1559,8 +1622,9 @@ static gboolean incsafe(gpointer ps){
 		size_t ln=strlen(com);
 		char*b=strchr(a,' ')+1+ln;if(*b==' ')b++;
 		char channm[chan_sz+1+digits_in_uint+1];//+ to set the "chan nr" at join on the same string
-		char channm_simple[channul_sz];
+		char channm_simple[channul_sz];//this is extra but is good at compiler warnings
 		char nicknm[namenul_sz];
+		char username[usernul_sz];
 		char hostname[hostnamerfcnul_sz];
 		char c;
 		BOOL is_privmsg=strcmp(com,priv_msg_str)==0;
@@ -1604,12 +1668,16 @@ static gboolean incsafe(gpointer ps){
 
 			//301 RPL_AWAY
 			if(d==RPL_WHOISUSER){
-				show_between_clause(RPL_WHOISUSER)
-			}else if(d==312){//312 	RPL_WHOISSERVER 	RFC1459 	<nick> <server> :<server_info>
-				show_between_clause(RPL_WHOISUSER)
-				int s=sscanf(b,"%*s %*s " hostnamerfc_scan,hostname);
-				if(s==1){
-					//
+				if(((struct stk_s*)ps)->organizer!=nullptr){
+					show_between_clause(RPL_WHOISUSER)
+					int s=sscanf(b,"%*s " name_scan " ~" user_scan,nicknm,username);
+					if(s==2)whois_update(((struct stk_s*)ps)->organizer_notebook,ORG_ID2,nicknm,username);
+				}
+			}else if(d==312){//RPL_WHOISSERVER 	RFC1459 	<nick> <server> :<server_info>
+				if(((struct stk_s*)ps)->organizer!=nullptr){
+					show_between_clause(RPL_WHOISUSER)
+					int s=sscanf(b,"%*s " name_scan hostnamerfc_scan,nicknm,hostname);
+					if(s==2)whois_update(((struct stk_s*)ps)->organizer_notebook,ORG_SERVER,nicknm,hostname);
 				}
 			}else if(d==317){//RPL_WHOISIDLE
 				show_between_clause(RPL_WHOISUSER)
@@ -2910,7 +2978,6 @@ static void org_move(GtkButton*button,GtkNotebook*nb){
 	//the attributions are not required if user click wrong, but this case is rare
 	gint nb_page_index=gtk_notebook_get_current_page(nb);
 	GtkWidget*current=gtk_notebook_get_nth_page(nb,nb_page_index);//scroll
-	//const gchar* rule=gtk_label_get_text(gtk_notebook_get_tab_label(nb,current)); see if is global with use-markup prop
 	GtkWidget*tv=gtk_bin_get_child((GtkBin*)current);
 	GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
 	GtkTreeIter iterator;
@@ -2934,6 +3001,9 @@ static void org_move(GtkButton*button,GtkNotebook*nb){
 				GtkWidget*tvprev=gtk_bin_get_child((GtkBin*)previous);
 				GtkTreeModel*tmprev=gtk_tree_view_get_model((GtkTreeView*)tvprev);
 				if(gtk_tree_model_iter_nth_child(tmprev,&iterator,nullptr,pos)){//can be deleted between the clicks
+					//at global, no channel prefix for the user, attention if wanting to go back at local with no prefix
+					gboolean is_global=gtk_label_get_use_markup(gtk_notebook_get_tab_label(nb,current));
+
 					gchar*a;gchar*b;gchar*c;gint d;gchar*e;
 					gint f;gint g;//indexes are not ok with holes, at sorting
 					gtk_tree_model_get(tmprev,&iterator,ORG_ID1,&a,ORG_ID2,&b,ORG_GEN,&c,ORG_IDLE,&d,ORG_SERVER,&e,ORG_INDEX,&f,ORG_PRIVATE,&g,-1);
@@ -2942,7 +3012,7 @@ static void org_move(GtkButton*button,GtkNotebook*nb){
 					org_move_indexed(tmprev,ORG_PRIVATE,g);
 					gint n=gtk_tree_model_iter_n_children(tm,nullptr);
 					gtk_list_store_append((GtkListStore*)tm,&iterator);
-					gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,a,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_INDEX,n,ORG_PRIVATE,n,-1);
+					gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,is_global?nickname_prefixless(a):a,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_INDEX,n,ORG_PRIVATE,n,-1);
 					g_free(a);g_free(b);g_free(c);g_free(e);
 					//and select the moved item
 					GtkTreePath * path = gtk_tree_model_get_path ( tm , &iterator );
