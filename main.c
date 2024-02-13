@@ -315,7 +315,6 @@ enum {
   ORG_IDLE    = 3,
   ORG_SERVER  = 4,
   ORG_INDEX   = 5,
-  ORG_PRIVATE = 6,
   ORG_N
 };
 struct org_col{
@@ -1132,7 +1131,7 @@ static void add_name_organizer(char*name,struct stk_s*ps){
 			GtkTreeIter it;//=GtkTreeIter();
 			gint n=gtk_tree_model_iter_n_children((GtkTreeModel*)new_entries,nullptr);
 			gtk_list_store_append(new_entries,&it);
-			gtk_list_store_set(new_entries, &it, ORG_ID1, name, ORG_IDLE, 0x7fFFffFF, ORG_INDEX, n, ORG_PRIVATE, n, -1);
+			gtk_list_store_set(new_entries, &it, ORG_ID1, name, ORG_IDLE, 0x7fFFffFF, ORG_INDEX, n, -1);
 		}
 	}
 }
@@ -1452,7 +1451,19 @@ static void counting_the_list(GtkWidget*w,const char*a){
 	if(w==home_page)addattextmain(buf,n);
 	else addatchans(user_info,buf,w);
 }
-static void names_org_changeprefix(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter,gchar*nick){
+
+static void org_move_indexed(GtkTreeModel*m,gint pos){
+	GtkTreeIter it;
+	gboolean valid=gtk_tree_model_get_iter_first (m, &it);
+	while(valid){
+		gint p;
+		gtk_tree_model_get (m, &it, ORG_INDEX, &p, -1);
+		if(p>pos)
+			gtk_list_store_set((GtkListStore*)m, &it, ORG_INDEX, p-1, -1);
+		valid = gtk_tree_model_iter_next(m, &it);
+	}
+}
+static void org_changeprefix(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter,gchar*nick){
 	gint tab;gint pos;
 	gtk_tree_model_get((GtkTreeModel*)list, iter, 3,&tab, 4,&pos, -1);
 
@@ -1470,7 +1481,7 @@ static void names_end_org(struct stk_s* ps){//N*U uniqueness, this kind of check
 			gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)list,0,GTK_SORT_ASCENDING);
 
 			GtkTreeIter it;gchar*nick;gboolean valid;GtkTreeIter iter;
-			gchar*nick_new;gint nick_new_has_pref;
+			gchar*nick_new;gint nick_new_pref;
 			GtkNotebook*nb=ps->organizer_notebook;
 			gint last=gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1));
 			for(int tab=1;tab<=last;tab++){
@@ -1486,9 +1497,9 @@ static void names_end_org(struct stk_s* ps){//N*U uniqueness, this kind of check
 					//char n_u[prefix_name_sz+1+prefix_name_sz+1];
 					//sprintf(n_u,"%s" defaultstart "%s",nick,user==nullptr?"":user);
 					gtk_list_store_append(list, &iter);
-					if nickname_start(nick) {nick_new=nick;nick_new_has_pref=0;}
-					else{nick_new=nick+1;nick_new_has_pref=1;}
-					gtk_list_store_set(list,&iter, 0,nick_new, 1,nick_new_has_pref, 2,is_global, 3,tab, 4,pos, -1);
+					if nickname_start(nick) {nick_new=nick;nick_new_pref=0;}
+					else{nick_new=nick+1;nick_new_pref=*nick;}//not at is_global
+					gtk_list_store_set(list,&iter, 0,nick_new, 1,nick_new_pref, 2,is_global, 3,tab, 4,pos, -1);
 					g_free(nick);//g_free(user);
 					valid = gtk_tree_model_iter_next(tm, &it);pos++;
 				}
@@ -1496,9 +1507,9 @@ static void names_end_org(struct stk_s* ps){//N*U uniqueness, this kind of check
 			GtkListStore*new_entries=ps->organizer_entry_names;
 			valid=gtk_tree_model_get_iter_first (new_entries, &it);//then End of NAMES list can come without users, tested for unexistent channel
 			while(valid){
-				gtk_tree_model_get(new_entries, &it, 0, &nick, -1);
-				if nickname_start(nick){nick_new=nick;nick_new_has_pref=0;}
-				else{nick_new=nick+1;nick_new_has_pref=1;}
+				gtk_tree_model_get(new_entries, &it, ORG_ID1, &nick, -1);
+				if nickname_start(nick){nick_new=nick;nick_new_pref=0;}
+				else{nick_new=nick+1;nick_new_pref=*nick;}
 
 				gtk_list_store_append(list, &iter);
 				gtk_list_store_set(list,&iter,0,nick_new,-1);
@@ -1513,19 +1524,16 @@ static void names_end_org(struct stk_s* ps){//N*U uniqueness, this kind of check
 						gtk_list_store_remove(list,&new_iter);
 
 						valid=gtk_list_store_remove(new_entries,&it);//iter is next valid row
-						//and ignore ORG_INDEX ORG_PRIVATE , this list is volatile
+						//ignore ORG_INDEX? it will look like a bug, 0,1,2  1 is at rules, 0,2  move from rules to first tab  0,2,2
+						//I don't need to move entry from rules back to new entries so don't care
+						//but someone who has only 2 lists and want to move between them will care
+						//adding that the prefix will be lost from global to local, as a side effect, remove the entry at moving back to new entries
 
 						gint has_pref;gint is_global;
 						gtk_tree_model_get((GtkTreeModel*)list, &iter, 1,&has_pref, 2,&is_global, -1);
 						if(is_global==FALSE){//only when prefix can be changed
-							if(has_pref){//and has pref
-								if(nick_new_has_pref==FALSE){//remove prefix at the stored entry
-									names_org_changeprefix(nb,list,&iter,nick);
-								}
-							}else{
-								if(nick_new_has_pref){//add prefix at the stored entry
-									names_org_changeprefix(nb,list,&iter,nick);
-								}
+							if(has_pref!=nick_new_pref){
+								org_changeprefix(nb,list,&iter,nick);
 							}
 						}
 						g_free(nick);
@@ -2889,8 +2897,7 @@ static void org_query(GtkNotebook*nb){
 	GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
 
 	//get current order
-	//-1(GTK_TREE_SORTABLE_DEFAULT_SORT_COLUMN_ID) is critical without a func and -2(GTK_TREE_SORTABLE_UNSORTED_SORT_COLUMN_ID) will not sort like original, so ORG_PRIVATE is required
-	//ORG_INDEX can be changed if sorting by another column and saving that way
+	//-1(GTK_TREE_SORTABLE_DEFAULT_SORT_COLUMN_ID) is critical without a func and -2(GTK_TREE_SORTABLE_UNSORTED_SORT_COLUMN_ID) will not sort like original, so ORG_INDEX is required
 	gint pos;GtkSortType type;
 	gboolean orig_sort=gtk_tree_sortable_get_sort_column_id((GtkTreeSortable*)tm, &pos, &type);
 
@@ -2949,7 +2956,7 @@ static void org_query(GtkNotebook*nb){
 
 	//sort back
 	if(orig_sort==FALSE){
-		gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)tm,ORG_PRIVATE,GTK_SORT_ASCENDING);
+		gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)tm,ORG_INDEX,GTK_SORT_ASCENDING);
 	}else{
 		gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)tm,pos,type);
 	}
@@ -2961,17 +2968,6 @@ static void org_chat(struct stk_s*ps){
 	name_join_main((GtkTreeView*)tv,ps);//will add an if inside the function
 }
 
-static void org_move_indexed(GtkTreeModel*m,int col,gint pos){
-	GtkTreeIter it;
-	gboolean valid=gtk_tree_model_get_iter_first (m, &it);
-	while(valid){
-		gint p;
-		gtk_tree_model_get (m, &it, col, &p, -1);
-		if(p>pos)
-			gtk_list_store_set((GtkListStore*)m, &it, col, p-1, -1);
-		valid = gtk_tree_model_iter_next(m, &it);
-	}
-}
 #define org_move_scan "%u" defaultstart "%u"
 static void org_move(GtkButton*button,GtkNotebook*nb){
 	const gchar*user=gtk_button_get_label(button);
@@ -3005,19 +3001,20 @@ static void org_move(GtkButton*button,GtkNotebook*nb){
 					gboolean is_global=gtk_label_get_use_markup(gtk_notebook_get_tab_label(nb,current));
 
 					gchar*a;gchar*b;gchar*c;gint d;gchar*e;
-					gint f;gint g;//indexes are not ok with holes, at sorting
-					gtk_tree_model_get(tmprev,&iterator,ORG_ID1,&a,ORG_ID2,&b,ORG_GEN,&c,ORG_IDLE,&d,ORG_SERVER,&e,ORG_INDEX,&f,ORG_PRIVATE,&g,-1);
+					gint f;//indexes are not ok with holes, at sorting
+					gtk_tree_model_get(tmprev,&iterator,ORG_ID1,&a,ORG_ID2,&b,ORG_GEN,&c,ORG_IDLE,&d,ORG_SERVER,&e,ORG_INDEX,&f,-1);
 					gtk_list_store_remove((GtkListStore*)tmprev,&iterator);
-					org_move_indexed(tmprev,ORG_INDEX,f);
-					org_move_indexed(tmprev,ORG_PRIVATE,g);
-					gint n=gtk_tree_model_iter_n_children(tm,nullptr);
-					gtk_list_store_append((GtkListStore*)tm,&iterator);
-					gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,is_global?nickname_prefixless(a):a,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_INDEX,n,ORG_PRIVATE,n,-1);
+					org_move_indexed(tmprev,f);
+					if(nb_page_index!=0){//can't move back, there is a comment about this at names_end_org
+						gint n=gtk_tree_model_iter_n_children(tm,nullptr);
+						gtk_list_store_append((GtkListStore*)tm,&iterator);
+						gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,is_global?nickname_prefixless(a):a,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_INDEX,n,-1);
+						//and select the moved item
+						GtkTreePath * path = gtk_tree_model_get_path ( tm , &iterator );
+						gtk_tree_view_set_cursor((GtkTreeView*)tv,path,nullptr,false);
+						gtk_tree_path_free(path);
+					}
 					g_free(a);g_free(b);g_free(c);g_free(e);
-					//and select the moved item
-					GtkTreePath * path = gtk_tree_model_get_path ( tm , &iterator );
-					gtk_tree_view_set_cursor((GtkTreeView*)tv,path,nullptr,false);
-					gtk_tree_path_free(path);
 				}
 			}
 		}
