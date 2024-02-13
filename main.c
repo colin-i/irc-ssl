@@ -240,10 +240,12 @@ static char chanmodes[7]={'\0'};
 static char chanmodessigns[7]={'\0'};//& at whois
 static unsigned int maximummodes=0;
 #define RPL_NONE -1
+#define RPL_WHOISUSER 311
 #define RPL_LIST 322
 #define RPL_NAMREPLY 353
 #define show_from_clause(a,b,c) if(icmpAmemBstrlownotempty(a,b))show_msg=c;
-#define show_to_clause(a) if(show_msg==a)show_msg=RPL_NONE;
+#define show_between_clause(a) if(show_msg!=a)showmsg=FALSE;
+#define show_to_clause(a) if(show_msg==a)show_msg=RPL_NONE;else showmsg=FALSE;
 static int show_msg=RPL_NONE;
 #define digits_in_uint 10
 #define digits_in_posInt 10
@@ -374,7 +376,7 @@ static void addattextmain(const char*data,size_t len){
 	gtk_text_buffer_insert(text_buffer,&it,data,(int)len);
 	addattextview_scroll(b,text_view);
 }
-#define addattextmain_n(a,b) addattextmain(a "\n",b)
+#define addattextmain_n(a,b) addattextmain(a "\n",(b+1))
 #define addattextmain_struct(s) addattextmain(s->data,s->len)
 static void addattextv(GtkTextView*v,const char*n,const char*msg){
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (v);
@@ -1599,13 +1601,30 @@ static gboolean incsafe(gpointer ps){
 		else{
 			showmsg=TRUE;
 			int d=atoi(com);//If no valid conversion could be performed, it returns zero;below,d==0
-			if(d==312){//312 	RPL_WHOISSERVER 	RFC1459 	<nick> <server> :<server_info>
+
+			//301 RPL_AWAY
+			if(d==RPL_WHOISUSER){
+				show_between_clause(RPL_WHOISUSER)
+			}else if(d==312){//312 	RPL_WHOISSERVER 	RFC1459 	<nick> <server> :<server_info>
+				show_between_clause(RPL_WHOISUSER)
 				int s=sscanf(b,"%*s %*s " hostnamerfc_scan,hostname);
 				if(s==1){
 					//
 				}
-			}if(d==RPL_LIST){//if -f 0 or the option, this is rare
-				if(show_msg!=RPL_LIST)showmsg=FALSE;
+			}else if(d==317){//RPL_WHOISIDLE
+				show_between_clause(RPL_WHOISUSER)
+			}else if(d==319){//RPL_WHOISCHANNELS
+				show_between_clause(RPL_WHOISUSER)
+			//320 RPL_WHOISSPECIAL gender
+			}else if(d==378){//RPL_WHOISHOST
+				show_between_clause(RPL_WHOISUSER)
+			}else if(d==379){//RPL_WHOISMODES
+				show_between_clause(RPL_WHOISUSER)
+			}else if(d==318){//RPL_ENDOFWHOIS
+				show_to_clause(RPL_WHOISUSER)
+
+			}else if(d==RPL_LIST){//if -f 0 or the option, this is rare
+				show_between_clause(RPL_LIST)
 				unsigned int e;
 				//if its >nr ,c is not 2
 				if(sscanf(b,"%*s " channame_scan " %u",channm,&e)==2)
@@ -1618,8 +1637,9 @@ static gboolean incsafe(gpointer ps){
 			else if(d==323){//RPL_LISTEND
 				show_to_clause(RPL_LIST)
 				list_end();
+
 			}else if(d==RPL_NAMREPLY){
-				if(show_msg!=RPL_NAMREPLY)showmsg=FALSE;
+				show_between_clause(RPL_NAMREPLY)
 				if(sscanf(b,"%*s %*c " channame_scan,channm)==1){
 					GtkWidget*p=chan_pan(channm);
 					if(p!=nullptr){
@@ -1633,6 +1653,7 @@ static gboolean incsafe(gpointer ps){
 					GtkWidget*p=chan_pan(channm);
 					if(p!=nullptr)names_end(p,channm,ps);//at a join
 				}
+
 			}else if(d==332){//RPL_TOPIC
 				if(sscanf(b,name_scan " " channame_scan " %c",nicknm,channm,&c)==3)
 					addatchans(user_topic,b+strlen(nicknm)+1+strlen(channm)+2,chan_pan(channm));
@@ -2286,12 +2307,13 @@ static void send_activate(GtkEntry*entry,struct stk_s*ps){
 	GtkEntryBuffer*t=gtk_entry_get_buffer(entry);
 	const gchar*text=gtk_entry_buffer_get_text(t);
 	size_t sz=strlen(text);
+	GtkWidget*pg=gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook));
+	const char*a=gtk_notebook_get_menu_label_text(ps->notebook,pg);
 	if(sz!=0){//nothing to send else
-		GtkWidget*pg=gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook));
-		const char*a=gtk_notebook_get_menu_label_text(ps->notebook,pg);
 		if(is_home(a)){
 			show_from_clause(text,"list",RPL_LIST)
 			else show_from_clause(text,"names",RPL_NAMREPLY)
+			else show_from_clause(text,"whois",RPL_WHOISUSER)
 			char*b=(char*)malloc(sz+irc_term_sz);
 			if(b==nullptr)return;
 			memcpy(b,text,sz);
@@ -2305,6 +2327,8 @@ static void send_activate(GtkEntry*entry,struct stk_s*ps){
 			send_entry_list_cursor=nullptr;
 		}
 		gtk_entry_buffer_delete_text(t,0,-1);
+	}else if(is_home(a)){//enters there for visibility
+		addattextmain_n("",0);
 	}
 }
 #define menu_con_add_item(n,s,a,b,c,d)\
@@ -2522,7 +2546,10 @@ static void deciderfn(struct stk_s*ps){
 			free(z);
 		}
 	}
-	else addattextmain_n("Must be in a channel",-1);
+	else{
+		#define org_pop_er "Must be in a channel"
+		addattextmain_n(org_pop_er,sizeof(org_pop_er)-1);
+	}
 }
 static void org_clear_rules(GtkNotebook*nb){
 	gint last=gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1));
