@@ -1,7 +1,6 @@
 
 #include "inc/stddef.h"
 
-typedef int ssize_t;
 typedef long off_t;
 
 #define F_OK 0
@@ -18,6 +17,7 @@ int access(const char*,int);
 int chdir(const char *path);
 int close(int);
 off_t lseek(int,off_t,int);
+int ftruncate(int fd, off_t length);
 ssize_t read(int,void*,size_t);
 int rmdir(const char *pathname);
 unsigned int sleep(unsigned int seconds);

@@ -2862,19 +2862,76 @@ static int organizer_populate_dirs(const char*dir,void*box){
 }
 
 #define localrules "_local"
+#define globalrules "_global"
 static BOOL org_storerule(const char*text,size_t sz,gboolean is_global){//this way or search at start for files
 	if(to_organizer_folder_go){
-		if(FILE*f=fopen(localrules,"a")){
+		const char*fname;if(is_global)fname=globalrules;
+		else fname=localrules;
+		if(FILE*f=fopen(fname,"ab")){
+			BOOL ret=FALSE;
+			if(fwrite(text,sz,1,f)==1){
+				char a='\n';
+				if(fwrite(&a,1,1,f)==1)
+					ret=TRUE;
+			}
 			fclose(f);
+			return ret;
 		}
-		return TRUE;
 	}
 	return FALSE;
 }
-static BOOL org_deleterule(const char*text,gboolean is_global){
+static BOOL delete_line_fromfile(const char*text,const char*fname){
+	if(FILE*f=fopen(fname,"r+b")){//from here, in case file is manipulated somewhere else, the drive data can be overwrote or increased but not decreased.
+		BOOL ret=FALSE;
+		size_t len=strlen(text);
+		size_t sz=10;
+		if(char*mem=(char*)malloc(10)){
+			while(getdelim(&mem,&sz,'\n',f)!=-1){
+				if(memcmp(text,mem,len)==0){
+					if(mem[len]=='\n'){
+						//move from this file location everything back len bytes
+						long here=ftell(f);
+						long back=here-1-len;
+						fseek(f,0,SEEK_END);
+						long moved=ftell(f)-here;
+						if(moved==0){
+							if(back==0){
+								if(unlink(fname)==0)//this is another descriptor, can be permission in the meantime
+									ret=TRUE;
+								//there's nothing to write, fclose will do nothing next
+							}else{
+								ftruncate(fileno(f),back);
+								ret=TRUE;
+							}
+						}else{
+							fseek(f,here,SEEK_SET);
+							if(void*m=malloc(moved)){
+								fread(m,moved,1,f);
+								fseek(f,back,SEEK_SET);
+								fwrite(m,moved,1,f);
+								ftruncate(fileno(f),back+moved);
+								free(m);
+								ret=TRUE;
+							}
+						}
+						break;
+					}
+				}
+			}
+			free(mem);
+		}
+		fclose(f);
+		return ret;
+	}
+	return FALSE;
+}
+static BOOL org_deleterule(GtkLabel*label){
 	if(to_organizer_folder_go){
-		unlink(localrules);
-		return TRUE;
+		gboolean is_global=gtk_label_get_use_markup(label);
+		const char*fname;if(is_global)fname=globalrules;
+		else fname=localrules;
+		const char*text=gtk_label_get_text(label);
+		return delete_line_fromfile(text,fname);
 	}
 	return FALSE;
 }
@@ -2923,7 +2980,7 @@ static void org_removerule(GtkWidget*thisone,struct stk_s*ps){
 	if(index>0){//first page is with New
 		GtkWidget*current=gtk_notebook_get_nth_page(nb,index);//scroll
 		GtkWidget*label=gtk_notebook_get_tab_label(nb,current);
-		if(org_deleterule(gtk_label_get_text(label),gtk_label_get_use_markup(label))){
+		if(org_deleterule(label)){
 			gtk_notebook_remove_page(nb,index);
 			if(index==1){//maybe was last
 				if(gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1))==0){
