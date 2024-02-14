@@ -114,7 +114,7 @@ static BOOL close_intention;
 #define name_scan1 "%9"
 #define name_scan name_scan1 "s"
 #define mod_scan "%4s"
-//"Ident userid limited to 10 chars"
+//not official: "Ident userid limited to 10 chars" //I think that includes ~
 #define user_sz 10
 #define usernul_sz user_sz+1
 #define user_scan "%10s"
@@ -1474,7 +1474,7 @@ static void org_changeprefix(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter,g
 	gtk_tree_model_iter_nth_child(tm, iter, nullptr, pos);
 	gtk_list_store_set((GtkListStore*)tm,iter, ORG_ID1,nick, -1);
 }
-static void names_end_org(struct stk_s* ps){//N*U uniqueness, this kind of check also at whois end
+static void names_end_org(struct stk_s* ps){//nick uniqueness
 	if(ps->organizer!=nullptr){
 		if(ps->organizer_can_add_names){
 			GtkListStore*list=gtk_list_store_new(5,G_TYPE_STRING,G_TYPE_INT,G_TYPE_INT,G_TYPE_INT,G_TYPE_INT);//second is for prefix, third for is_global to not change prefix there, tab,pos
@@ -1613,6 +1613,25 @@ static void whois_update(GtkNotebook*nb,int col,char*nick,char*text){
 		valid = gtk_tree_model_iter_next(tm, &it);
 	}
 }
+static void whois_update_nr(GtkNotebook*nb,char*nick,int seconds){
+	gint nb_page_index=gtk_notebook_get_current_page(nb);
+	GtkWidget*current=gtk_notebook_get_nth_page(nb,nb_page_index);//scroll
+	GtkWidget*tv=gtk_bin_get_child((GtkBin*)current);
+	GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
+	GtkTreeIter it;
+	gboolean valid=gtk_tree_model_get_iter_first (tm, &it);
+	while(valid){//compare at first? same
+		gchar*n;
+		gtk_tree_model_get (tm, &it, ORG_ID1, &n, -1);
+		if(strcmp(nickname_prefixless(n),nick)==0){
+			g_free(n);
+			gtk_list_store_set((GtkListStore*)tm,&it, ORG_IDLE,seconds, -1);
+			return;
+		}
+		g_free(n);
+		valid = gtk_tree_model_iter_next(tm, &it);
+	}
+}
 
 static gboolean incsafe(gpointer ps){
 	#pragma GCC diagnostic push
@@ -1634,6 +1653,9 @@ static gboolean incsafe(gpointer ps){
 		char nicknm[namenul_sz];
 		char username[usernul_sz];
 		char hostname[hostnamerfcnul_sz];
+		#define specialsz 32
+		#define specialsz_scan "%31s"
+		char special[specialsz];
 		char c;
 		BOOL is_privmsg=strcmp(com,priv_msg_str)==0;
 		if(is_privmsg||strcmp(com,not_msg_str)==0){
@@ -1674,12 +1696,11 @@ static gboolean incsafe(gpointer ps){
 			showmsg=TRUE;
 			int d=atoi(com);//If no valid conversion could be performed, it returns zero;below,d==0
 
-			//301 RPL_AWAY
 			if(d==RPL_WHOISUSER){
 				if(((struct stk_s*)ps)->organizer!=nullptr){
-					show_between_clause(RPL_WHOISUSER)
-					int s=sscanf(b,"%*s " name_scan " ~" user_scan,nicknm,username);
-					if(s==2)whois_update(((struct stk_s*)ps)->organizer_notebook,ORG_ID2,nicknm,username);
+					show_between_clause(RPL_WHOISUSER) //then, show is true when no organizer or when organizer+command whois
+					int s=sscanf(b,"%*s " name_scan " " user_scan,nicknm,username);//%*[~] is ok only when ~ is
+					if(s==2)whois_update(((struct stk_s*)ps)->organizer_notebook,ORG_ID2,nicknm,*username!='~'?username:username+1);
 				}
 			}else if(d==312){//RPL_WHOISSERVER 	RFC1459 	<nick> <server> :<server_info>
 				if(((struct stk_s*)ps)->organizer!=nullptr){
@@ -1688,10 +1709,24 @@ static gboolean incsafe(gpointer ps){
 					if(s==2)whois_update(((struct stk_s*)ps)->organizer_notebook,ORG_SERVER,nicknm,hostname);
 				}
 			}else if(d==317){//RPL_WHOISIDLE
-				show_between_clause(RPL_WHOISUSER)
+				if(((struct stk_s*)ps)->organizer!=nullptr){
+					show_between_clause(RPL_WHOISUSER)
+					int seconds;
+					int s=sscanf(b,"%*s " name_scan " %u",nicknm,&seconds);
+					if(s==2)whois_update_nr(((struct stk_s*)ps)->organizer_notebook,nicknm,seconds);
+				}
 			}else if(d==319){//RPL_WHOISCHANNELS
 				show_between_clause(RPL_WHOISUSER)
-			//320 RPL_WHOISSPECIAL gender
+			}else if(d==320){//RPL_WHOISSPECIAL
+				if(((struct stk_s*)ps)->organizer!=nullptr){
+					show_between_clause(RPL_WHOISUSER)
+					int s=sscanf(b,"%*s " name_scan "  :identifies as " specialsz_scan,nicknm,special);//from https://scp-wiki.wikidot.com/chat-guide
+					if(s==2)whois_update(((struct stk_s*)ps)->organizer_notebook,ORG_GEN,nicknm,special);
+				}
+			}else if(d==330){//RPL_WHOISACCOUNT "logged in as"
+				show_between_clause(RPL_WHOISUSER)
+			}else if(d==301){//RPL_AWAY
+				show_between_clause(RPL_WHOISUSER)
 			}else if(d==378){//RPL_WHOISHOST
 				show_between_clause(RPL_WHOISUSER)
 			}else if(d==379){//RPL_WHOISMODES
@@ -2605,6 +2640,7 @@ static BOOL to_organizer_folder(BOOL is_remove,BOOL remove){//for the moment thi
 	}
 	return FALSE;
 }
+#define to_organizer_folder_go to_organizer_folder(FALSE,FALSE)
 
 static void deciderfn(struct stk_s*ps){
 	const char*b=gtk_notebook_get_menu_label_text(ps->notebook,gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook)));
@@ -2640,7 +2676,7 @@ static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer 
 {
 	gtk_widget_set_sensitive(ps->organizer_bot,FALSE);//will be TRUE when names comes in
 	if(gtk_combo_box_get_active ((GtkComboBox*)combo_box)!=-1){//this is the case when last entry is deleted
-		if(to_organizer_folder(FALSE,FALSE)){//is possible to be in another folder
+		if(to_organizer_folder_go){//is possible to be in another folder
 			gchar*text=gtk_combo_box_text_get_active_text (combo_box);
 			//not this check, is the server folder there//if(*text!=chanstart){//only if the folder is malevolently changed(this case is at list repopulation)
 			char*chan=strchr(text,chanstart);
@@ -2677,7 +2713,7 @@ static void org_removechan(struct stk_s*ps){
 		response=gtk_dialog_run((GtkDialog*)dialog);
 		gtk_widget_destroy (dialog);
 	}else response=GTK_RESPONSE_YES;
-	if(to_organizer_folder(FALSE,FALSE)){//is possible to be in another folder
+	if(to_organizer_folder_go){//is possible to be in another folder
 		GtkComboBox *combo_box=ps->organizer_dirs;
 		gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)combo_box);
 		char*chan=strchr(text,chanstart);
@@ -2825,6 +2861,23 @@ static int organizer_populate_dirs(const char*dir,void*box){
 	return r;
 }
 
+#define localrules "_local"
+static BOOL org_storerule(const char*text,size_t sz,gboolean is_global){//this way or search at start for files
+	if(to_organizer_folder_go){
+		if(FILE*f=fopen(localrules,"a")){
+			fclose(f);
+		}
+		return TRUE;
+	}
+	return FALSE;
+}
+static BOOL org_deleterule(const char*text,gboolean is_global){
+	if(to_organizer_folder_go){
+		unlink(localrules);
+		return TRUE;
+	}
+	return FALSE;
+}
 static void org_addrule(struct stk_s*ps){
 	GtkWidget*dialog= gtk_dialog_new_with_buttons ("Add Rule",(GtkWindow*)ps->organizer,(GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
 			    "_Cancel",GTK_RESPONSE_CANCEL,"_OK",GTK_RESPONSE_OK,nullptr);
@@ -2851,11 +2904,15 @@ static void org_addrule(struct stk_s*ps){
 	int response=gtk_dialog_run((GtkDialog*)dialog);
 	if(response==GTK_RESPONSE_OK){
 		const gchar*text=gtk_entry_get_text((GtkEntry*)entry);
-		if(strlen(text)!=0){
-			GtkWidget*s;
-			organizer_tab_add(ps->organizer_notebook,(char*)text,&s,gtk_toggle_button_get_active((GtkToggleButton*)r2));
-			gtk_widget_show_all(s);//to see the tab
-			gtk_widget_set_sensitive(ps->organizer_removerule,TRUE);
+		size_t sz=strlen(text);
+		if(sz!=0){
+			gboolean is_global=gtk_toggle_button_get_active((GtkToggleButton*)r2);
+			if(org_storerule(text,sz,is_global)){
+				GtkWidget*s;
+				organizer_tab_add(ps->organizer_notebook,(char*)text,&s,is_global);
+				gtk_widget_show_all(s);//to see the tab
+				gtk_widget_set_sensitive(ps->organizer_removerule,TRUE);
+			}
 		}
 	}
 	gtk_widget_destroy (dialog);
@@ -2864,10 +2921,14 @@ static void org_removerule(GtkWidget*thisone,struct stk_s*ps){
 	GtkNotebook*nb=ps->organizer_notebook;
 	gint index=gtk_notebook_get_current_page(nb);
 	if(index>0){//first page is with New
-		gtk_notebook_remove_page(nb,index);
-		if(index==1){//maybe was last
-			if(gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1))==0){
-				gtk_widget_set_sensitive(thisone,FALSE);
+		GtkWidget*current=gtk_notebook_get_nth_page(nb,index);//scroll
+		GtkWidget*label=gtk_notebook_get_tab_label(nb,current);
+		if(org_deleterule(gtk_label_get_text(label),gtk_label_get_use_markup(label))){
+			gtk_notebook_remove_page(nb,index);
+			if(index==1){//maybe was last
+				if(gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1))==0){
+					gtk_widget_set_sensitive(thisone,FALSE);
+				}
 			}
 		}
 	}
@@ -3011,7 +3072,7 @@ static void org_move(GtkButton*button,GtkNotebook*nb){
 						gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,is_global?nickname_prefixless(a):a,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_INDEX,n,-1);
 						//and select the moved item
 						GtkTreePath * path = gtk_tree_model_get_path ( tm , &iterator );
-						gtk_tree_view_set_cursor((GtkTreeView*)tv,path,nullptr,false);
+						gtk_tree_view_set_cursor((GtkTreeView*)tv,path,nullptr,FALSE);
 						gtk_tree_path_free(path);
 					}
 					g_free(a);g_free(b);g_free(c);g_free(e);
@@ -3075,7 +3136,7 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	gtk_box_pack_start((GtkBox*)box,top,FALSE,FALSE,0);
 
 	gtk_notebook_popup_enable(nb);
-	ps->organizer_entry_names=organizer_tab_add(nb,(char*)org_new_names,&ps->organizer_entry_widget,false);
+	ps->organizer_entry_names=organizer_tab_add(nb,(char*)org_new_names,&ps->organizer_entry_widget,FALSE);
 	gtk_box_pack_start((GtkBox*)box,(GtkWidget*)nb,TRUE,TRUE,0);
 
 	GtkWidget*move=gtk_button_new_with_label(movestart);
@@ -3102,7 +3163,7 @@ static void organizer_destroy_from_selfclose(struct stk_s*ps){
 }
 static void organizer_popup(struct stk_s*ps){
 	if(ps->organizer==nullptr){
-		if(to_organizer_folder(FALSE,FALSE)){
+		if(to_organizer_folder_go){
 			GtkWidget *win = gtk_application_window_new ((GtkApplication*)ps->app);
 			ps->organizer=win;
 			//GtkWidget *dialog = gtk_dialog_new_with_buttons("Organizer",  nullptr, (GtkDialogFlags)0,  "_Done",GTK_RESPONSE_NONE,nullptr);//still is on top

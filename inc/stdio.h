@@ -3,10 +3,14 @@
 
 #define EOF (-1)
 
+typedef struct __sFILE FILE;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+int fclose(FILE *stream);
+FILE *fopen(const char */*restrict*/ pathname, const char */*restrict*/ mode);
 int getchar(void);
 int printf( const char * format, ... );
 int puts(const char*);
