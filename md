@@ -1,2 +1,2 @@
 
-autoreconf -i && ./configure CFLAGS=-g && ./headless
+autoreconf -i && ./configure CFLAGS=-g --disable-cpp && ./headless

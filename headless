@@ -15,6 +15,12 @@ grep --color "${a}" mk
 sed -i "s/${a}//g" mk
 grep --color "${a}" mk
 
+#replace c only headers
+a="\-DHAVE_STDBOOL_H=1 \-DHAVE_STDDEF_H=1"
+grep --color "${a}" mk
+sed -i "s/${a}//g" mk
+grep --color "${a}" mk
+
 make -f mk
 
 if [ -n "${1}" ]; then rm mk; fi

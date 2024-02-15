@@ -1170,8 +1170,10 @@ static void pars_names(GtkWidget*pan,char*b,size_t s,struct stk_s* ps,char*chann
 	if(listing_test(pan,lst)){//if first from a series of names until endNames
 		if(ps->organizer!=nullptr){
 			ps->organizer_can_add_names=FALSE;
-			if(char*a=server_channel(ps,channm,strlen(channm))){
-				if(gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)ps->organizer_dirs)){//can be a blank organizer too
+			char*a=server_channel(ps,channm,strlen(channm));
+			if(a!=nullptr){
+				gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)ps->organizer_dirs);
+				if(text!=nullptr){//can be a blank organizer too
 					if(strcmp(text,a)==0){
 						ps->organizer_can_add_names=TRUE;
 						gtk_list_store_clear(ps->organizer_entry_names);//required in all cases
@@ -1488,7 +1490,7 @@ static void names_end_org(struct stk_s* ps){//nick uniqueness
 				GtkWidget*sc=gtk_notebook_get_nth_page(nb,tab);//scroll
 				GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
 				GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
-				gboolean is_global=gtk_label_get_use_markup(gtk_notebook_get_tab_label(nb,sc));
+				gboolean is_global=gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,sc));
 
 				valid=gtk_tree_model_get_iter_first (tm, &it);int pos=0;
 				while(valid){
@@ -1505,9 +1507,9 @@ static void names_end_org(struct stk_s* ps){//nick uniqueness
 				}
 			}
 			GtkListStore*new_entries=ps->organizer_entry_names;
-			valid=gtk_tree_model_get_iter_first (new_entries, &it);//then End of NAMES list can come without users, tested for unexistent channel
+			valid=gtk_tree_model_get_iter_first ((GtkTreeModel*)new_entries, &it);//then End of NAMES list can come without users, tested for unexistent channel
 			while(valid){
-				gtk_tree_model_get(new_entries, &it, ORG_ID1, &nick, -1);
+				gtk_tree_model_get((GtkTreeModel*)new_entries, &it, ORG_ID1, &nick, -1);
 				if nickname_start(nick){nick_new=nick;nick_new_pref=0;}
 				else{nick_new=nick+1;nick_new_pref=*nick;}
 
@@ -1543,7 +1545,7 @@ static void names_end_org(struct stk_s* ps){//nick uniqueness
 				}
 
 				g_free(nick);
-				valid = gtk_tree_model_iter_next(new_entries, &it);
+				valid = gtk_tree_model_iter_next((GtkTreeModel*)new_entries, &it);
 			}
 			g_object_unref(list);
 		}
@@ -2746,7 +2748,7 @@ static void org_removechan(struct stk_s*ps){
 	}
 }
 
-void organizer_tab_column_click(org_col*st){
+void organizer_tab_column_click(struct org_col*st){
 	gint pos=st->pos;
 	GtkTreeSortable*sort=st->sort;
 	gint i;GtkSortType s;
@@ -2766,7 +2768,8 @@ void organizer_tab_column_click(org_col*st){
 	}
 }
 static void organizer_tab_column_add(GtkTreeView*tree,char*name,int pos,GtkTreeSortable*sort){
-	if(org_col*s=(org_col*)malloc(sizeof(org_col))){
+	struct org_col*s=(struct org_col*)malloc(sizeof(struct org_col));
+	if(s!=nullptr){
 		s->pos=pos;s->sort=sort;
 		GtkCellRenderer *renderer= gtk_cell_renderer_text_new();
 		GtkTreeViewColumn *column = gtk_tree_view_column_new_with_attributes(name, renderer, "text", pos, nullptr);//"value" at progress. btw is sorting G_TYPE_INT ok
@@ -2797,8 +2800,8 @@ static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**chil
 	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Index",ORG_INDEX,sort);
 
 	GtkWidget*scroll = gtk_scrolled_window_new(nullptr, nullptr);
-	//if(child_out!=nullptr)
-	*child_out=scroll;
+	if(child_out!=nullptr)//only at restore but that is the highest usage anyway
+		*child_out=scroll;
 	gtk_container_add((GtkContainer*)scroll,treeV);
 	GtkWidget*tab;
 	if(is_global){
@@ -2814,8 +2817,11 @@ static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**chil
 }
 
 static void iterate_folders_enter(int (*f)(const char*, void*),void*data){
-	if(GDir*entries=g_dir_open(".",0,nullptr)){
-		while(const char*dir=g_dir_read_name(entries)){
+	GDir*entries=g_dir_open(".",0,nullptr);
+	if(entries!=nullptr){
+		for(;;){
+			const char*dir=g_dir_read_name(entries);
+			if(dir==nullptr)break;
 			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
 				if(chdir(dir)==0){
 					if(f(dir,data)!=0)break;
@@ -2828,8 +2834,11 @@ static void iterate_folders_enter(int (*f)(const char*, void*),void*data){
 }
 //upper chdir's 0/-1
 static int iterate_folders(int (*f)(const char*, void*),void*data){
-	if(GDir*entries=g_dir_open(".",0,nullptr)){
-		while(const char*dir=g_dir_read_name(entries)){
+	GDir*entries=g_dir_open(".",0,nullptr);
+	if(entries!=nullptr){
+		for(;;){
+			const char*dir=g_dir_read_name(entries);
+			if(dir==nullptr)break;
 			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
 				if(f(dir,data)!=0)return -1;
 			}
@@ -2841,9 +2850,9 @@ static int iterate_folders(int (*f)(const char*, void*),void*data){
 
 //upper chdir's 0/-1
 static int organizer_populate_dirs_chans(const char*dir,void*s){
-	char*nm=server_channel_base((char*)dir,strlen(dir),((organizer_from_storage*)s)->server,FALSE);
+	char*nm=server_channel_base((char*)dir,strlen(dir),((struct organizer_from_storage*)s)->server,FALSE);
 	if(nm!=nullptr){
-		gtk_combo_box_text_append_text(((organizer_from_storage*)s)->box,nm);
+		gtk_combo_box_text_append_text(((struct organizer_from_storage*)s)->box,nm);
 		free(nm);
 		return 0;
 	}
@@ -2852,7 +2861,7 @@ static int organizer_populate_dirs_chans(const char*dir,void*s){
 static int organizer_populate_dirs(const char*dir,void*box){
 	int r=chdir("chans");
 	if(r==0){
-		organizer_from_storage s={(GtkComboBoxText*)box,dir};
+		struct organizer_from_storage s={(GtkComboBoxText*)box,dir};
 		if(iterate_folders(organizer_populate_dirs_chans,&s)==0){
 			return chdir("..");
 		}
@@ -2861,31 +2870,14 @@ static int organizer_populate_dirs(const char*dir,void*box){
 	return r;
 }
 
-#define localrules "_local"
-#define globalrules "_global"
-static BOOL org_storerule(const char*text,size_t sz,gboolean is_global){//this way or search at start for files
-	if(to_organizer_folder_go){
-		const char*fname;if(is_global)fname=globalrules;
-		else fname=localrules;
-		if(FILE*f=fopen(fname,"ab")){
-			BOOL ret=FALSE;
-			if(fwrite(text,sz,1,f)==1){
-				char a='\n';
-				if(fwrite(&a,1,1,f)==1)
-					ret=TRUE;
-			}
-			fclose(f);
-			return ret;
-		}
-	}
-	return FALSE;
-}
 static BOOL delete_line_fromfile(const char*text,const char*fname){
-	if(FILE*f=fopen(fname,"r+b")){//from here, in case file is manipulated somewhere else, the drive data can be overwrote or increased but not decreased.
+	FILE*f=fopen(fname,"r+b");
+	if(f!=nullptr){//from here, in case file is manipulated somewhere else, the drive data can be overwrote or increased but not decreased.
 		BOOL ret=FALSE;
 		size_t len=strlen(text);
 		size_t sz=10;
-		if(char*mem=(char*)malloc(10)){
+		char*mem=(char*)malloc(10);
+		if(mem!=nullptr){
 			while(getdelim(&mem,&sz,'\n',f)!=-1){
 				if(memcmp(text,mem,len)==0){
 					if(mem[len]=='\n'){
@@ -2905,7 +2897,8 @@ static BOOL delete_line_fromfile(const char*text,const char*fname){
 							}
 						}else{
 							fseek(f,here,SEEK_SET);
-							if(void*m=malloc(moved)){
+							void*m=malloc(moved);
+							if(m!=nullptr){
 								fread(m,moved,1,f);
 								fseek(f,back,SEEK_SET);
 								fwrite(m,moved,1,f);
@@ -2922,6 +2915,27 @@ static BOOL delete_line_fromfile(const char*text,const char*fname){
 		}
 		fclose(f);
 		return ret;
+	}
+	return FALSE;
+}
+
+#define localrules "_local"
+#define globalrules "_global"
+static BOOL org_storerule(const char*text,size_t sz,gboolean is_global){//this way or search at start for files
+	if(to_organizer_folder_go){
+		const char*fname;if(is_global)fname=globalrules;
+		else fname=localrules;
+		FILE*f=fopen(fname,"ab");
+		if(f!=nullptr){
+			BOOL ret=FALSE;
+			if(fwrite(text,sz,1,f)==1){
+				char a='\n';
+				if(fwrite(&a,1,1,f)==1)
+					ret=TRUE;
+			}
+			fclose(f);
+			return ret;
+		}
 	}
 	return FALSE;
 }
@@ -2980,7 +2994,7 @@ static void org_removerule(GtkWidget*thisone,struct stk_s*ps){
 	if(index>0){//first page is with New
 		GtkWidget*current=gtk_notebook_get_nth_page(nb,index);//scroll
 		GtkWidget*label=gtk_notebook_get_tab_label(nb,current);
-		if(org_deleterule(label)){
+		if(org_deleterule((GtkLabel*)label)){
 			gtk_notebook_remove_page(nb,index);
 			if(index==1){//maybe was last
 				if(gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1))==0){
@@ -2989,6 +3003,27 @@ static void org_removerule(GtkWidget*thisone,struct stk_s*ps){
 			}
 		}
 	}
+}
+//rules added
+static BOOL org_restorerule(const char*name,GtkNotebook*nb,BOOL is_global){
+	//already at organizer folder here
+	FILE*f=fopen(name,"rb");
+	if(f!=nullptr){
+		BOOL ret=FALSE;
+		size_t sz=10;
+		char*mem=(char*)malloc(10);
+		if(mem!=nullptr){
+			while(getdelim(&mem,&sz,'\n',f)!=-1){
+				mem[strlen(mem)-1]='\0';//even at last, that is the way we added
+				organizer_tab_add(nb,mem,nullptr,is_global);
+				ret=TRUE;
+			}
+			free(mem);
+		}
+		fclose(f);
+		return ret;
+	}
+	return FALSE;
 }
 
 static BOOL org_query_append_str(char**mem,size_t*sz,char*fast_append,size_t*all_size,char separator){
@@ -3101,7 +3136,8 @@ static void org_move(GtkButton*button,GtkNotebook*nb){
 		if(selected){
 			gchar*item_text;
 			gint tree_index=get_pos_from_model(tm,&iterator);
-			if(char*space=(char*)malloc(digits_in_posInt+1+digits_in_posInt+1)){
+			char*space=(char*)malloc(digits_in_posInt+1+digits_in_posInt+1);
+			if(space!=nullptr){
 				sprintf(space,org_move_scan,nb_page_index,tree_index);
 				gtk_button_set_label(button,space);
 				free(space);
@@ -3111,12 +3147,13 @@ static void org_move(GtkButton*button,GtkNotebook*nb){
 		gint tab,pos;
 		sscanf(user,org_move_scan,&tab,&pos);
 		if(tab!=nb_page_index){//this is same place
-			if(GtkWidget*previous=gtk_notebook_get_nth_page(nb,tab)){//can be deleted between the clicks
+			GtkWidget*previous=gtk_notebook_get_nth_page(nb,tab);
+			if(previous!=nullptr){//can be deleted between the clicks
 				GtkWidget*tvprev=gtk_bin_get_child((GtkBin*)previous);
 				GtkTreeModel*tmprev=gtk_tree_view_get_model((GtkTreeView*)tvprev);
 				if(gtk_tree_model_iter_nth_child(tmprev,&iterator,nullptr,pos)){//can be deleted between the clicks
 					//at global, no channel prefix for the user, attention if wanting to go back at local with no prefix
-					gboolean is_global=gtk_label_get_use_markup(gtk_notebook_get_tab_label(nb,current));
+					gboolean is_global=gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,current));
 
 					gchar*a;gchar*b;gchar*c;gint d;gchar*e;
 					gint f;//indexes are not ok with holes, at sorting
@@ -3141,8 +3178,6 @@ static void org_move(GtkButton*button,GtkNotebook*nb){
 }
 
 static void organizer_populate(GtkWidget*window,struct stk_s*ps){
-	//_local _global read
-
 	GtkWidget*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	GtkWidget*top=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 
@@ -3152,27 +3187,15 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 
 	GtkNotebook*nb = (GtkNotebook*)gtk_notebook_new ();  ps->organizer_notebook=nb;//here, attention at org_changed
 
-	GtkWidget*dirs=gtk_combo_box_text_new();
-	g_signal_connect_data (dirs, "changed",G_CALLBACK(org_changed),ps,nullptr,(GConnectFlags)0);	ps->organizer_dirs=(GtkComboBox*)dirs;
+	GtkWidget*dirs=gtk_combo_box_text_new();	ps->organizer_dirs=(GtkComboBox*)dirs;
 	gtk_box_pack_start((GtkBox*)top,dirs,TRUE,TRUE,0);
 
 	iterate_folders_enter(organizer_populate_dirs,dirs);
 
 	GtkWidget*buttonspack=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
-
-	GtkWidget*bot=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
-	ps->organizer_bot=bot;//used if repopulation and set active, changed callback
-
 	GtkWidget*buttons=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
+
 	GtkWidget*remove_chan=gtk_button_new_with_label("X");	ps->organizer_removeentry=remove_chan;
-	if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model((GtkComboBox*)dirs),nullptr)==0){
-		//is after repopulation
-		gtk_widget_set_sensitive (remove_chan,FALSE);
-		gtk_widget_set_sensitive(bot,FALSE);//else is set inside changed callback
-	}
-	else{
-		gtk_combo_box_set_active((GtkComboBox*)dirs,0);
-	}
 	g_signal_connect_data (remove_chan, "clicked",G_CALLBACK(org_removechan),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_box_pack_start((GtkBox*)buttons,remove_chan,FALSE,FALSE,0);
 	GtkWidget*add_folder=gtk_button_new_with_label("+");
@@ -3180,7 +3203,6 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	gtk_box_pack_start((GtkBox*)buttons,add_folder,FALSE,FALSE,0);
 	GtkWidget*remove_folder=gtk_button_new_with_label("-");    ps->organizer_removerule=remove_folder;
 	g_signal_connect_data (remove_folder, "clicked",G_CALLBACK(org_removerule),ps,nullptr,(GConnectFlags)0);
-	gtk_widget_set_sensitive (remove_folder,FALSE);
 	gtk_box_pack_start((GtkBox*)buttons,remove_folder,FALSE,FALSE,0);
 	gtk_box_pack_start((GtkBox*)buttonspack,buttons,FALSE,FALSE,0);
 
@@ -3194,7 +3216,23 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 
 	gtk_notebook_popup_enable(nb);
 	ps->organizer_entry_names=organizer_tab_add(nb,(char*)org_new_names,&ps->organizer_entry_widget,FALSE);
+	//and add rest of the rules if are defined
+	BOOL stored_rules=org_restorerule(localrules,nb,FALSE);
+	if(org_restorerule(globalrules,nb,TRUE)==FALSE&&stored_rules==FALSE)gtk_widget_set_sensitive (remove_folder,FALSE);
+	//
 	gtk_box_pack_start((GtkBox*)box,(GtkWidget*)nb,TRUE,TRUE,0);
+
+	GtkWidget*bot=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);     ps->organizer_bot=bot;//used if repopulation and set active, changed callback
+
+	g_signal_connect_data (dirs, "changed",G_CALLBACK(org_changed),ps,nullptr,(GConnectFlags)0);
+	if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model((GtkComboBox*)dirs),nullptr)==0){
+		//is after repopulation
+		gtk_widget_set_sensitive (remove_chan,FALSE);
+		gtk_widget_set_sensitive(bot,FALSE);//else is set inside changed callback
+	}
+	else{//set active and chdir inside here after rules restore
+		gtk_combo_box_set_active((GtkComboBox*)dirs,0);
+	}
 
 	GtkWidget*move=gtk_button_new_with_label(movestart);
 	g_signal_connect_data (move, "clicked",G_CALLBACK(org_move),nb,nullptr,(GConnectFlags)0);
