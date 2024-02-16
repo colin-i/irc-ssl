@@ -119,13 +119,23 @@ static BOOL close_intention;
 #define usernul_sz user_sz+1
 #define user_scan "%10s"
 
+#define nickname_start(a) ('A'<=*a&&*a<='}')
+//nick format: A..}
+//             -0..9; but not at [0]
+//hostname -.0..9a..z
+//~ for owners, +q, tilde ascii is after }
+//& for admins, +a
+//@ for full operators, +o
+//% for half operators, +h
+//+ for voiced users, +v
+
 #define password_sz 256
 #define password_con "PASS %s" irc_term
 #define nickname_con "NICK %s" irc_term
 static char*info_path_name=nullptr;
-#define homestart     "*"
+#define not_a_nick_chan_start     "*"
 #define homestart_size 1
-#define home_string homestart"Home"
+#define home_string not_a_nick_chan_start "Home"
 #define priv_msg_str "PRIVMSG"
 #define not_msg_str "NOTICE"
 #define mod_msg_str "MODE"
@@ -291,6 +301,7 @@ static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 #define visible_mod mod_remove_char visible_char
 #define wait_recon 10
 #define user_error "*Error"
+#define user_error2 user_error "2"
 #define user_topic "*Topic"
 #define user_info "*Info"
 #define chanstart '#'
@@ -326,10 +337,11 @@ struct organizer_from_storage{
 	GtkComboBoxText*box;
 	const char*server;
 };
-#define defaultstart homestart
-#define movestart defaultstart "Move"
+#define movestart not_a_nick_chan_start "Move"
 
 #define LIST_ITEM_OR_ORG_ID1 0
+
+#define new_line "\n"
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_model(pan) gtk_tree_view_get_model(contf_get_treev(pan))
@@ -379,7 +391,7 @@ static void addattextmain(const char*data,size_t len){
 	gtk_text_buffer_insert(text_buffer,&it,data,(int)len);
 	addattextview_scroll(b,text_view);
 }
-#define addattextmain_n(a,b) addattextmain(a "\n",(b+1))
+#define addattextmain_n(a,b) addattextmain(a new_line,(b+1))
 #define addattextmain_struct(s) addattextmain(s->data,s->len)
 static void addattextv(GtkTextView*v,const char*n,const char*msg){
 	GtkTextBuffer *text_buffer = gtk_text_view_get_buffer (v);
@@ -390,19 +402,30 @@ static void addattextv(GtkTextView*v,const char*n,const char*msg){
 	addtimestamp(text_buffer,&it);
 	gtk_text_buffer_insert(text_buffer,&it,": ",2);
 	gtk_text_buffer_insert(text_buffer,&it,msg,-1);
-	gtk_text_buffer_insert(text_buffer,&it,"\n",1);
+	gtk_text_buffer_insert(text_buffer,&it,new_line,1);
 	//
 	addattextview_scroll(b,v);
 }
 #define addatchans(n,msg,p) addattextv(contf_get_textv(p),n,msg)
-static void addatnames(const char*n,const char*msg,GtkWidget*p){
+static void addatnames(const char*n,const char*msg,GtkWidget*p,char*the_other_person){//the_other_person is null if  n  is the_other_person
 	addattextv((GtkTextView*)gtk_bin_get_child((GtkBin*)p),n,msg);
 	if(log_file!=-1){
-		write(log_file,n,strlen(n));
+		if(the_other_person==nullptr){
+			write(log_file,n,strlen(n));
+			write(log_file," " not_a_nick_chan_start,1+sizeof(not_a_nick_chan_start)-1);
+		}else{
+			if(*n!=*not_a_nick_chan_start){//send message
+				write(log_file,not_a_nick_chan_start " ",sizeof(not_a_nick_chan_start)-1+1);
+			}else{//info/error message
+				write(log_file,n,strlen(n));
+				write(log_file," ",1);
+			}
+			write(log_file,the_other_person,strlen(the_other_person));
+		}
 		char buf[1+20+1+1];//2 at 64, $((2**63))...
 		write(log_file,buf,(size_t)sprintf(buf," %ld ",time(nullptr)));//sizeof(time_t)==8?" %lld ":
 		write(log_file,msg,strlen(msg));
-		write(log_file,irc_term,irc_term_sz);
+		write(log_file,new_line,sizeof(new_line)-1);
 	}
 }
 static gboolean textviewthreadsfunc(gpointer b){
@@ -416,7 +439,7 @@ static void main_text(const char*b,size_t s){
 	int out;sigwait(&threadset,&out);
 }
 #define main_text_s(b) main_text(b,sizeof(b)-1)
-//#define main_text_sn(a) main_text_s(a"\n")
+//#define main_text_sn(a) main_text_s(a new_line)
 static int recv_data(char*b,int sz){
 	if(ssl!=nullptr)return SSL_read(ssl, b, sz);
 	return read(plain_socket,b,(size_t)sz);
@@ -814,15 +837,6 @@ static GtkWidget* name_join_nb(char*t,GtkNotebook*nb){
 	g_signal_connect_data (close, "clicked",G_CALLBACK (close_name),mn,nullptr,G_CONNECT_SWAPPED);//not "(GClosureNotify)gtk_widget_destroy" because at restart clear will be trouble
 	return scrl;
 }
-#define nickname_start(a) ('A'<=*a&&*a<='}')
-//nick format: A..}
-//             -0..9; but not at [0]
-//hostname -.0..9a..z
-//~ for owners, +q, tilde ascii is after }
-//& for admins, +a
-//@ for full operators, +o
-//% for half operators, +h
-//+ for voiced users, +v
 #define nickname_prefixless(a) nickname_start(a)?a:a+1
 static void name_join_main(GtkTreeView*tree,struct stk_s*ps){
 	GtkTreeSelection *sel=gtk_tree_view_get_selection(tree);
@@ -861,6 +875,7 @@ static GtkWidget* page_from_str(char*c,GtkWidget*men){
 	return pan;
 }
 #define chan_pan(c) page_from_str(c,chan_menu)
+#define name_on_pan(c) page_from_str(c,name_on_menu)
 #define name_off_pan(c) page_from_str(c,name_off_menu)
 #define name_to_list(c) contf_get_list(chan_pan(c))
 static void chan_change_nr_gain(GtkTreeIter*iter,char*chn,unsigned int nr){
@@ -1346,7 +1361,7 @@ static void send_msg_type(char*usednick,const char*a,const char*text,GtkWidget*p
 	memcpy(b+spc,s_msg,wid);spc+=wid;
 	memcpy(b+spc,text,sz);sz+=spc;
 	if(is_channel(a))addatchans(usednick,text,pg);
-	else addatnames(usednick,text,pg);
+	else addatnames(usednick,text,pg,(char*)a);
 	memcpy(b+sz,irc_term,irc_term_sz);
 	send_data(b,sz+irc_term_sz);
 	free(b);
@@ -1390,7 +1405,7 @@ static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps,BOOL is_privmsg,const
 			const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
 			if(strcmp(n,d)==0){
 				GtkWidget*scrl=get_pan_from_menu(menu_item);
-				addatnames(frontname,msg,scrl);
+				addatnames(frontname,msg,scrl,nullptr);
 				prealert(nb,scrl);
 				if(is_privmsg)exec_nm
 				novel=FALSE;
@@ -1403,7 +1418,7 @@ static void pars_pmsg_name(char*n,char*msg,struct stk_s*ps,BOOL is_privmsg,const
 	}
 	if(novel){
 		if(talk_user(n)){
-			GtkWidget*scrl=name_join_nb(n,nb);addatnames(frontname,msg,scrl);
+			GtkWidget*scrl=name_join_nb(n,nb);addatnames(frontname,msg,scrl,nullptr);
 			alert(gtk_notebook_get_tab_label(nb,scrl),nb);
 			if(is_privmsg){
 				if(ps->welcome!=nullptr){
@@ -1422,7 +1437,11 @@ static void pars_err(char*str,char*msg){
 		return;
 	}
 	pg=name_off_pan(str);
-	if(pg!=nullptr)addatnames(user_error,msg,pg);
+	if(pg!=nullptr)addatnames(user_error,msg,pg,str);//after user quits, ERR_NOSUCHNICK when sending and is not
+	else{
+		pg=name_on_pan(str);
+		if(pg!=nullptr)addatnames(user_error2,msg,pg,str);//after user changed nick, the program is not notified, and ERR_NOSUCHNICK comes in
+	}
 }
 static void line_switch(char*n,GtkWidget*from,GtkWidget*to,const char*msg){
 	GList*list=gtk_container_get_children((GtkContainer*)from);
@@ -1436,7 +1455,7 @@ static void line_switch(char*n,GtkWidget*from,GtkWidget*to,const char*msg){
 				gtk_container_remove((GtkContainer*)from, menu_item);
 				gtk_container_add((GtkContainer*)to, menu_item);
 				g_object_unref(menu_item);//to 1
-				addatnames(user_info,msg,get_pan_from_menu(menu_item));
+				addatnames(user_info,msg,get_pan_from_menu(menu_item),n);
 				break;
 			}
 			list=g_list_next(list);
@@ -1791,7 +1810,7 @@ static gboolean incsafe(gpointer ps){
 				//or after 1 second, not beautiful
 				send_list
 			}else if(d>400){//Error Replies.
-				switch(d){
+				//switch(d){
 					//porbably deprecated
 					//case 436://ERR_NICKCOLLISION
 					//case 464://ERR_PASSWDMISMATCH
@@ -1800,17 +1819,17 @@ static gboolean incsafe(gpointer ps){
 					//case 463://ERR_NOPERMFORHOST
 					//case 465://ERR_YOUREBANNEDCREEP
 					//
-					case 432://ERR_ERRONEUSNICKNAME
-					case 433://ERR_NICKNAMEINUSE
-						action_to_close();
-						break;
-					default:
-						b=strchr(b,' ');
-						if(b!=nullptr){
-							b++;if(sscanf(b,channame_scan " %c",channm,&c)==2)
-								pars_err(channm,b+strlen(channm)+2);
-						}
+					//case 432://ERR_ERRONEUSNICKNAME
+					//case 433://ERR_NICKNAMEINUSE
+					//	action_to_close();//why was to close at these two?
+					//	break;
+				//	default:
+				b=strchr(b,' ');
+				if(b!=nullptr){
+					b++;if(sscanf(b,channame_scan " %c",channm,&c)==2)
+						pars_err(channm,b+strlen(channm)+2);
 				}
+				//}
 			}else if(d==0)showmsg=FALSE;//"abc"
 		}
 	}else showmsg=FALSE;
@@ -2058,7 +2077,7 @@ static gboolean proced_connecting(gpointer b){
 	}else n=_con_nr_s;
 	ps->proced_n=n;
 
-	char hostname[1+hostname_sz]={homestart};//only first is set in case of arrays
+	char hostname[1+hostname_sz]={not_a_nick_chan_start};//only first is set in case of arrays
 	strcpy(hostname+1,ps->proced_hostname);
 	gtk_notebook_set_menu_label_text(ps->notebook,home_page,hostname);
 	gtk_notebook_set_tab_label_text(ps->notebook,home_page,hostname);
@@ -2112,7 +2131,7 @@ static void save_combo_box(GtkTreeModel*list){
 			while(valid){
 				gchar*text;
 				gtk_tree_model_get (list, &it, 0, &text, -1);
-				if(i){if(write(f,"\n",1)!=1){g_free(text);break;}}
+				if(i){if(write(f,new_line,1)!=1){g_free(text);break;}}
 				else i=TRUE;
 				size_t sz=strlen(text);
 				if((size_t)write(f,text,sz)!=sz){g_free(text);break;}
@@ -3121,7 +3140,7 @@ static void org_chat(struct stk_s*ps){
 	name_join_main((GtkTreeView*)tv,ps);//will add an if inside the function
 }
 
-#define org_move_scan "%u" defaultstart "%u"
+#define org_move_scan "%u" not_a_nick_chan_start "%u"
 static void org_move(GtkButton*button,GtkNotebook*nb){
 	const gchar*user=gtk_button_get_label(button);
 	//the attributions are not required if user click wrong, but this case is rare
@@ -3254,6 +3273,7 @@ static void everything_destroy_from_mainclose(struct stk_s*ps){
 }
 static void organizer_destroy_from_selfclose(struct stk_s*ps){
 	//here is also coming from main close
+	//if organizer_bot move from log to organizer. store user chat can be also at org_changed. init it at start
 	ps->organizer=nullptr;
 }
 static void organizer_popup(struct stk_s*ps){
@@ -3504,7 +3524,7 @@ static void remove_config(){
 		if(e=='e'){
 			e=getchar();
 			if(e=='s'){
-				if(unlink(info_path_name)==0)printf("%s" removed_string "\n",info_path_name);
+				if(unlink(info_path_name)==0)printf("%s" removed_string new_line,info_path_name);
 				to_organizer_folder(TRUE,TRUE);
 				return;
 			}

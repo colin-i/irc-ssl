@@ -1,6 +1,6 @@
 
 
-typedef long time_t;
+typedef long int time_t;
 
 #ifdef __cplusplus
 extern "C" {
