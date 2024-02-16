@@ -1,7 +1,7 @@
 
 #include "inc/stddef.h"
 
-typedef long off_t;
+typedef long int off_t;
 
 #define F_OK 0
 
