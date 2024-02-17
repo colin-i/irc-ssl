@@ -248,10 +248,11 @@ struct stk_s{
 };
 static int autoconnect=-1;static BOOL autoconnect_pending=FALSE;
 static GSList*con_group;
-static char chantypes[5]={'\0'};//no # ? will be one if CHANTYPES= , else channels are names, wrong but not fatal
-static char chanmodes[7]={'\0'};
-static char chanmodessigns[7]={'\0'};//& at whois
-static unsigned int maximummodes=0;
+
+static char chantypes[5];
+static char chanmodes[7];
+static char chanmodessigns[7];
+static unsigned int maximummodes;
 
 #define RPL_NONE -1
 #define RPL_ISUPPORT 5
@@ -1270,6 +1271,7 @@ static void pars_quit(char*nk){
 	}
 	g_list_free(ls);
 }
+
 static void pars_mod_set(GtkListStore*lst,char*n,int pos,BOOL plus){
 	GtkTreeIter it;char prevmod;
 	if(plus){
@@ -1371,6 +1373,7 @@ static void pars_mod_self(struct stk_s*ps,char*mod){
 	}
 	ps->visible=FALSE;
 }
+
 static gboolean force_focus(gpointer e){
 	gtk_widget_grab_focus((GtkWidget*)e);
 	return FALSE;
@@ -2123,6 +2126,12 @@ static void proced_core(struct stk_s*ps,char*hostname,char*psw,char*nkn,unsigned
 	}
 }
 static gboolean proced_connecting(gpointer b){
+//on main thread
+	chantypes[0]='\0';//no # ? will be one if CHANTYPES= , else channels are names, wrong but not fatal
+	chanmodes[0]='\0';
+	chanmodessigns[0]='\0';//when straight at whois modes
+	maximummodes=0;
+
 	struct stk_s*ps=(struct stk_s*)b;
 	clear_old_chat(ps->notebook);
 	addattextmain(ps->proced_text,-1);
