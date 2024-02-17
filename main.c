@@ -248,7 +248,7 @@ struct stk_s{
 };
 static int autoconnect=-1;static BOOL autoconnect_pending=FALSE;
 static GSList*con_group;
-static char chantypes[5]={'#','\0'};//this is the default channel char at rfc and will be bad where is_channel function asks if channels will go on names code
+static char chantypes[5]={'\0'};//no # ? will be one if CHANTYPES= , else channels are names, wrong but not fatal
 static char chanmodes[7]={'\0'};
 static char chanmodessigns[7]={'\0'};//& at whois
 static unsigned int maximummodes=0;
