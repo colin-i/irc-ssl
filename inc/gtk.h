@@ -385,12 +385,12 @@ void           gtk_scrolled_window_set_policy (GtkScrolledWindow *scrolled_windo
 GtkWidget*     gtk_scrolled_window_new (GtkAdjustment *hadjustment,GtkAdjustment *vadjustment);
 void   gtk_text_buffer_get_bounds (GtkTextBuffer *buffer,GtkTextIter *start,GtkTextIter *end);
 void   gtk_text_buffer_get_end_iter (GtkTextBuffer *buffer, GtkTextIter *iter);
-gchar *gtk_text_buffer_get_text (GtkTextBuffer *buffer,const GtkTextIter *start,const GtkTextIter *end,gboolean include_hidden_chars);
+gchar *gtk_text_buffer_get_slice (GtkTextBuffer *buffer,const GtkTextIter *start,const GtkTextIter *end,gboolean include_hidden_chars);
 void   gtk_text_buffer_insert (GtkTextBuffer *buffer,GtkTextIter *iter,const gchar *text,gint len);
 void   gtk_text_buffer_set_text (GtkTextBuffer *buffer, const gchar *text, gint len);
 GtkTextBuffer* gtk_text_view_get_buffer(GtkTextView *);
 void           gtk_text_view_get_iter_location (GtkTextView *text_view, const GtkTextIter *iter, GdkRectangle *location);
-void           gtk_text_view_get_visible_rect (GtkTreeView *tree_view, GdkRectangle *visible_rect);
+void           gtk_text_view_get_visible_rect (GtkTextView *tree_view, GdkRectangle *visible_rect);
 GtkWidget *    gtk_text_view_new (void);
 void           gtk_text_view_set_wrap_mode (GtkTextView *text_view, GtkWrapMode wrap_mode);
 void           gtk_text_view_set_editable (GtkTextView *text_view,gboolean setting);

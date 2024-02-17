@@ -134,7 +134,6 @@ static BOOL close_intention;
 #define nickname_con "NICK %s" irc_term
 static char*info_path_name=nullptr;
 #define not_a_nick_chan_host_start     "*"
-#define homestart_size 1
 #define home_string not_a_nick_chan_host_start "Home"
 #define priv_msg_str "PRIVMSG"
 #define not_msg_str "NOTICE"
@@ -249,14 +248,31 @@ struct stk_s{
 };
 static int autoconnect=-1;static BOOL autoconnect_pending=FALSE;
 static GSList*con_group;
-static char chantypes[5]={'\0'};
+static char chantypes[5]={'#','\0'};//this is the default channel char at rfc and will be bad where is_channel function asks if channels will go on names code
 static char chanmodes[7]={'\0'};
 static char chanmodessigns[7]={'\0'};//& at whois
 static unsigned int maximummodes=0;
+
 #define RPL_NONE -1
+#define RPL_ISUPPORT 5
+#define RPL_LUSERCHANNELS 254
+#define RPL_AWAY 301
 #define RPL_WHOISUSER 311
+#define RPL_WHOISSERVER 312
+#define RPL_WHOISIDLE 317
+#define RPL_ENDOFWHOIS 318
+#define RPL_WHOISCHANNELS 319
+#define RPL_WHOISSPECIAL 320
+#define RPL_WHOISACCOUNT 330
 #define RPL_LIST 322
+#define RPL_LISTEND 323
+#define RPL_TOPIC 332
 #define RPL_NAMREPLY 353
+#define RPL_ENDOFNAMES 366
+#define RPL_WHOISHOST 378
+#define RPL_WHOISMODES 379
+#define ERR_UNKNOWNERROR 400
+
 #define show_from_clause(a,b,c) if(icmpAmemBstrlownotempty(a,b))show_msg=c;
 #define show_between_clause(a) if(show_msg!=a)showmsg=FALSE;
 #define show_to_clause(a) if(show_msg==a)show_msg=RPL_NONE;else showmsg=FALSE;
@@ -300,11 +316,10 @@ static GQueue*send_entry_list;static GList*send_entry_list_cursor=nullptr;
 #define visible_char "i"
 #define visible_mod mod_remove_char visible_char
 #define wait_recon 10
-#define user_error "*Error"
+#define user_error not_a_nick_chan_host_start "Error"
 #define user_error2 user_error "2"
-#define user_topic "*Topic"
-#define user_info "*Info"
-#define chanstart '#'
+#define user_topic not_a_nick_chan_host_start "Topic"
+#define user_info not_a_nick_chan_host_start "Info"
 
 #define homelocal ".local"
 #define homeshare "share"
@@ -343,6 +358,11 @@ struct organizer_from_storage{
 #define LIST_ITEM_OR_ORG_ID1 0
 
 #define new_line "\n"
+
+struct name_pack{
+	gchar*name;
+	struct stk_s*ps;
+};
 
 #define contf_get_treev(pan) (GtkTreeView*)gtk_bin_get_child((GtkBin*)gtk_paned_get_child2((GtkPaned*)pan))
 #define contf_get_model(pan) gtk_tree_view_get_model(contf_get_treev(pan))
@@ -833,21 +853,40 @@ static BOOL name_join_isnew(struct stk_s*ps,char*n){
 	return TRUE;
 }
 
-static void org_name_closing(GtkWidget*w){
+static BOOL is_channel(const char*c){
+	for(int i=0;;i++)if(chantypes[i]==*c)return TRUE;
+		else if(chantypes[i]=='\0')return FALSE;
 }
-static void org_name_close(GtkWidget*w,struct stk_s*ps){
-	//g_object_unref(w);//is ok is not required, will be critical, and if is unowned(not this case) is "A floating object was finalized"
-	if(ps->organizer!=nullptr){//and is working at reconnect to another server for previous conversation. and for close everything is ok now
-		org_name_closing(w);
+
+static void name_closed(GtkWidget*tv,struct name_pack*nm){
+//signal at child destroy will not get notebook tab name at that point, and notebook page-removed same
+//destory is working at reconnect to another server for previous conversation. and for close everything is ok
+	//g_object_unref(tv);//is ok is not required, will be critical, and if is unowned(not this case) is "A floating object was finalized"
+	struct stk_s*ps=nm->ps;
+	if(ps->organizer!=nullptr){
+		GtkTextBuffer*b=gtk_text_view_get_buffer(tv);
+		GtkTextIter start;GtkTextIter end;
+		gtk_text_buffer_get_bounds (b, &start, &end);
+		gchar*text = gtk_text_buffer_get_slice (b, &start, &end, TRUE);
+		g_free(text);
 	}
+	g_free(nm->name);
+	free(nm);
 }
 
 static GtkWidget* name_join_nb(char*t,struct stk_s*ps){
-	GtkWidget*scrl=container_frame_name
-	g_signal_connect_data (scrl, "destroy",G_CALLBACK (org_name_close),ps,nullptr,(GConnectFlags)0);//to save conversation if organizer
-	GtkWidget*close;GtkWidget*mn=add_new_tab(scrl,t,&close,ps->notebook,name_on_menu,TRUE);
-	g_signal_connect_data (close, "clicked",G_CALLBACK (close_name),mn,nullptr,G_CONNECT_SWAPPED);//not "(GClosureNotify)gtk_widget_destroy" because at restart clear will be trouble
-	return scrl;
+	struct name_pack*n=(struct name_pack*)malloc(sizeof(struct stk_s*));
+	if(n!=nullptr){
+		n->name=g_strdup(t);
+		n->ps=ps;
+		GtkWidget*tv;
+		GtkWidget*scrl=container_frame_name_out(&tv);
+		g_signal_connect_data (tv, "destroy",G_CALLBACK (name_closed),n,nullptr,(GConnectFlags)0);
+		GtkWidget*close;GtkWidget*mn=add_new_tab(scrl,t,&close,ps->notebook,name_on_menu,TRUE);
+		g_signal_connect_data (close, "clicked",G_CALLBACK (close_name),mn,nullptr,G_CONNECT_SWAPPED);//not "(GClosureNotify)gtk_widget_destroy" because at restart clear will be trouble
+		return scrl;
+	}
+	return nullptr;
 }
 #define nickname_prefixless(a) nickname_start(a)?a:a+1
 static void name_join_main(GtkTreeView*tree,struct stk_s*ps){
@@ -1168,15 +1207,13 @@ static void add_name(GtkListStore*lst,char*t,gpointer ps){
 	add_name_highuser(lst,t);
 }
 
-static char*server_channel_base(char*channel,size_t channel_size,const char*h,BOOL channel_has_prefix){
+static char*server_channel_base(char*channel,size_t channel_size,const char*h){
 	size_t hs=strlen(h);
-	char*z=(char*)malloc(hs+(channel_has_prefix?0:1)+channel_size+1);
+	char*z=(char*)malloc(hs+1+channel_size+1);
 	if(z!=nullptr){
 		memcpy(z   ,h,hs);
-		if(channel_has_prefix==FALSE){
-			z[hs]=chanstart;
-			hs++;
-		}
+		z[hs]=*not_a_nick_chan_host_start;
+		hs++;
 		memcpy(z+hs,channel,channel_size);
 		z[hs+channel_size]='\0';
 	}
@@ -1184,8 +1221,8 @@ static char*server_channel_base(char*channel,size_t channel_size,const char*h,BO
 }
 static char*server_channel(struct stk_s*ps,char*channel,size_t channel_size){
 	const gchar*h=gtk_notebook_get_menu_label_text(ps->notebook,home_page);
-	h+=homestart_size;
-	return server_channel_base(channel,channel_size,h,TRUE);
+	h+=sizeof(not_a_nick_chan_host_start)-1;
+	return server_channel_base(channel,channel_size,h);
 }
 
 static void pars_names_org(struct stk_s*ps,char*serv_chan){
@@ -1358,10 +1395,7 @@ static void prealert(GtkNotebook*nb,GtkWidget*child){
 		if(alert_widget(box)==nullptr)alert(box,nb);
 	}
 }
-static BOOL is_channel(const char*c){
-	for(int i=0;;i++)if(chantypes[i]==*c)return TRUE;
-		else if(chantypes[i]=='\0')return FALSE;
-}
+
 static void send_msg_type(char*usednick,const char*a,const char*text,GtkWidget*pg,const char*msg_irc_type){
 	const char s_msg[]=" :";
 	size_t len=strlen(msg_irc_type);size_t wid=sizeof(s_msg)-1;
@@ -1736,36 +1770,41 @@ static gboolean incsafe(gpointer ps){
 					int s=sscanf(b,"%*s " name_scan " " user_scan,nicknm,username);//%*[~] is ok only when ~ is
 					if(s==2)whois_update(((struct stk_s*)ps)->organizer_notebook,ORG_ID2,nicknm,*username!='~'?username:username+1);
 				}
-			}else if(d==312){//RPL_WHOISSERVER 	RFC1459 	<nick> <server> :<server_info>
+			}else if(d==RPL_WHOISSERVER){// 	RFC1459 	<nick> <server> :<server_info>
 				if(((struct stk_s*)ps)->organizer!=nullptr){
 					show_between_clause(RPL_WHOISUSER)
 					int s=sscanf(b,"%*s " name_scan hostnamerfc_scan,nicknm,hostname);
 					if(s==2)whois_update(((struct stk_s*)ps)->organizer_notebook,ORG_SERVER,nicknm,hostname);
 				}
-			}else if(d==317){//RPL_WHOISIDLE
+			}else if(d==RPL_WHOISIDLE){
 				if(((struct stk_s*)ps)->organizer!=nullptr){
 					show_between_clause(RPL_WHOISUSER)
 					int seconds;
 					int s=sscanf(b,"%*s " name_scan " %u",nicknm,&seconds);
 					if(s==2)whois_update_nr(((struct stk_s*)ps)->organizer_notebook,nicknm,seconds);
 				}
-			}else if(d==319){//RPL_WHOISCHANNELS
+			}else if(d==RPL_WHOISCHANNELS){
 				show_between_clause(RPL_WHOISUSER)
-			}else if(d==320){//RPL_WHOISSPECIAL
+				b=strchr(b,' ');
+				if(b!=nullptr){
+					b++;if(sscanf(b,name_scan " %c",nicknm,&c)==2)
+						pars_wmod(nicknm,b+strlen(nicknm)+2);
+				}
+			}else if(d==RPL_WHOISSPECIAL){
 				if(((struct stk_s*)ps)->organizer!=nullptr){
 					show_between_clause(RPL_WHOISUSER)
 					int s=sscanf(b,"%*s " name_scan "  :identifies as " specialsz_scan,nicknm,special);//from https://scp-wiki.wikidot.com/chat-guide
 					if(s==2)whois_update(((struct stk_s*)ps)->organizer_notebook,ORG_GEN,nicknm,special);
 				}
-			}else if(d==330){//RPL_WHOISACCOUNT "logged in as"
+			}else if(d==RPL_WHOISACCOUNT){// "logged in as"
 				show_between_clause(RPL_WHOISUSER)
-			}else if(d==301){//RPL_AWAY
+			}else if(d==RPL_AWAY){
 				show_between_clause(RPL_WHOISUSER)
-			}else if(d==378){//RPL_WHOISHOST
+			}else if(d==RPL_WHOISHOST){
 				show_between_clause(RPL_WHOISUSER)
-			}else if(d==379){//RPL_WHOISMODES
+			}else if(d==RPL_WHOISMODES){
 				show_between_clause(RPL_WHOISUSER)
-			}else if(d==318){//RPL_ENDOFWHOIS
+			}else if(d==RPL_ENDOFWHOIS){
 				show_to_clause(RPL_WHOISUSER)
 
 			}else if(d==RPL_LIST){//if -f 0 or the option, this is rare
@@ -1779,7 +1818,7 @@ static gboolean incsafe(gpointer ps){
 					}
 			}
 			//not on ircnet: else if(d==321)//RPL_LISTSTART
-			else if(d==323){//RPL_LISTEND
+			else if(d==RPL_LISTEND){
 				show_to_clause(RPL_LIST)
 				list_end();
 
@@ -1792,37 +1831,45 @@ static gboolean incsafe(gpointer ps){
 						if(b!=nullptr)pars_names(p,b+1,s-(size_t)(b+1-a),(struct stk_s*)ps,channm);
 					}
 				}
-			}else if(d==366){//RPL_ENDOFNAMES
+			}else if(d==RPL_ENDOFNAMES){
 				show_to_clause(RPL_NAMREPLY)
 				if(sscanf(b,"%*s " channame_scan,channm)==1){
 					GtkWidget*p=chan_pan(channm);
 					if(p!=nullptr)names_end(p,channm,ps);//at a join
 				}
 
-			}else if(d==332){//RPL_TOPIC
+			}else if(d==RPL_TOPIC){
 				if(sscanf(b,name_scan " " channame_scan " %c",nicknm,channm,&c)==3)
 					addatchans(user_topic,b+strlen(nicknm)+1+strlen(channm)+2,chan_pan(channm));
-			}else if(d==319){//RPL_WHOISCHANNELS
-				b=strchr(b,' ');
-				if(b!=nullptr){
-					b++;if(sscanf(b,name_scan " %c",nicknm,&c)==2)
-						pars_wmod(nicknm,b+strlen(nicknm)+2);
-				}
-			}else if(d==5){//RPL_ISUPPORT
+			}else if(d==RPL_ISUPPORT){
 				char*e=strstr(b,"PREFIX=");
 				if(e!=nullptr){
 					sscanf(e+7,"(%6[^)])%6s",chanmodes,chanmodessigns);
 					maximummodes=strlen(chanmodessigns);
 				}
 				e=strstr(b,"CHANTYPES=");
-				if(e!=nullptr)sscanf(e+10,"%4s",chantypes);
-			}else if(d==254){//RPL_LUSERCHANNELS
+				if(e!=nullptr){
+					char chan_types[5];
+					if(sscanf(e+10,"%4s",chan_types)==1){
+						int i=0;
+						for(;;){
+							if(chan_types[i]==*not_a_nick_chan_host_start)//will be collision with homepage at least, and at least at organizer update decider
+								break;
+							i++;
+							if(chan_types[i]=='\0'){
+								strcpy(chantypes,chan_types);
+								break;
+							}
+						}
+					}
+				}
+			}else if(d==RPL_LUSERCHANNELS){
 				send_autojoin((struct stk_s*)ps);
 				//this not getting after first recv
 				//another solution can be after 376 RPL_ENDOFMOTD
 				//or after 1 second, not beautiful
 				send_list
-			}else if(d>400){//Error Replies.
+			}else if(d>=ERR_UNKNOWNERROR){//Error Replies.
 				//switch(d){
 					//porbably deprecated
 					//case 436://ERR_NICKCOLLISION
@@ -2499,7 +2546,7 @@ static void clipboard_tev(GtkNotebook*notebook){
 	else buffer=gtk_text_view_get_buffer((GtkTextView*)gtk_bin_get_child((GtkBin*)pg));
 	GtkTextIter start;GtkTextIter end;
 	gtk_text_buffer_get_bounds (buffer, &start, &end);
-	gchar*text = gtk_text_buffer_get_text (buffer, &start, &end, FALSE);
+	gchar*text = gtk_text_buffer_get_slice (buffer, &start, &end, TRUE);
 	//an allocated UTF-8 string
 	gtk_clipboard_set_text (gtk_clipboard_get(GDK_SELECTION_CLIPBOARD),text,-1);
 	g_free(text);
@@ -2684,7 +2731,7 @@ static BOOL to_organizer_folder(BOOL is_remove,BOOL remove){//for the moment thi
 
 static void deciderfn(struct stk_s*ps){
 	const char*b=gtk_notebook_get_menu_label_text(ps->notebook,gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook)));
-	if(*b==chanstart){
+	if(is_channel(b)){
 		size_t bs=strlen(b);
 		char*z=server_channel(ps,(char*)b,bs);
 		if(z!=nullptr){
@@ -2719,25 +2766,28 @@ static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer 
 	if(current_pos!=-1){//this is the case when last entry is deleted
 		if(to_organizer_folder_go){//is possible to be in another folder
 			gchar*text=gtk_combo_box_text_get_active_text (combo_box);
-			//not this check, is the server folder there//if(*text!=chanstart){//only if the folder is malevolently changed(this case is at list repopulation)
-			char*chan=strchr(text,chanstart);
+			//not this check, is the server folder there//if(*text!=chan..){//only if the folder is malevolently changed(this case is at list repopulation)
+			char*chan=strchr(text,*not_a_nick_chan_host_start);
 			//not this check, is the channel folder there//if(chan!=nullptr){//only if the folder is malevolently changed(this case is at list repopulation)
 			*chan='\0';
 			if(chdir(text)==0||(mkdir(text,0700)==0&&chdir(text)==0)){
 				if(chdir(org_g)==0||(mkdir(org_g,0700)==0&&chdir(org_g)==0)){
 					//empty current global/local
 					org_clear_rules(ps->organizer_notebook);
+
 					//retake global lists
+
 					if(chdir(dirback)==0){
 						if(chdir(org_c)==0||(mkdir(org_c,0700)==0&&chdir(org_c)==0)){
 							chan++;
 							if(chdir(chan)==0||(mkdir(chan,0700)==0/*&&chdir(chan)==0*/)){
 								//retake local lists
-								if(chdir(dirback)==0&&chdir(dirback)==0){
+
+								if(chdir(dirback)==0){
 									if(chdir(org_u)==0||(mkdir(org_u,0700)==0&&chdir(org_u)==0)){
 										//users conversations, after retakes
+
 										//populate main tab
-										chan--;*chan=chanstart;
 										send_channel_related((char*)names_str,chan,strlen(chan));
 									}
 								}
@@ -2761,7 +2811,7 @@ static void org_removechan(struct stk_s*ps){
 	if(to_organizer_folder_go){//is possible to be in another folder
 		GtkComboBox *combo_box=ps->organizer_dirs;
 		gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)combo_box);
-		char*chan=strchr(text,chanstart);
+		char*chan=strchr(text,*not_a_nick_chan_host_start);
 		*chan='\0';chan++;
 		if(chdir(text)==0&&chdir(org_c)==0&&chdir(chan)==0){
 			//remove local lists
@@ -2894,7 +2944,7 @@ static int iterate_folders(int (*f)(const char*, void*),void*data){
 
 //upper chdir's 0/-1
 static int organizer_populate_dirs_chans(const char*dir,void*s){
-	char*nm=server_channel_base((char*)dir,strlen(dir),((struct organizer_from_storage*)s)->server,FALSE);
+	char*nm=server_channel_base((char*)dir,strlen(dir),((struct organizer_from_storage*)s)->server);
 	if(nm!=nullptr){
 		gtk_combo_box_text_append_text(((struct organizer_from_storage*)s)->box,nm);
 		free(nm);
