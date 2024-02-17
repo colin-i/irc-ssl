@@ -3028,30 +3028,32 @@ static BOOL delete_line_fromfile(const char*text,const char*fname){
 					if(mem[len]=='\n'){
 						//move from this file location everything back len bytes
 						long here=ftell(f);
-						long back=here-1-len;
-						fseek(f,0,SEEK_END);
-						long tel=ftell(f);
-						if(tel!=-1){//if someone compiles for 32 and EINVAL, tested with truncate -s 2147483647 , and the error is at ftell not at fseek
-							long moved=tel-here;
-							if(moved==0){
-								if(back==0){
-									if(unlink(fname)==0)//this is another descriptor, can be permission in the meantime
+						if(here!=-1){//if someone compiles for 32 and EINVAL, tested with truncate -s 2147483647 , and the error is at ftell not at getdelim or fseek
+							long back=here-1-len;
+							fseek(f,0,SEEK_END);
+							long tel=ftell(f);
+							if(tel!=-1){//same
+								long moved=tel-here;
+								if(moved==0){
+									if(back==0){
+										if(unlink(fname)==0)//this is another descriptor, can be permission in the meantime
+											ret=TRUE;
+										//there's nothing to write, fclose will do nothing next
+									}else{
+										ftruncate(fileno(f),back);
 										ret=TRUE;
-									//there's nothing to write, fclose will do nothing next
+									}
 								}else{
-									ftruncate(fileno(f),back);
-									ret=TRUE;
-								}
-							}else{
-								fseek(f,here,SEEK_SET);
-								void*m=malloc(moved);
-								if(m!=nullptr){
-									fread(m,moved,1,f);
-									fseek(f,back,SEEK_SET);
-									fwrite(m,moved,1,f);
-									ftruncate(fileno(f),back+moved);
-									free(m);
-									ret=TRUE;
+									fseek(f,here,SEEK_SET);
+									void*m=malloc(moved);
+									if(m!=nullptr){
+										fread(m,moved,1,f);
+										fseek(f,back,SEEK_SET);
+										fwrite(m,moved,1,f);
+										ftruncate(fileno(f),back+moved);
+										free(m);
+										ret=TRUE;
+									}
 								}
 							}
 						}
