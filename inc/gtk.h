@@ -271,7 +271,9 @@ gpointer g_object_ref (gpointer object);
 void     g_object_set (gpointer object, const gchar *first_property_name, ...) __attribute__((__sentinel__));
 void     g_object_unref (gpointer object);
 gulong g_signal_connect_data (gpointer instance,const gchar *detailed_signal,GCallback c_handler,gpointer data,GClosureNotify destroy_data,GConnectFlags connect_flags);
+void   g_signal_emit_by_name (gpointer instance, const gchar *detailed_signal, ...);
 void   g_signal_handler_block (gpointer instance, gulong handler_id);
+guint  g_signal_handlers_disconnect_matched (gpointer instance, GSignalMatchType mask, guint signal_id, GQuark detail, GClosure *closure, gpointer func, gpointer data);
 gulong g_signal_handler_find (gpointer instance,GSignalMatchType mask,guint signal_id,GQuark detail,GClosure *closure,gpointer func,gpointer data);
 void   g_signal_handler_unblock (gpointer instance, gulong handler_id);
 guint  g_signal_lookup (const gchar *name, GType itype);
@@ -390,6 +392,7 @@ void   gtk_text_buffer_insert (GtkTextBuffer *buffer,GtkTextIter *iter,const gch
 void   gtk_text_buffer_set_text (GtkTextBuffer *buffer, const gchar *text, gint len);
 GtkTextBuffer* gtk_text_view_get_buffer(GtkTextView *);
 void           gtk_text_view_get_iter_location (GtkTextView *text_view, const GtkTextIter *iter, GdkRectangle *location);
+GType          gtk_text_view_get_type (void) __attribute__ ((__const__));
 void           gtk_text_view_get_visible_rect (GtkTextView *tree_view, GdkRectangle *visible_rect);
 GtkWidget *    gtk_text_view_new (void);
 void           gtk_text_view_set_wrap_mode (GtkTextView *text_view, GtkWrapMode wrap_mode);

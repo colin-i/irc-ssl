@@ -858,23 +858,66 @@ static BOOL is_channel(const char*c){
 	for(int i=0;;i++)if(chantypes[i]==*c)return TRUE;
 		else if(chantypes[i]=='\0')return FALSE;
 }
+#define nickname_prefixless(a) nickname_start(a)?a:a+1
 
+static BOOL org_nick_iter(GtkNotebook*nb,char*name,GtkTreeModel**tm,GtkTreeIter*it){
+	gint last=gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1));
+	for(int tab=1;tab<=last;tab++){
+		GtkWidget*sc=gtk_notebook_get_nth_page(nb,tab);//scroll
+		GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
+		*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
+
+		gboolean valid=gtk_tree_model_get_iter_first (*tm, it);
+		while(valid){
+			gchar*nick;
+			gtk_tree_model_get (*tm, it, ORG_ID1, &nick, -1);
+			int cmp=strcmp(nickname_prefixless(nick),name);
+			g_free(nick);
+			if(cmp==0)return TRUE;
+			valid = gtk_tree_model_iter_next(*tm, it);
+		}
+	}
+	return FALSE;
+}
 static void name_closed(GtkWidget*tv,struct name_pack*nm){
 //signal at child destroy will not get notebook tab name at that point, and notebook page-removed same
 //destory is working at reconnect to another server for previous conversation. and for close everything is ok
 	//g_object_unref(tv);//is ok is not required, will be critical, and if is unowned(not this case) is "A floating object was finalized"
 	struct stk_s*ps=nm->ps;
 	if(ps->organizer!=nullptr){
-		GtkTextBuffer*b=gtk_text_view_get_buffer(tv);
-		GtkTextIter start;GtkTextIter end;
-		gtk_text_buffer_get_bounds (b, &start, &end);
-		gchar*text = gtk_text_buffer_get_slice (b, &start, &end, TRUE);
-		g_free(text);
+		const gchar*n_o=gtk_notebook_get_menu_label_text(ps->organizer_notebook,ps->organizer_entry_widget);
+		if(*n_o!=*org_new_names){
+			size_t n_o_sz=strchr(n_o,*not_a_nick_chan_host_start)-n_o;
+
+			const gchar*n_main=gtk_notebook_get_menu_label_text(ps->notebook,home_page);
+			n_main+=sizeof(not_a_nick_chan_host_start)-1;
+			//char*n_main=ps->proced_hostname;//at reconect is not ok and is set in another thread
+
+			if(memcmp(n_o,n_main,n_o_sz)==0){//name can be in organizer server then
+				GtkTreeModel*tm;GtkTreeIter iter;
+				if(org_nick_iter(ps->organizer_notebook,nm->name,&tm,&iter)){
+					GtkTextBuffer*b=gtk_text_view_get_buffer(tv);
+					GtkTextIter start;GtkTextIter end;
+					gtk_text_buffer_get_bounds (b, &start, &end);
+					gchar*text = gtk_text_buffer_get_slice (b, &start, &end, TRUE);
+					//save to file
+					//if(org_save_conv(nm->name,text)){
+						//increment iter count
+						gint count;
+						gtk_tree_model_get (tm, &iter, ORG_CONV, &count, -1);
+						count++;
+						gtk_list_store_set((GtkListStore*)tm,&iter,ORG_CONV,count,-1);
+					//}
+					g_free(text);
+				}
+			}
+		}
 	}
 	g_free(nm->name);
 	free(nm);
 }
 
+#define destroy "destroy"
 static GtkWidget* name_join_nb(char*t,struct stk_s*ps){
 	struct name_pack*n=(struct name_pack*)malloc(sizeof(struct stk_s*));
 	if(n!=nullptr){
@@ -882,14 +925,13 @@ static GtkWidget* name_join_nb(char*t,struct stk_s*ps){
 		n->ps=ps;
 		GtkWidget*tv;
 		GtkWidget*scrl=container_frame_name_out(&tv);
-		g_signal_connect_data (tv, "destroy",G_CALLBACK (name_closed),n,nullptr,(GConnectFlags)0);
+		g_signal_connect_data (tv,destroy,G_CALLBACK (name_closed),n,nullptr,(GConnectFlags)0);
 		GtkWidget*close;GtkWidget*mn=add_new_tab(scrl,t,&close,ps->notebook,name_on_menu,TRUE);
 		g_signal_connect_data (close, "clicked",G_CALLBACK (close_name),mn,nullptr,G_CONNECT_SWAPPED);//not "(GClosureNotify)gtk_widget_destroy" because at restart clear will be trouble
 		return scrl;
 	}
 	return nullptr;
 }
-#define nickname_prefixless(a) nickname_start(a)?a:a+1
 static void name_join_main(GtkTreeView*tree,struct stk_s*ps){
 	GtkTreeSelection *sel=gtk_tree_view_get_selection(tree);
 	GtkTreeIter iterator;
@@ -2792,7 +2834,7 @@ static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer 
 							if(chdir(chan)==0||(mkdir(chan,0700)==0/*&&chdir(chan)==0*/)){
 								//retake local lists
 
-								if(chdir(dirback)==0){
+								if(chdir(dirback)==0&&chdir(dirback)==0){
 									if(chdir(org_u)==0||(mkdir(org_u,0700)==0&&chdir(org_u)==0)){
 										//users conversations, after retakes
 
@@ -3222,6 +3264,7 @@ static void org_chat(struct stk_s*ps){
 	GtkWidget*current=gtk_notebook_get_nth_page(ps->organizer_notebook,gtk_notebook_get_current_page(ps->organizer_notebook));//scroll
 	GtkWidget*tv=gtk_bin_get_child((GtkBin*)current);
 	name_join_main((GtkTreeView*)tv,ps);//will add an if inside the function
+	gtk_window_present(ps->main_win);
 }
 
 #define org_move_scan "%u" not_a_nick_chan_host_start "%u"
@@ -3351,17 +3394,30 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	gtk_container_add ((GtkContainer*)window, box);
 }
 
+static void mainclose_names(GtkNotebook*nb,GtkWidget*men){
+	GList*list=gtk_container_get_children((GtkContainer*)men);
+	if(list!=nullptr){
+		GList*lst=list;
+		for(;;){
+			GtkWidget*nb_page=get_pan_from_menu(list->data);
+			GtkWidget*txv=gtk_bin_get_child((GtkBin*)nb_page);
+
+			g_signal_emit_by_name(txv,destroy);//can call normally but there is a malloc data for each one that is passed as func data, must find a way that way?
+			//and disconnect, if that malloc data, can disconnect the function only next
+			g_signal_handlers_disconnect_matched(txv,G_SIGNAL_MATCH_ID,g_signal_lookup(destroy, gtk_text_view_get_type()),0,nullptr,nullptr,nullptr);
+
+			list=g_list_next(list);
+			if(list==nullptr)break;
+		}
+		g_list_free(lst);
+	}
+}
 static void everything_destroy_from_mainclose(struct stk_s*ps){
 	gtk_widget_destroy(menuwithtabs);
 	if(ps->organizer!=nullptr){
-		//but now is working
-		//gint n=gtk_notebook_page_num(ps->notebook,gtk_notebook_get_nth_page(ps->notebook,-1));
-		//for(int i=0;i<n;i++){
-		//	GtkWidget*w=gtk_notebook_get_nth_page(ps->notebook,i);
-		//	const gchar*c=gtk_notebook_get_menu_label_text(ps->notebook,w);
-		//	if(is_channel(c))
-		//		org_name_closing(w);
-		//}
+		//need to save conversations and remove those handlers
+		mainclose_names(ps->notebook,name_on_menu);
+		mainclose_names(ps->notebook,name_off_menu);
 		gtk_window_close((GtkWindow*)ps->organizer);
 	}
 }
