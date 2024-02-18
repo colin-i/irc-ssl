@@ -2877,26 +2877,29 @@ static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer 
 	}
 	gtk_widget_set_sensitive(ps->organizer_bot,FALSE);//will be TRUE when names comes in
 }
-static void org_removechan(struct stk_s*ps){
-	gint response;
+static gint org_delconf(struct stk_s*ps){
 	if(gtk_toggle_button_get_active(ps->organizer_del_confirmation)){
 		GtkWidget*dialog=gtk_message_dialog_new((GtkWindow*)ps->organizer,GTK_DIALOG_DESTROY_WITH_PARENT/*modal will be at dialog_run*/,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"And delete stored data?");
-		response=gtk_dialog_run((GtkDialog*)dialog);
+		gint response=gtk_dialog_run((GtkDialog*)dialog);
 		gtk_widget_destroy (dialog);
-	}else response=GTK_RESPONSE_YES;
+		return response;
+	}
+	return GTK_RESPONSE_YES;
+}
+static void org_removechan(struct stk_s*ps){
 	if(to_organizer_folder_go){//is possible to be in another folder
 		GtkComboBox *combo_box=ps->organizer_dirs;
 		gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)combo_box);
 		char*chan=strchr(text,*not_a_nick_chan_host_start);
 		*chan='\0';chan++;
 		if(chdir(text)==0&&chdir(org_c)==0&&chdir(chan)==0){
-			//remove local lists
+			//remove local lists, same time test if users are in other channels, to remove conversations
 			if(chdir(dirback)==0){
-				if(response==GTK_RESPONSE_YES)rmdir(chan);
+				rmdir(chan);
 				if(chdir(dirback)==0){
 					if(rmdir(org_c)==0){//test to see if was the last channel in server, when response is GTK_RESPONSE_CANCEL, will be not empty,-1,chan is there
-						rmdir(org_g);
-						rmdir(org_u);
+						rmdir(org_g);//remove global lists
+						rmdir(org_u);//remove rest of the users conversations
 						if(chdir(dirback)==0){
 							rmdir(text);
 						}
@@ -3116,9 +3119,20 @@ static BOOL org_storerule(const char*text,size_t sz,gboolean is_global){//this w
 }
 static BOOL org_deleterule(GtkLabel*label){
 	if(to_organizer_folder_go){
+		//gint response=org_delconf(ps);
 		gboolean is_global=gtk_label_get_use_markup(label);
-		const char*fname;if(is_global)fname=globalrules;
-		else fname=localrules;
+		const char*fname;if(is_global){
+			fname=globalrules;
+			//if(response==GTK_RESPONSE_YES){
+				//delete conversations simple based on files
+			//}
+		}
+		else{
+			fname=localrules;
+			//if(response==GTK_RESPONSE_YES){
+				//local, delete like at combobox
+			//}
+		}
 		const char*text=gtk_label_get_text(label);
 		return delete_line_fromfile(text,fname);
 	}
@@ -3345,7 +3359,25 @@ static void org_move(GtkButton*button,struct stk_s*ps){
 						GtkTreePath * path = gtk_tree_model_get_path ( tm , &iterator );
 						gtk_tree_view_set_cursor((GtkTreeView*)tv,path,nullptr,FALSE);
 						gtk_tree_path_free(path);
-					}//server_name(ps) nickname_prefixless(a)
+					}else if(org_delconf(ps)==GTK_RESPONSE_YES){
+						if(to_organizer_folder_server(server_name(ps))&&chdir(org_u)==0){
+							char*n=nickname_prefixless(a);
+							if(chdir(n)==0){
+								GDir*entries=g_dir_open(".",0,nullptr);
+								if(entries!=nullptr){
+									for(;;){
+										const char*file=g_dir_read_name(entries);
+										if(file==nullptr)break;
+										unlink(file);
+									}
+									g_dir_close(entries);
+								}
+								if(chdir(dirback)==0){
+									rmdir(n);
+								}
+							}
+						}
+					}
 					g_free(a);g_free(b);g_free(c);g_free(e);
 				}
 			}
