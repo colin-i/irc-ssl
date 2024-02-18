@@ -279,6 +279,7 @@ static unsigned int maximummodes;
 #define show_to_clause(a) if(show_msg==a)show_msg=RPL_NONE;else showmsg=FALSE;
 static int show_msg=RPL_NONE;
 #define digits_in_uint 10
+#define digits_in_uintnul digits_in_uint+1
 #define digits_in_posInt 10
 static int log_file=-1;
 static char*dummy=nullptr;
@@ -860,6 +861,71 @@ static BOOL is_channel(const char*c){
 }
 #define nickname_prefixless(a) nickname_start(a)?a:a+1
 
+static BOOL to_organizer_folder(BOOL is_remove,BOOL remove){//for the moment this is the only chdir in the program
+	char*h=getenv("HOME");
+	if(h!=nullptr){
+		if(chdir(h)!=-1){
+			if(is_remove==FALSE){
+				if(chdir(homelocal)==-1){
+					if(mkdir(homelocal,0700)==-1)return FALSE;
+					if(chdir(homelocal)==-1)return FALSE;
+				}
+				if(chdir(homeshare)==-1){
+					if(mkdir(homeshare,0700)==-1)return FALSE;
+					if(chdir(homeshare)==-1)return FALSE;
+				}
+				if(chdir(proj)==-1){
+					if(mkdir(proj,0700)==-1)return FALSE;
+					if(chdir(proj)==-1)return FALSE;
+				}
+				return TRUE;
+			}else{
+				if(access(homelocal folder_separator homeshare folder_separator proj,F_OK)==0){
+					printf("%s%c%s%c%s%c%s",h,folderseparator,homelocal,folderseparator,homeshare,folderseparator,proj);
+					BOOL a;
+					if(remove==FALSE){
+						puts("");a=TRUE;
+					}else{
+						if(rmdir(homelocal folder_separator homeshare folder_separator proj)==0){puts(removed_string);a=TRUE;}
+						else{puts(remove_ignored);a=FALSE;}
+					}
+					if(a){
+						if(access(homelocal folder_separator homeshare,F_OK)==0){
+							printf("%s%c%s%c%s",h,folderseparator,homelocal,folderseparator,homeshare);
+							if(remove==FALSE){
+								puts("");a=TRUE;
+							}else{
+								if(rmdir(homelocal folder_separator homeshare)==0){puts(removed_string);a=TRUE;}
+								else{puts(remove_ignored);a=FALSE;}
+							}
+							if(a){
+								if(access(homelocal,F_OK)==0){
+									printf("%s%c%s",h,folderseparator,homelocal);
+									if(remove==FALSE){
+										puts("");
+									}else{
+										if(rmdir(homelocal)==0) puts(removed_string);
+										else puts(remove_ignored);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return FALSE;
+}
+#define to_organizer_folder_go to_organizer_folder(FALSE,FALSE)
+#define to_organizer_folder_server(s) to_organizer_folder_go&&chdir(s)==0
+static const gchar*server_name(struct stk_s*ps){
+	const gchar*n_main=gtk_notebook_get_menu_label_text(ps->notebook,home_page);
+	n_main+=sizeof(not_a_nick_chan_host_start)-1;
+	return n_main;
+	//char*n_main=ps->proced_hostname;//at reconect is not ok and is set in another thread
+}
+
 static BOOL org_nick_iter(GtkNotebook*nb,char*name,GtkTreeModel**tm,GtkTreeIter*it){
 	gint last=gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1));
 	for(int tab=1;tab<=last;tab++){
@@ -879,6 +945,29 @@ static BOOL org_nick_iter(GtkNotebook*nb,char*name,GtkTreeModel**tm,GtkTreeIter*
 	}
 	return FALSE;
 }
+static BOOL org_save_conv(char*user,char*text,const char*server){
+	size_t sz=strlen(text);
+	if(sz!=0){
+		if(to_organizer_folder_server(server)&&chdir(org_u)==0){
+			if( chdir(user)==0||(mkdir(user,0700)==0&&chdir(user)==0) ){
+				GDir*entries=g_dir_open(".",0,nullptr);
+				unsigned int n=0;
+				if(entries!=nullptr){//something like a fast EACCES permission change or ENOMEM
+					while(g_dir_read_name(entries)!=nullptr)n++;
+					g_dir_close(entries);
+				}
+				char buf[digits_in_uintnul];sprintf(buf,"%u",n);
+				FILE*dest=fopen(buf,"wb");
+				if(dest!=nullptr){
+					BOOL ret=fwrite(text,sz,1,dest)==1;
+					fclose(dest);
+					return ret;
+				}
+			}
+		}
+	}
+	return FALSE;
+}
 static void name_closed(GtkWidget*tv,struct name_pack*nm){
 //signal at child destroy will not get notebook tab name at that point, and notebook page-removed same
 //destory is working at reconnect to another server for previous conversation. and for close everything is ok
@@ -888,11 +977,7 @@ static void name_closed(GtkWidget*tv,struct name_pack*nm){
 		const gchar*n_o=gtk_notebook_get_menu_label_text(ps->organizer_notebook,ps->organizer_entry_widget);
 		if(*n_o!=*org_new_names){
 			size_t n_o_sz=strchr(n_o,*not_a_nick_chan_host_start)-n_o;
-
-			const gchar*n_main=gtk_notebook_get_menu_label_text(ps->notebook,home_page);
-			n_main+=sizeof(not_a_nick_chan_host_start)-1;
-			//char*n_main=ps->proced_hostname;//at reconect is not ok and is set in another thread
-
+			const gchar*n_main=server_name(ps);
 			if(memcmp(n_o,n_main,n_o_sz)==0){//name can be in organizer server then
 				GtkTreeModel*tm;GtkTreeIter iter;
 				if(org_nick_iter(ps->organizer_notebook,nm->name,&tm,&iter)){
@@ -901,13 +986,13 @@ static void name_closed(GtkWidget*tv,struct name_pack*nm){
 					gtk_text_buffer_get_bounds (b, &start, &end);
 					gchar*text = gtk_text_buffer_get_slice (b, &start, &end, TRUE);
 					//save to file
-					//if(org_save_conv(nm->name,text)){
+					if(org_save_conv(nm->name,text,n_main)){
 						//increment iter count
 						gint count;
 						gtk_tree_model_get (tm, &iter, ORG_CONV, &count, -1);
 						count++;
 						gtk_list_store_set((GtkListStore*)tm,&iter,ORG_CONV,count,-1);
-					//}
+					}
 					g_free(text);
 				}
 			}
@@ -1263,9 +1348,7 @@ static char*server_channel_base(char*channel,size_t channel_size,const char*h){
 	return z;
 }
 static char*server_channel(struct stk_s*ps,char*channel,size_t channel_size){
-	const gchar*h=gtk_notebook_get_menu_label_text(ps->notebook,home_page);
-	h+=sizeof(not_a_nick_chan_host_start)-1;
-	return server_channel_base(channel,channel_size,h);
+	return server_channel_base(channel,channel_size,server_name(ps));
 }
 
 static void pars_names_org(struct stk_s*ps,char*serv_chan){
@@ -1587,7 +1670,7 @@ static void org_changeprefix(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter,g
 	gtk_tree_model_iter_nth_child(tm, iter, nullptr, pos);
 	gtk_list_store_set((GtkListStore*)tm,iter, ORG_ID1,nick, -1);
 }
-static void names_end_org(struct stk_s* ps){//nick uniqueness
+static void org_names_end(struct stk_s* ps){//nick uniqueness
 	if(ps->organizer!=nullptr){
 		if(ps->organizer_can_add_names){
 			GtkListStore*list=gtk_list_store_new(5,G_TYPE_STRING,G_TYPE_INT,G_TYPE_INT,G_TYPE_INT,G_TYPE_INT);//second is for prefix, third for is_global to not change prefix there, tab,pos
@@ -1663,7 +1746,7 @@ static void names_end_org(struct stk_s* ps){//nick uniqueness
 	}
 }
 static void names_end(GtkWidget*p,char*chan,gpointer ps){
-	names_end_org((struct stk_s*)ps);
+	org_names_end((struct stk_s*)ps);
 	counting_the_list(p,names_small_str);
 	char c[chan_sz+1+digits_in_uint+1];
 	GtkTreeIter it;gchar*text;
@@ -2722,64 +2805,6 @@ static void gather_free(size_t sum,gchar*mem,struct ajoin*ins){
 	}
 }
 
-static BOOL to_organizer_folder(BOOL is_remove,BOOL remove){//for the moment this is the only chdir in the program
-	char*h=getenv("HOME");
-	if(h!=nullptr){
-		if(chdir(h)!=-1){
-			if(is_remove==FALSE){
-				if(chdir(homelocal)==-1){
-					if(mkdir(homelocal,0700)==-1)return FALSE;
-					if(chdir(homelocal)==-1)return FALSE;
-				}
-				if(chdir(homeshare)==-1){
-					if(mkdir(homeshare,0700)==-1)return FALSE;
-					if(chdir(homeshare)==-1)return FALSE;
-				}
-				if(chdir(proj)==-1){
-					if(mkdir(proj,0700)==-1)return FALSE;
-					if(chdir(proj)==-1)return FALSE;
-				}
-				return TRUE;
-			}else{
-				if(access(homelocal folder_separator homeshare folder_separator proj,F_OK)==0){
-					printf("%s%c%s%c%s%c%s",h,folderseparator,homelocal,folderseparator,homeshare,folderseparator,proj);
-					BOOL a;
-					if(remove==FALSE){
-						puts("");a=TRUE;
-					}else{
-						if(rmdir(homelocal folder_separator homeshare folder_separator proj)==0){puts(removed_string);a=TRUE;}
-						else{puts(remove_ignored);a=FALSE;}
-					}
-					if(a){
-						if(access(homelocal folder_separator homeshare,F_OK)==0){
-							printf("%s%c%s%c%s",h,folderseparator,homelocal,folderseparator,homeshare);
-							if(remove==FALSE){
-								puts("");a=TRUE;
-							}else{
-								if(rmdir(homelocal folder_separator homeshare)==0){puts(removed_string);a=TRUE;}
-								else{puts(remove_ignored);a=FALSE;}
-							}
-							if(a){
-								if(access(homelocal,F_OK)==0){
-									printf("%s%c%s",h,folderseparator,homelocal);
-									if(remove==FALSE){
-										puts("");
-									}else{
-										if(rmdir(homelocal)==0) puts(removed_string);
-										else puts(remove_ignored);
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	return FALSE;
-}
-#define to_organizer_folder_go to_organizer_folder(FALSE,FALSE)
-
 static void deciderfn(struct stk_s*ps){
 	const char*b=gtk_notebook_get_menu_label_text(ps->notebook,gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook)));
 	if(is_channel(b)){
@@ -3273,7 +3298,8 @@ static void org_chat(struct stk_s*ps){
 }
 
 #define org_move_scan "%u" not_a_nick_chan_host_start "%u"
-static void org_move(GtkButton*button,GtkNotebook*nb){
+static void org_move(GtkButton*button,struct stk_s*ps){
+	GtkNotebook*nb=ps->organizer_notebook;
 	const gchar*user=gtk_button_get_label(button);
 	//the attributions are not required if user click wrong, but this case is rare
 	gint nb_page_index=gtk_notebook_get_current_page(nb);
@@ -3311,7 +3337,7 @@ static void org_move(GtkButton*button,GtkNotebook*nb){
 					gtk_tree_model_get(tmprev,&iterator,ORG_ID1,&a,ORG_ID2,&b,ORG_GEN,&c,ORG_IDLE,&d,ORG_SERVER,&e,ORG_INDEX,&f,ORG_CONV,&g,-1);
 					gtk_list_store_remove((GtkListStore*)tmprev,&iterator);
 					org_move_indexed(tmprev,f);
-					if(nb_page_index!=0){//can't move back, there is a comment about this at names_end_org
+					if(nb_page_index!=0){//can't move back, there is a comment about this at org_names_end
 						gint n=gtk_tree_model_iter_n_children(tm,nullptr);
 						gtk_list_store_append((GtkListStore*)tm,&iterator);
 						gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,is_global?nickname_prefixless(a):a,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_INDEX,n,ORG_CONV,g,-1);
@@ -3319,7 +3345,7 @@ static void org_move(GtkButton*button,GtkNotebook*nb){
 						GtkTreePath * path = gtk_tree_model_get_path ( tm , &iterator );
 						gtk_tree_view_set_cursor((GtkTreeView*)tv,path,nullptr,FALSE);
 						gtk_tree_path_free(path);
-					}
+					}//server_name(ps) nickname_prefixless(a)
 					g_free(a);g_free(b);g_free(c);g_free(e);
 				}
 			}
@@ -3386,7 +3412,7 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	}
 
 	GtkWidget*move=gtk_button_new_with_label(movestart);
-	g_signal_connect_data (move, "clicked",G_CALLBACK(org_move),nb,nullptr,(GConnectFlags)0);
+	g_signal_connect_data (move, "clicked",G_CALLBACK(org_move),ps,nullptr,(GConnectFlags)0);
 	gtk_box_pack_start((GtkBox*)bot,move,FALSE,FALSE,0);
 	GtkWidget*query=gtk_button_new_with_label("Query");
 	g_signal_connect_data (query, "clicked",G_CALLBACK(org_query),nb,nullptr,G_CONNECT_SWAPPED);
