@@ -3361,10 +3361,9 @@ static void org_move(GtkButton*button,struct stk_s*ps){
 						gtk_tree_path_free(path);
 					}else if(org_delconf(ps)==GTK_RESPONSE_YES){
 						if(to_organizer_folder_server(server_name(ps))){
-							char*n=nickname_prefixless(a);
 							if(is_global){
 								if(chdir(org_u)==0){
-									if(chdir(n)==0){
+									if(chdir(a)==0){//is prefixless at global
 										GDir*entries=g_dir_open(".",0,nullptr);
 										if(entries!=nullptr){
 											for(;;){
