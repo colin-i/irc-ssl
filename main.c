@@ -855,7 +855,7 @@ static BOOL name_join_isnew(struct stk_s*ps,char*n){
 	return TRUE;
 }
 
-static BOOL is_channel(const char*c){
+static BOOL is_channel(const char*c){//prefixless names from notebook menu or from privmsg/invite incomings
 	for(int i=0;;i++)if(chantypes[i]==*c)return TRUE;
 		else if(chantypes[i]=='\0')return FALSE;
 }
@@ -3360,22 +3360,27 @@ static void org_move(GtkButton*button,struct stk_s*ps){
 						gtk_tree_view_set_cursor((GtkTreeView*)tv,path,nullptr,FALSE);
 						gtk_tree_path_free(path);
 					}else if(org_delconf(ps)==GTK_RESPONSE_YES){
-						if(to_organizer_folder_server(server_name(ps))&&chdir(org_u)==0){
+						if(to_organizer_folder_server(server_name(ps))){
 							char*n=nickname_prefixless(a);
-							if(chdir(n)==0){
-								GDir*entries=g_dir_open(".",0,nullptr);
-								if(entries!=nullptr){
-									for(;;){
-										const char*file=g_dir_read_name(entries);
-										if(file==nullptr)break;
-										unlink(file);
+							if(is_global){
+								if(chdir(org_u)==0){
+									if(chdir(n)==0){
+										GDir*entries=g_dir_open(".",0,nullptr);
+										if(entries!=nullptr){
+											for(;;){
+												const char*file=g_dir_read_name(entries);
+												if(file==nullptr)break;
+												unlink(file);
+											}
+											g_dir_close(entries);
+										}
+										if(chdir(dirback)==0){
+											rmdir(n);
+										}
 									}
-									g_dir_close(entries);
 								}
-								if(chdir(dirback)==0){
-									rmdir(n);
-								}
-							}
+							}//else{// test with strstr \nuser\n against other channels after grab, then same delete
+							//}
 						}
 					}
 					g_free(a);g_free(b);g_free(c);g_free(e);
