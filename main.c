@@ -3374,7 +3374,7 @@ static void org_move(GtkButton*button,struct stk_s*ps){
 											g_dir_close(entries);
 										}
 										if(chdir(dirback)==0){
-											rmdir(n);
+											rmdir(a);
 										}
 									}
 								}
