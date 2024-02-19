@@ -956,7 +956,7 @@ static BOOL org_save_conv(char*user,char*text,const char*server){
 			if( chdir(user)==0||(mkdir(user,0700)==0&&chdir(user)==0) ){
 				GDir*entries=g_dir_open(".",0,nullptr);
 				unsigned int n=0;
-				if(entries!=nullptr){//something like a fast EACCES permission change or ENOMEM
+				if(entries!=nullptr){//something like a fast EACCES permission change, tested
 					while(g_dir_read_name(entries)!=nullptr)n++;
 					g_dir_close(entries);
 				}
