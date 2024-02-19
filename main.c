@@ -119,10 +119,10 @@ static BOOL close_intention;
 #define usernul_sz user_sz+1
 #define user_scan "%10s"
 
+//hostname -.0..9a..z
 #define nickname_start(a) ('A'<=*a&&*a<='}')
 //nick format: A..}
 //             -0..9; but not at [0]
-//hostname -.0..9a..z
 //~ for owners, +q, tilde ascii is after }
 //& for admins, +a
 //@ for full operators, +o
@@ -241,7 +241,7 @@ struct stk_s{
 	                           GtkWidget*organizer_removerule;
 	                           GtkToggleButton*organizer_del_confirmation;
 	GtkNotebook*organizer_notebook;
-	GtkWidget*organizer_entry_widget;
+	GtkWidget*organizer_entry_widget;GtkWidget*organizer_entry_widget_timestamp;
 	GtkListStore*organizer_entry_names;
 	GtkWidget*organizer_bot;
 	BOOL organizer_can_add_names;
@@ -274,13 +274,17 @@ static unsigned int maximummodes;
 #define RPL_WHOISMODES 379
 #define ERR_UNKNOWNERROR 400
 
+#define digits_in_uint 10
+#define digits_in_uintnul digits_in_uint+1
+#define digits_in_posInt 10
+#define digits_in_long 20
+#define digits_in_longnul digits_in_long+1
+//2 at 64, $((2**63))...
+
 #define show_from_clause(a,b,c) if(icmpAmemBstrlownotempty(a,b))show_msg=c;
 #define show_between_clause(a) if(show_msg!=a)showmsg=FALSE;
 #define show_to_clause(a) if(show_msg==a)show_msg=RPL_NONE;else showmsg=FALSE;
 static int show_msg=RPL_NONE;
-#define digits_in_uint 10
-#define digits_in_uintnul digits_in_uint+1
-#define digits_in_posInt 10
 static int log_file=-1;
 static char*dummy=nullptr;
 static char**ignores;
@@ -445,7 +449,7 @@ static void addatnames(const char*n,const char*msg,GtkWidget*p,char*the_other_pe
 			}
 			write(log_file,the_other_person,strlen(the_other_person));
 		}
-		char buf[1+20+1+1];//2 at 64, $((2**63))...
+		char buf[1+digits_in_long+1+1];
 		write(log_file,buf,(size_t)sprintf(buf," %ld ",time(nullptr)));//sizeof(time_t)==8?" %lld ":
 		write(log_file,msg,strlen(msg));
 		write(log_file,new_line,sizeof(new_line)-1);
@@ -1359,6 +1363,9 @@ static void pars_names_org_inits(struct stk_s* ps,char*a){
 	ps->organizer_can_add_names=TRUE;
 	pars_names_org(ps,a);
 	gtk_widget_set_sensitive(ps->organizer_bot,TRUE);
+	char buf[digits_in_longnul];
+	sprintf(buf,"%ld",time(nullptr));
+	gtk_label_set_text((GtkLabel*)ps->organizer_entry_widget_timestamp,buf);
 }
 static void pars_names(GtkWidget*pan,char*b,size_t s,struct stk_s* ps,char*channm){
 	GtkListStore*lst=contf_get_list(pan);
@@ -2856,7 +2863,7 @@ static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer 
 					if(chdir(dirback)==0){
 						if(chdir(org_c)==0||(mkdir(org_c,0700)==0&&chdir(org_c)==0)){
 							chan++;
-							if(chdir(chan)==0||(mkdir(chan,0700)==0/*&&chdir(chan)==0*/)){
+							if(chdir(chan)==0||(mkdir(chan,0700)==0&&chdir(chan)==0)){
 								//retake local lists
 
 								if(chdir(dirback)==0&&chdir(dirback)==0){
@@ -2877,14 +2884,114 @@ static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer 
 	}
 	gtk_widget_set_sensitive(ps->organizer_bot,FALSE);//will be TRUE when names comes in
 }
-static gint org_delconf(struct stk_s*ps){
+
+static BOOL org_delconf(struct stk_s*ps){
 	if(gtk_toggle_button_get_active(ps->organizer_del_confirmation)){
 		GtkWidget*dialog=gtk_message_dialog_new((GtkWindow*)ps->organizer,GTK_DIALOG_DESTROY_WITH_PARENT/*modal will be at dialog_run*/,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"And delete stored data?");
 		gint response=gtk_dialog_run((GtkDialog*)dialog);
 		gtk_widget_destroy (dialog);
-		return response;
+		return response==GTK_RESPONSE_YES;
 	}
-	return GTK_RESPONSE_YES;
+	return TRUE;
+}
+
+static int iterate_folders_enter_rm(int (*f)(const char*)){
+	GDir*entries=g_dir_open(".",0,nullptr);
+	if(entries!=nullptr){
+		int r=0;
+		for(;;){
+			const char*dir=g_dir_read_name(entries);
+			if(dir==nullptr)break;
+			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
+				if(chdir(dir)==0){
+					if(f(dir)!=0){r=-1;break;}
+					if(chdir("..")!=0){r=-1;break;}
+					if(rmdir(dir)!=0){r=-1;break;}
+				}else {r=-1;break;}
+			}
+		}
+		g_dir_close(entries);
+		return r;
+	}else return -1;
+	return 0;
+}
+static void iterate_folders_enter(int (*f)(const char*, void*),void*data){
+	GDir*entries=g_dir_open(".",0,nullptr);
+	if(entries!=nullptr){
+		//int r=0;
+		for(;;){
+			const char*dir=g_dir_read_name(entries);
+			if(dir==nullptr)break;
+			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
+				if(chdir(dir)==0){
+					if(f(dir,data)!=0)break;//{r=-1;break;}
+					if(chdir("..")!=0)break;//{r=-1;break;}
+				}else break;//{r=-1;break;}
+			}
+		}
+		g_dir_close(entries);
+		//return r;
+	}//else return -1;
+	//return 0;
+}
+//upper chdir's 0/-1
+static int iterate_folders(int (*f)(const char*, void*),void*data){
+	GDir*entries=g_dir_open(".",0,nullptr);
+	if(entries!=nullptr){
+		int r=0;
+		for(;;){
+			const char*dir=g_dir_read_name(entries);
+			if(dir==nullptr)break;
+			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
+				if(f(dir,data)!=0){r=-1;break;}
+			}
+		}
+		g_dir_close(entries);
+		return r;
+	}else return -1;
+	return 0;
+}
+
+static int org_removechan_global_fn(const char*dir){
+	GDir*entries=g_dir_open(".",0,nullptr);
+	if(entries!=nullptr){
+		int r=0;
+		for(;;){
+			const char*file=g_dir_read_name(entries);
+			if(file==nullptr)break;
+			if(unlink(file)!=0){r=-1;break;}
+		}
+		g_dir_close(entries);
+		return r;
+	}else return -1;
+	return 0;
+}
+static BOOL org_removechan_global(BOOL del,gchar*server){
+	if(chdir(org_g)==0){
+		//if(del)//remove global lists
+		if(chdir(dirback)==0){
+			rmdir(org_g);
+			if(chdir(org_u)==0){
+				int ok;
+				if(del){//remove all conversations
+					ok=iterate_folders_enter_rm(org_removechan_global_fn);
+				}else ok=0;
+				if(ok==0){
+					if(chdir(dirback)==0){
+						rmdir(org_u);
+						if(chdir(dirback)==0){
+							rmdir(server);
+							return TRUE;
+						}
+					}
+				}
+			}
+		}
+	}
+	return FALSE;
+}
+static BOOL org_removechan_local(BOOL del){
+	return TRUE;
 }
 static void org_removechan(struct stk_s*ps){
 	if(to_organizer_folder_go){//is possible to be in another folder
@@ -2893,25 +3000,25 @@ static void org_removechan(struct stk_s*ps){
 		char*chan=strchr(text,*not_a_nick_chan_host_start);
 		*chan='\0';chan++;
 		if(chdir(text)==0&&chdir(org_c)==0&&chdir(chan)==0){
-			//remove local lists, same time test if users are in other channels, to remove conversations
+			BOOL del=org_delconf(ps);
+			//remove local lists
 			if(chdir(dirback)==0){
 				rmdir(chan);
 				if(chdir(dirback)==0){
-					if(rmdir(org_c)==0){//test to see if was the last channel in server, when response is GTK_RESPONSE_CANCEL, will be not empty,-1,chan is there
-						rmdir(org_g);//remove global lists
-						rmdir(org_u);//remove rest of the users conversations
-						if(chdir(dirback)==0){
-							rmdir(text);
+					BOOL ok;
+					if(rmdir(org_c)==0){//test to see if was the last channel in server
+						ok=org_removechan_global(del,text);
+					}else ok=org_removechan_local(del);//remove channel users conversations
+					if(ok){
+						gtk_combo_box_text_remove((GtkComboBoxText*)combo_box,gtk_combo_box_get_active (combo_box));
+						if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(combo_box),nullptr)==0){//if was last overall
+							gtk_widget_set_sensitive(ps->organizer_removeentry,FALSE);
+							pars_names_org(ps,(char*)org_new_names);
+							gtk_list_store_clear(ps->organizer_entry_names);
+							org_clear_rules(ps->organizer_notebook);
+						}else{//there is segmentation at the moment if clicked again and nothing selected
+							gtk_combo_box_set_active(combo_box,0);
 						}
-					}
-					gtk_combo_box_text_remove((GtkComboBoxText*)combo_box,gtk_combo_box_get_active (combo_box));
-					if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(combo_box),nullptr)==0){//if was last overall
-						gtk_widget_set_sensitive(ps->organizer_removeentry,FALSE);
-						pars_names_org(ps,(char*)org_new_names);
-						gtk_list_store_clear(ps->organizer_entry_names);
-						org_clear_rules(ps->organizer_notebook);
-					}else{//there is segmentation at the moment if clicked again and nothing selected
-						gtk_combo_box_set_active(combo_box,0);
 					}
 				}
 			}
@@ -2987,38 +3094,6 @@ static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**chil
 	}
 	gtk_notebook_append_page_menu(nb,scroll,tab,gtk_label_new(title));
 	return (GtkListStore*)sort;
-}
-
-static void iterate_folders_enter(int (*f)(const char*, void*),void*data){
-	GDir*entries=g_dir_open(".",0,nullptr);
-	if(entries!=nullptr){
-		for(;;){
-			const char*dir=g_dir_read_name(entries);
-			if(dir==nullptr)break;
-			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
-				if(chdir(dir)==0){
-					if(f(dir,data)!=0)break;
-					if(chdir("..")!=0)break;
-				}else break;
-			}
-		}
-		g_dir_close(entries);
-	}
-}
-//upper chdir's 0/-1
-static int iterate_folders(int (*f)(const char*, void*),void*data){
-	GDir*entries=g_dir_open(".",0,nullptr);
-	if(entries!=nullptr){
-		for(;;){
-			const char*dir=g_dir_read_name(entries);
-			if(dir==nullptr)break;
-			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
-				if(f(dir,data)!=0)return -1;
-			}
-		}
-		g_dir_close(entries);
-	}
-	return 0;
 }
 
 //upper chdir's 0/-1
@@ -3119,17 +3194,17 @@ static BOOL org_storerule(const char*text,size_t sz,gboolean is_global){//this w
 }
 static BOOL org_deleterule(GtkLabel*label){
 	if(to_organizer_folder_go){
-		//gint response=org_delconf(ps);
+		//BOOL del=org_delconf(ps);
 		gboolean is_global=gtk_label_get_use_markup(label);
 		const char*fname;if(is_global){
 			fname=globalrules;
-			//if(response==GTK_RESPONSE_YES){
+			//if(del){
 				//delete conversations simple based on files
 			//}
 		}
 		else{
 			fname=localrules;
-			//if(response==GTK_RESPONSE_YES){
+			//if(del){
 				//local, delete like at combobox
 			//}
 		}
@@ -3359,7 +3434,7 @@ static void org_move(GtkButton*button,struct stk_s*ps){
 						GtkTreePath * path = gtk_tree_model_get_path ( tm , &iterator );
 						gtk_tree_view_set_cursor((GtkTreeView*)tv,path,nullptr,FALSE);
 						gtk_tree_path_free(path);
-					}else if(org_delconf(ps)==GTK_RESPONSE_YES){
+					}else if(org_delconf(ps)){
 						if(to_organizer_folder_server(server_name(ps))){
 							if(is_global){
 								if(chdir(org_u)==0){
@@ -3456,6 +3531,8 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	GtkWidget*chat=gtk_button_new_with_label("Chat");
 	g_signal_connect_data (chat, "clicked",G_CALLBACK(org_chat),ps,nullptr,G_CONNECT_SWAPPED);
 	gtk_box_pack_start((GtkBox*)bot,chat,FALSE,FALSE,0);
+	ps->organizer_entry_widget_timestamp=gtk_label_new(nullptr);
+	gtk_box_pack_start((GtkBox*)bot,ps->organizer_entry_widget_timestamp,FALSE,FALSE,0);
 	gtk_box_pack_start((GtkBox*)box,bot,FALSE,FALSE,0);
 
 	gtk_container_add ((GtkContainer*)window, box);

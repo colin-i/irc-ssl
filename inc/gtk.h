@@ -335,6 +335,7 @@ GtkWidget *  gtk_label_get_mnemonic_widget (GtkLabel *label);
 gboolean     gtk_label_get_use_markup (GtkLabel *label);
 void         gtk_label_set_markup (GtkLabel *label, const gchar *str);
 void         gtk_label_set_mnemonic_widget (GtkLabel *label, GtkWidget *widget);
+void         gtk_label_set_text (GtkLabel *label, const gchar *str);
 const gchar* gtk_label_get_text (GtkLabel *label);
 GtkWidget*   gtk_label_new (const gchar *str);
 void          gtk_list_store_append (GtkListStore *list_store, GtkTreeIter *iter);
