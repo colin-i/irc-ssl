@@ -2899,7 +2899,7 @@ static BOOL org_delconf(struct stk_s*ps){
 	return TRUE;
 }
 
-static int iterate_folders_enter_rm(int (*f)(const char*)){
+static int iterate_folders_enter_rm(void (*f)(const char*)){
 	GDir*entries=g_dir_open(".",0,nullptr);
 	if(entries!=nullptr){
 		int r=0;
@@ -2908,15 +2908,19 @@ static int iterate_folders_enter_rm(int (*f)(const char*)){
 			if(dir==nullptr)break;
 			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
 				if(chdir(dir)==0){
-					if(f(dir)!=0){r=-1;break;}
+					//if(
+					f(dir);
+					//!=0){r=-1;break;}
 					if(chdir("..")!=0){r=-1;break;}
-					if(rmdir(dir)!=0){r=-1;break;}
-				}else {r=-1;break;}
+					//if(
+					rmdir(dir);
+					//!=0){r=-1;break;}
+				}//else {r=-1;break;}
 			}
 		}
 		g_dir_close(entries);
 		return r;
-	}else return -1;
+	}//else return -1;
 	return 0;
 }
 static void iterate_folders_enter(int (*f)(const char*, void*),void*data){
@@ -2928,7 +2932,7 @@ static void iterate_folders_enter(int (*f)(const char*, void*),void*data){
 			if(dir==nullptr)break;
 			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
 				if(chdir(dir)==0){
-					if(f(dir,data)!=0)break;//{r=-1;break;}
+					if(f(dir,data)!=0)break;//{r=-1;break;}//here will chdir in chans
 					if(chdir("..")!=0)break;//{r=-1;break;}
 				}else break;//{r=-1;break;}
 			}
@@ -2938,37 +2942,39 @@ static void iterate_folders_enter(int (*f)(const char*, void*),void*data){
 	}//else return -1;
 	//return 0;
 }
-//upper chdir's 0/-1
-static int iterate_folders(int (*f)(const char*, void*),void*data){
+static void iterate_folders(void (*f)(const char*, void*),void*data){
 	GDir*entries=g_dir_open(".",0,nullptr);
 	if(entries!=nullptr){
-		int r=0;
+		//int r=0;
 		for(;;){
 			const char*dir=g_dir_read_name(entries);
 			if(dir==nullptr)break;
 			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
-				if(f(dir,data)!=0){r=-1;break;}
+				//if(
+				f(dir,data);//!=0){r=-1;break;}
 			}
 		}
 		g_dir_close(entries);
-		return r;
-	}else return -1;
-	return 0;
+		//return r;
+	}//else return -1;
+	//return 0;
 }
 
-static int org_removechan_global_fn(const char*dir){
+static void org_removechan_global_fn(const char*dir){
 	GDir*entries=g_dir_open(".",0,nullptr);
 	if(entries!=nullptr){
-		int r=0;
+		//int r=0;
 		for(;;){
 			const char*file=g_dir_read_name(entries);
 			if(file==nullptr)break;
-			if(unlink(file)!=0){r=-1;break;}
+			//if(
+			unlink(file);
+			//!=0){r=-1;break;}
 		}
 		g_dir_close(entries);
-		return r;
-	}else return -1;
-	return 0;
+		//return r;
+	}//else return -1;
+	//return 0;
 }
 static BOOL org_removechan_global(BOOL del,gchar*server){
 	if(chdir(org_g)==0){
@@ -2976,11 +2982,7 @@ static BOOL org_removechan_global(BOOL del,gchar*server){
 		if(chdir(dirback)==0){
 			rmdir(org_g);
 			if(chdir(org_u)==0){
-				int ok;
-				if(del){//remove all conversations
-					ok=iterate_folders_enter_rm(org_removechan_global_fn);
-				}else ok=0;
-				if(ok==0){
+				if(del==FALSE||iterate_folders_enter_rm(org_removechan_global_fn)==0){
 					if(chdir(dirback)==0){
 						rmdir(org_u);
 						if(chdir(dirback)==0){
@@ -3093,26 +3095,23 @@ static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**chil
 	return (GtkListStore*)sort;
 }
 
-//upper chdir's 0/-1
-static int organizer_populate_dirs_chans(const char*dir,void*s){
+static void organizer_populate_dirs_chans(const char*dir,void*s){
 	char*nm=server_channel_base((char*)dir,strlen(dir),((struct organizer_from_storage*)s)->server);
 	if(nm!=nullptr){
 		gtk_combo_box_text_append_text(((struct organizer_from_storage*)s)->box,nm);
 		free(nm);
-		return 0;
+		//return 0;
 	}
-	return -1;
+	//return -1;
 }
 static int organizer_populate_dirs(const char*dir,void*box){
-	int r=chdir("chans");
-	if(r==0){
+	if(chdir("chans")==0){
 		struct organizer_from_storage s={(GtkComboBoxText*)box,dir};
-		if(iterate_folders(organizer_populate_dirs_chans,&s)==0){
-			return chdir("..");
-		}
-		return -1;
+		//if(
+		iterate_folders(organizer_populate_dirs_chans,&s);//==0){
+		return chdir("..");
 	}
-	return r;
+	return 0;
 }
 
 static BOOL delete_line_fromfile(const char*text,const char*fname){
@@ -3379,6 +3378,52 @@ static void org_chat(struct stk_s*ps){
 	gtk_window_present(ps->main_win);
 }
 
+static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_index,GtkWidget*current_tab,gint current_index,char*nick){
+	if(to_organizer_folder_server(server_name(ps))){//used at least for a simple name remove (local->new_entries) to double_name+conversations remove(global->local)
+		GtkNotebook*nb=ps->organizer_notebook;
+		gboolean is_global_previous;
+		if(prev_index==0)is_global_previous=FALSE;
+		else is_global_previous=gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,prev_tab));
+		gboolean is_global;
+		if(current_index==0)is_global=FALSE;
+		else is_global=gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,current_tab));
+		if(is_global_previous&&(is_global==FALSE)){//global->0/local
+			if(chdir(org_u)==0){
+				if(chdir(nick)==0){//is prefixless at global
+					if(org_delconf(ps)){
+						GDir*entries=g_dir_open(".",0,nullptr);
+						if(entries!=nullptr){
+							for(;;){
+								const char*file=g_dir_read_name(entries);
+								if(file==nullptr)break;
+								unlink(file);
+							}
+							g_dir_close(entries);
+						}//else return FALSE;
+					}
+					if(chdir(dirback)==0){
+						rmdir(nick);
+					}else return FALSE;
+				}//else return FALSE;
+				if(chdir(dirback)!=0)return FALSE;
+			}//else return FALSE;
+		}
+		//see at global first, because is nearer than local at folders
+		if(is_global_previous||is_global){
+			if(chdir(org_g)==0){
+				if(chdir(dirback)!=0)return FALSE;
+			}//else return FALSE;
+		}
+		//and at local
+		if(is_global_previous==FALSE||is_global==FALSE){
+			if(chdir(org_c)==0){
+				//why back?//if(chdir(dirback)!=0)return FALSE;
+			}//else return FALSE;
+		}
+		return TRUE;
+	}
+	return FALSE;
+}
 #define org_move_scan "%u" not_a_nick_chan_host_start "%u"
 static void org_move(GtkButton*button,struct stk_s*ps){
 	GtkNotebook*nb=ps->organizer_notebook;
@@ -3411,42 +3456,26 @@ static void org_move(GtkButton*button,struct stk_s*ps){
 				GtkWidget*tvprev=gtk_bin_get_child((GtkBin*)previous);
 				GtkTreeModel*tmprev=gtk_tree_view_get_model((GtkTreeView*)tvprev);
 				if(gtk_tree_model_iter_nth_child(tmprev,&iterator,nullptr,pos)){//can be deleted between the clicks
-					//at global, no channel prefix for the user, attention if wanting to go back at local with no prefix
-					gboolean is_global=gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,current));
-
 					gchar*a;gchar*b;gchar*c;gint d;gchar*e;
 					gint f,g;//indexes are not ok with holes, at sorting
 					gtk_tree_model_get(tmprev,&iterator,ORG_ID1,&a,ORG_ID2,&b,ORG_GEN,&c,ORG_IDLE,&d,ORG_SERVER,&e,ORG_INDEX,&f,ORG_CONV,&g,-1);
-					gtk_list_store_remove((GtkListStore*)tmprev,&iterator);
-					org_move_indexed(tmprev,f);
-					if(nb_page_index!=0){//can't move back, there is a comment about this at org_names_end
-						gint n=gtk_tree_model_iter_n_children(tm,nullptr);
-						gtk_list_store_append((GtkListStore*)tm,&iterator);
-						gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,is_global?nickname_prefixless(a):a,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_INDEX,n,ORG_CONV,g,-1);
-						//and select the moved item
-						GtkTreePath * path = gtk_tree_model_get_path ( tm , &iterator );
-						gtk_tree_view_set_cursor((GtkTreeView*)tv,path,nullptr,FALSE);
-						gtk_tree_path_free(path);
-					}else if(is_global){//local with no conversation save
-						if(org_delconf(ps)){
-							if(to_organizer_folder_server(server_name(ps))){
-								if(chdir(org_u)==0){
-									if(chdir(a)==0){//is prefixless at global
-										GDir*entries=g_dir_open(".",0,nullptr);
-										if(entries!=nullptr){
-											for(;;){
-												const char*file=g_dir_read_name(entries);
-												if(file==nullptr)break;
-												unlink(file);
-											}
-											g_dir_close(entries);
-										}
-										if(chdir(dirback)==0){
-											rmdir(a);
-										}
-									}
-								}
-							}
+					if(org_move_background(ps,previous,tab,current,nb_page_index,a)){
+						gtk_list_store_remove((GtkListStore*)tmprev,&iterator);
+						org_move_indexed(tmprev,f);
+
+						if(nb_page_index!=0){//can't move back, there is a comment about this at org_names_end
+							gboolean is_global=gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,current));//at global, no channel prefix for the user, attention if wanting to go back at local with no prefix
+							char*current_nick;
+							if(is_global)current_nick=nickname_prefixless(a);
+							else current_nick=a;
+
+							gint n=gtk_tree_model_iter_n_children(tm,nullptr);
+							gtk_list_store_append((GtkListStore*)tm,&iterator);
+							gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,current_nick,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_INDEX,n,ORG_CONV,g,-1);
+							//and select the moved item
+							GtkTreePath * path = gtk_tree_model_get_path ( tm , &iterator );
+							gtk_tree_view_set_cursor((GtkTreeView*)tv,path,nullptr,FALSE);
+							gtk_tree_path_free(path);
 						}
 					}
 					g_free(a);g_free(b);g_free(c);g_free(e);
