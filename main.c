@@ -3169,9 +3169,7 @@ static BOOL org_deleterule(GtkLabel*label){
 		gboolean is_global=gtk_label_get_use_markup(label);
 		const char*fname;if(is_global){
 			fname=globalrules;
-			//if(del){
-				//delete conversations simple based on files
-			//}
+			//delete conversations simple based on files
 		}
 		else{
 			fname=localrules;
