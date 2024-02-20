@@ -1291,7 +1291,7 @@ static void add_name_lowuser(GtkListStore*lst,char*t){
 		gtk_tree_model_iter_nth_child((GtkTreeModel*)lst, &it, nullptr, n-1);
 		do{
 			gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
-			if(strcmp(t,text)>0||nickname_start(text)==FALSE){
+			if(nickname_start(text)==FALSE||strcmp(t,text)>0){
 				g_free(text);
 				gtk_list_store_insert_after(lst,&i,&it);
 				gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
@@ -1303,14 +1303,21 @@ static void add_name_lowuser(GtkListStore*lst,char*t){
 	gtk_list_store_prepend(lst,&it);
 	gtk_list_store_set(lst, &it, LIST_ITEM, t, -1);
 }
+static BOOL rank_compare(char*intruder,size_t intruder_rank,char*defender){
+	size_t defender_pos=strchr(chanmodessigns,*defender)-chanmodessigns;//example: ~&@%+ ~ is 0, + is 4
+	if(intruder_rank<defender_pos)return TRUE;//is reversed order
+	else if(intruder_rank==defender_pos)return strcmp(intruder,defender)<0;
+	return FALSE;
+}
 static void add_name_highuser(GtkListStore*lst,char*t){
 	GtkTreeIter it;
 	GtkTreeIter i;
 	gchar*text;
 	if(gtk_tree_model_get_iter_first((GtkTreeModel*)lst, &it)){
+		size_t pos=strchr(chanmodessigns,*t)-chanmodessigns;//example: ~&@%+ ~ is 0, + is 4
 		do{
 			gtk_tree_model_get ((GtkTreeModel*)lst, &it, 0, &text, -1);
-			if(strcmp(t,text)<0||nickname_start(text)){
+			if(nickname_start(text)||rank_compare(t+1,pos,text)){
 				g_free(text);
 				gtk_list_store_insert_before(lst,&i,&it);
 				gtk_list_store_set(lst, &i, LIST_ITEM, t, -1);
