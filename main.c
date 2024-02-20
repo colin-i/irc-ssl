@@ -972,7 +972,7 @@ static BOOL org_save_conv(char*user,char*text,const char*server){
 	}
 	return FALSE;
 }
-static void name_closed(GtkWidget*tv,struct name_pack*nm){
+static void name_closed(GtkTextView*tv,struct name_pack*nm){
 //signal at child destroy will not get notebook tab name at that point, and notebook page-removed same
 //destory is working at reconnect to another server for previous conversation. and for close everything is ok
 	//g_object_unref(tv);//is ok is not required, will be critical, and if is unowned(not this case) is "A floating object was finalized"
