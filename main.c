@@ -2908,13 +2908,9 @@ static int iterate_folders_enter_rm(void (*f)(const char*)){
 			if(dir==nullptr)break;
 			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
 				if(chdir(dir)==0){
-					//if(
 					f(dir);
-					//!=0){r=-1;break;}
 					if(chdir("..")!=0){r=-1;break;}
-					//if(
 					rmdir(dir);
-					//!=0){r=-1;break;}
 				}//else {r=-1;break;}
 			}
 		}
@@ -2926,7 +2922,6 @@ static int iterate_folders_enter_rm(void (*f)(const char*)){
 static void iterate_folders_enter(int (*f)(const char*, void*),void*data){
 	GDir*entries=g_dir_open(".",0,nullptr);
 	if(entries!=nullptr){
-		//int r=0;
 		for(;;){
 			const char*dir=g_dir_read_name(entries);
 			if(dir==nullptr)break;
@@ -2938,26 +2933,20 @@ static void iterate_folders_enter(int (*f)(const char*, void*),void*data){
 			}
 		}
 		g_dir_close(entries);
-		//return r;
 	}//else return -1;
-	//return 0;
 }
 static void iterate_folders(void (*f)(const char*, void*),void*data){
 	GDir*entries=g_dir_open(".",0,nullptr);
 	if(entries!=nullptr){
-		//int r=0;
 		for(;;){
 			const char*dir=g_dir_read_name(entries);
 			if(dir==nullptr)break;
 			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
-				//if(
 				f(dir,data);//!=0){r=-1;break;}
 			}
 		}
 		g_dir_close(entries);
-		//return r;
 	}//else return -1;
-	//return 0;
 }
 
 static void org_removechan_global_fn(const char*dir){
@@ -3100,14 +3089,11 @@ static void organizer_populate_dirs_chans(const char*dir,void*s){
 	if(nm!=nullptr){
 		gtk_combo_box_text_append_text(((struct organizer_from_storage*)s)->box,nm);
 		free(nm);
-		//return 0;
 	}
-	//return -1;
 }
 static int organizer_populate_dirs(const char*dir,void*box){
 	if(chdir("chans")==0){
 		struct organizer_from_storage s={(GtkComboBoxText*)box,dir};
-		//if(
 		iterate_folders(organizer_populate_dirs_chans,&s);//==0){
 		return chdir("..");
 	}
@@ -3411,12 +3397,16 @@ static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_ind
 		//see at global first, because is nearer than local at folders
 		if(is_global_previous||is_global){
 			if(chdir(org_g)==0){
+				//delete
+				//write
 				if(chdir(dirback)!=0)return FALSE;
 			}//else return FALSE;
 		}
 		//and at local
 		if(is_global_previous==FALSE||is_global==FALSE){
 			if(chdir(org_c)==0){
+				//delete
+				//write
 				//why back?//if(chdir(dirback)!=0)return FALSE;
 			}//else return FALSE;
 		}
@@ -3499,7 +3489,7 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	GtkWidget*dirs=gtk_combo_box_text_new();	ps->organizer_dirs=(GtkComboBox*)dirs;
 	gtk_box_pack_start((GtkBox*)top,dirs,TRUE,TRUE,0);
 
-	iterate_folders_enter(organizer_populate_dirs,dirs);
+	iterate_folders_enter(organizer_populate_dirs,dirs);//read from stored data
 
 	GtkWidget*buttonspack=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 	GtkWidget*buttons=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
