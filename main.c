@@ -1665,25 +1665,15 @@ static void counting_the_list(GtkWidget*w,const char*a){
 static void org_move_indexed(GtkTreeModel*m,gint pos){
 	GtkTreeIter it;
 	gint i;GtkSortType s;
-	if(gtk_tree_sortable_get_sort_column_id (m, &i, &s)){
-		gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)m,ORG_INDEX,GTK_SORT_ASCENDING);
-		if(gtk_tree_model_iter_nth_child(m, &it, nullptr, pos)){
-			do{
-				gtk_list_store_set((GtkListStore*)m, &it, ORG_INDEX, pos, -1);
-				pos++;
-			}while(gtk_tree_model_iter_next(m, &it));
-		}
-		gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)m,i,s);
-	}else{
-		gboolean valid=gtk_tree_model_get_iter_first (m, &it);
-		while(valid){
-			gint p;
-			gtk_tree_model_get (m, &it, ORG_INDEX, &p, -1);
-			if(p>pos)
-				gtk_list_store_set((GtkListStore*)m, &it, ORG_INDEX, p-1, -1);
-			valid = gtk_tree_model_iter_next(m, &it);
-		}
+	gboolean is_sorted=gtk_tree_sortable_get_sort_column_id (m, &i, &s);//unsorted is still indexed
+	if(is_sorted)gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)m,ORG_INDEX,GTK_SORT_ASCENDING);
+	if(gtk_tree_model_iter_nth_child(m, &it, nullptr, pos)){
+		do{
+			gtk_list_store_set((GtkListStore*)m, &it, ORG_INDEX, pos, -1);
+			pos++;
+		}while(gtk_tree_model_iter_next(m, &it));
 	}
+	if(is_sorted)gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)m,i,s);
 }
 
 static void org_changeprefix(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter){//,gchar*nick
@@ -3473,8 +3463,7 @@ static void org_move(GtkButton*button,struct stk_s*ps){
 					gtk_tree_model_get(tmprev,&iterator,ORG_ID1,&a,ORG_ID2,&b,ORG_GEN,&c,ORG_IDLE,&d,ORG_SERVER,&e,ORG_INDEX,&f,ORG_CONV,&g,-1);
 					if(org_move_background(ps,previous,tab,current,nb_page_index,a,&g)){
 						gtk_list_store_remove((GtkListStore*)tmprev,&iterator);
-						org_move_indexed(tmprev,f);
-
+						if(tab!=0)org_move_indexed(tmprev,f);//index sort is not relevant there, comment at org_names_end
 						if(nb_page_index!=0){//can't move back, there is a comment about this at org_names_end
 							gboolean is_global=gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,current));//at global, no channel prefix for the user, attention if wanting to go back at local with no prefix
 							char*current_nick;
