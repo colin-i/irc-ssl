@@ -1664,13 +1664,25 @@ static void counting_the_list(GtkWidget*w,const char*a){
 
 static void org_move_indexed(GtkTreeModel*m,gint pos){
 	GtkTreeIter it;
-	gboolean valid=gtk_tree_model_get_iter_first (m, &it);
-	while(valid){
-		gint p;
-		gtk_tree_model_get (m, &it, ORG_INDEX, &p, -1);
-		if(p>pos)
-			gtk_list_store_set((GtkListStore*)m, &it, ORG_INDEX, p-1, -1);
-		valid = gtk_tree_model_iter_next(m, &it);
+	gint i;GtkSortType s;
+	if(gtk_tree_sortable_get_sort_column_id (m, &i, &s)){
+		gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)m,ORG_INDEX,GTK_SORT_ASCENDING);
+		if(gtk_tree_model_iter_nth_child(m, &it, nullptr, pos)){
+			do{
+				gtk_list_store_set((GtkListStore*)m, &it, ORG_INDEX, pos, -1);
+				pos++;
+			}while(gtk_tree_model_iter_next(m, &it));
+		}
+		gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)m,i,s);
+	}else{
+		gboolean valid=gtk_tree_model_get_iter_first (m, &it);
+		while(valid){
+			gint p;
+			gtk_tree_model_get (m, &it, ORG_INDEX, &p, -1);
+			if(p>pos)
+				gtk_list_store_set((GtkListStore*)m, &it, ORG_INDEX, p-1, -1);
+			valid = gtk_tree_model_iter_next(m, &it);
+		}
 	}
 }
 
