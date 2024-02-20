@@ -2891,7 +2891,7 @@ static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer 
 
 static BOOL org_delconf(struct stk_s*ps){
 	if(gtk_toggle_button_get_active(ps->organizer_del_confirmation)){
-		GtkWidget*dialog=gtk_message_dialog_new((GtkWindow*)ps->organizer,GTK_DIALOG_DESTROY_WITH_PARENT/*modal will be at dialog_run*/,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"And delete stored data?");
+		GtkWidget*dialog=gtk_message_dialog_new((GtkWindow*)ps->organizer,GTK_DIALOG_DESTROY_WITH_PARENT/*modal will be at dialog_run*/,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Delete the list?");
 		gint response=gtk_dialog_run((GtkDialog*)dialog);
 		gtk_widget_destroy (dialog);
 		return response==GTK_RESPONSE_YES;
@@ -2965,13 +2965,13 @@ static void org_removechan_global_fn(const char*dir){
 	}//else return -1;
 	//return 0;
 }
-static BOOL org_removechan_global(BOOL del,gchar*server){
+static BOOL org_removechan_global(gchar*server){
 	if(chdir(org_g)==0){
 		//if(del)//remove global lists
 		if(chdir(dirback)==0){
 			rmdir(org_g);
 			if(chdir(org_u)==0){
-				if(del==FALSE||iterate_folders_enter_rm(org_removechan_global_fn)==0){
+				if(iterate_folders_enter_rm(org_removechan_global_fn)==0){
 					if(chdir(dirback)==0){
 						rmdir(org_u);
 						if(chdir(dirback)==0){
@@ -2986,32 +2986,33 @@ static BOOL org_removechan_global(BOOL del,gchar*server){
 	return FALSE;
 }
 static void org_removechan(struct stk_s*ps){
-	if(to_organizer_folder_go){//is possible to be in another folder
-		GtkComboBox *combo_box=ps->organizer_dirs;
-		gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)combo_box);
-		char*chan=strchr(text,*not_a_nick_chan_host_start);
-		*chan='\0';chan++;
-		if(chdir(text)==0&&chdir(org_c)==0&&chdir(chan)==0){
-			BOOL del=org_delconf(ps);
-			//remove local lists
-			if(chdir(dirback)==0){
-				rmdir(chan);
+	if(org_delconf(ps)){//is for preventing double click deletes
+		if(to_organizer_folder_go){//is possible to be in another folder
+			GtkComboBox *combo_box=ps->organizer_dirs;
+			gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)combo_box);
+			char*chan=strchr(text,*not_a_nick_chan_host_start);
+			*chan='\0';chan++;
+			if(chdir(text)==0&&chdir(org_c)==0&&chdir(chan)==0){
+				//remove local lists
 				if(chdir(dirback)==0){
-					if(rmdir(org_c)!=0||org_removechan_global(del,text)){//test to see if was not the last channel in server   or   remove restof the data
-						gtk_combo_box_text_remove((GtkComboBoxText*)combo_box,gtk_combo_box_get_active (combo_box));
-						if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(combo_box),nullptr)==0){//if was last overall
-							gtk_widget_set_sensitive(ps->organizer_removeentry,FALSE);
-							pars_names_org(ps,(char*)org_new_names);
-							gtk_list_store_clear(ps->organizer_entry_names);
-							org_clear_rules(ps->organizer_notebook);
-						}else{//there is segmentation at the moment if clicked again and nothing selected
-							gtk_combo_box_set_active(combo_box,0);
+					rmdir(chan);
+					if(chdir(dirback)==0){
+						if(rmdir(org_c)!=0||org_removechan_global(text)){//test to see if was not the last channel in server   or   remove restof the data
+							gtk_combo_box_text_remove((GtkComboBoxText*)combo_box,gtk_combo_box_get_active (combo_box));
+							if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(combo_box),nullptr)==0){//if was last overall
+								gtk_widget_set_sensitive(ps->organizer_removeentry,FALSE);
+								pars_names_org(ps,(char*)org_new_names);
+								gtk_list_store_clear(ps->organizer_entry_names);
+								org_clear_rules(ps->organizer_notebook);
+							}else{//there is segmentation at the moment if clicked again and nothing selected
+								gtk_combo_box_set_active(combo_box,0);
+							}
 						}
 					}
 				}
 			}
+			g_free(text);
 		}
-		g_free(text);
 	}
 }
 
@@ -3179,7 +3180,7 @@ static BOOL org_deleterule(GtkLabel*label){
 		gboolean is_global=gtk_label_get_use_markup(label);
 		const char*fname;if(is_global){
 			fname=globalrules;
-			//if(org_delconf(ps)){
+			//if(del){
 				//delete conversations simple based on files
 			//}
 		}
@@ -3234,13 +3235,15 @@ static void org_removerule(GtkWidget*thisone,struct stk_s*ps){
 	GtkNotebook*nb=ps->organizer_notebook;
 	gint index=gtk_notebook_get_current_page(nb);
 	if(index>0){//first page is with New
-		GtkWidget*current=gtk_notebook_get_nth_page(nb,index);//scroll
-		GtkWidget*label=gtk_notebook_get_tab_label(nb,current);
-		if(org_deleterule((GtkLabel*)label)){
-			gtk_notebook_remove_page(nb,index);
-			if(index==1){//maybe was last
-				if(gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1))==0){
-					gtk_widget_set_sensitive(thisone,FALSE);
+		if(org_delconf(ps)){//is for preventing double click deletes
+			GtkWidget*current=gtk_notebook_get_nth_page(nb,index);//scroll
+			GtkWidget*label=gtk_notebook_get_tab_label(nb,current);
+			if(org_deleterule((GtkLabel*)label)){
+				gtk_notebook_remove_page(nb,index);
+				if(index==1){//maybe was last
+					if(gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1))==0){
+						gtk_widget_set_sensitive(thisone,FALSE);
+					}
 				}
 			}
 		}
@@ -3376,17 +3379,15 @@ static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_ind
 		if(is_global_previous&&(is_global==FALSE)){//global->0/local
 			if(chdir(org_u)==0){
 				if(chdir(nick)==0){//is prefixless at global
-					if(org_delconf(ps)){
-						GDir*entries=g_dir_open(".",0,nullptr);
-						if(entries!=nullptr){
-							for(;;){
-								const char*file=g_dir_read_name(entries);
-								if(file==nullptr)break;
-								unlink(file);
-							}
-							g_dir_close(entries);
-						}//else return FALSE;
-					}
+					GDir*entries=g_dir_open(".",0,nullptr);
+					if(entries!=nullptr){
+						for(;;){
+							const char*file=g_dir_read_name(entries);
+							if(file==nullptr)break;
+							unlink(file);
+						}
+						g_dir_close(entries);
+					}//else return FALSE;
 					if(chdir(dirback)==0){
 						rmdir(nick);
 					}else return FALSE;
@@ -3403,13 +3404,13 @@ static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_ind
 			}//else return FALSE;
 		}
 		//and at local
-		if(is_global_previous==FALSE||is_global==FALSE){
-			if(chdir(org_c)==0){
+		//if(is_global_previous==FALSE||is_global==FALSE){
+		//	if(chdir(org_c)==0){
 				//delete
 				//write
 				//why back?//if(chdir(dirback)!=0)return FALSE;
-			}//else return FALSE;
-		}
+		//	}//else return FALSE;
+		//}
 		return TRUE;
 	}
 	return FALSE;
