@@ -1662,17 +1662,6 @@ static void counting_the_list(GtkWidget*w,const char*a){
 	else addatchans(user_info,buf,w);
 }
 
-static void org_move_indexed(GtkTreeModel*m,gint pos){
-	GtkTreeIter it;
-	gboolean valid=gtk_tree_model_get_iter_first (m, &it);
-	while(valid){
-		gint p;
-		gtk_tree_model_get (m, &it, ORG_INDEX, &p, -1);
-		if(p>pos)
-			gtk_list_store_set((GtkListStore*)m, &it, ORG_INDEX, p-1, -1);
-		valid = gtk_tree_model_iter_next(m, &it);
-	}
-}
 static void org_changeprefix(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter){//,gchar*nick
 	gint tab;gint pos;
 	gtk_tree_model_get((GtkTreeModel*)list, iter, 3,&tab, 4,&pos, -1);
@@ -3367,7 +3356,18 @@ static void org_chat(struct stk_s*ps){
 	gtk_window_present(ps->main_win);
 }
 
-static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_index,GtkWidget*current_tab,gint current_index,char*nick){
+static void org_move_indexed(GtkTreeModel*m,gint pos){
+	GtkTreeIter it;
+	gboolean valid=gtk_tree_model_get_iter_first (m, &it);
+	while(valid){
+		gint p;
+		gtk_tree_model_get (m, &it, ORG_INDEX, &p, -1);
+		if(p>pos)
+			gtk_list_store_set((GtkListStore*)m, &it, ORG_INDEX, p-1, -1);
+		valid = gtk_tree_model_iter_next(m, &it);
+	}
+}
+static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_index,GtkWidget*current_tab,gint current_index,char*nick,gint*conv_total){
 	if(to_organizer_folder_server(server_name(ps))){//used at least for a simple name remove (local->new_entries) to double_name+conversations remove(global->local)
 		GtkNotebook*nb=ps->organizer_notebook;
 		gboolean is_global_previous;
@@ -3404,13 +3404,20 @@ static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_ind
 			}//else return FALSE;
 		}
 		//and at local
-		//if(is_global_previous==FALSE||is_global==FALSE){
-		//	if(chdir(org_c)==0){
+		if(is_global_previous==FALSE||is_global==FALSE){
+			if(chdir(org_c)==0){
 				//delete
+
 				//write
+				if(is_global==FALSE){
+					if(current_index!=0){//to local
+						*conv_total=0;
+					}
+				}
+
 				//why back?//if(chdir(dirback)!=0)return FALSE;
-		//	}//else return FALSE;
-		//}
+			}//else return FALSE;
+		}
 		return TRUE;
 	}
 	return FALSE;
@@ -3450,7 +3457,7 @@ static void org_move(GtkButton*button,struct stk_s*ps){
 					gchar*a;gchar*b;gchar*c;gint d;gchar*e;
 					gint f,g;//indexes are not ok with holes, at sorting
 					gtk_tree_model_get(tmprev,&iterator,ORG_ID1,&a,ORG_ID2,&b,ORG_GEN,&c,ORG_IDLE,&d,ORG_SERVER,&e,ORG_INDEX,&f,ORG_CONV,&g,-1);
-					if(org_move_background(ps,previous,tab,current,nb_page_index,a)){
+					if(org_move_background(ps,previous,tab,current,nb_page_index,a,&g)){
 						gtk_list_store_remove((GtkListStore*)tmprev,&iterator);
 						org_move_indexed(tmprev,f);
 
