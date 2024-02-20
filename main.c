@@ -1666,7 +1666,7 @@ static void org_move_indexed(GtkTreeModel*m,gint pos){
 		valid = gtk_tree_model_iter_next(m, &it);
 	}
 }
-static void org_changeprefix(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter,gchar*nick){
+static void org_changeprefix(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter){//,gchar*nick
 	gint tab;gint pos;
 	gtk_tree_model_get((GtkTreeModel*)list, iter, 3,&tab, 4,&pos, -1);
 
@@ -1675,7 +1675,8 @@ static void org_changeprefix(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter,g
 	GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
 
 	gtk_tree_model_iter_nth_child(tm, iter, nullptr, pos);
-	gtk_list_store_set((GtkListStore*)tm,iter, ORG_ID1,nick, -1);
+	//gtk_list_store_set((GtkListStore*)tm,iter, ORG_ID1,nick, -1);
+	gtk_list_store_remove((GtkListStore*)tm,iter);
 }
 static void org_names_end(struct stk_s* ps){//nick uniqueness
 	if(ps->organizer!=nullptr){
@@ -1718,29 +1719,25 @@ static void org_names_end(struct stk_s* ps){//nick uniqueness
 				gtk_list_store_set(list,&iter,0,nick_new,-1);
 
 				//check only for previous if is same, is sorted
-				GtkTreeIter new_iter=iter;//delete this new iter and let prev with has_pref,is_global,tab,pos
+				GtkTreeIter new_iter=iter;//delete this new iter and let prev which has_pref,is_global,tab,pos
 				if(gtk_tree_model_iter_previous((GtkTreeModel*)list, &iter)){
 					gchar*nickprev;
 					gtk_tree_model_get((GtkTreeModel*)list,&iter, 0,&nickprev, -1);
 					if(strcmp(nick_new,nickprev)==0){
-						g_free(nickprev);
 						gtk_list_store_remove(list,&new_iter);
 
-						valid=gtk_list_store_remove(new_entries,&it);//iter is next valid row
-						//ignore ORG_INDEX? it will look like a bug, 0,1,2  1 is at rules, 0,2  move from rules to first tab  0,2,2
-						//I don't need to move entry from rules back to new entries so don't care
-						//but someone who has only 2 lists and want to move between them will care
-						//adding that the prefix will be lost from global to local, as a side effect, remove the entry at moving back to new entries
+						gint old_pref;gint is_global;
+						gtk_tree_model_get((GtkTreeModel*)list, &iter, 1,&old_pref, 2,&is_global, -1);
 
-						gint has_pref;gint is_global;
-						gtk_tree_model_get((GtkTreeModel*)list, &iter, 1,&has_pref, 2,&is_global, -1);
-						if(is_global==FALSE){//only when prefix can be changed
-							if(has_pref!=nick_new_pref){
-								org_changeprefix(nb,list,&iter,nick);
-							}
-						}
-						g_free(nick);
-						continue;
+						if(is_global||old_pref==nick_new_pref){//only when prefix can be changed   and  when prefix was changed, if one is changing many times can be moved from localNO to globalNO
+							g_free(nickprev);g_free(nick);
+							valid=gtk_list_store_remove(new_entries,&it);//iter is next valid row
+							//ignore ORG_INDEX? it will look like a bug, 0,1,2  1 is at rules, 0,2  move from rules to first tab  0,2,2
+							//I don't need to move entry from rules back to new entries so don't care
+							//but someone who has only 2 lists and want to move between them will care
+							//adding that the prefix will be lost from global to local, as a side effect, remove the entry at moving back to new entries
+							continue;
+						}else org_changeprefix(nb,list,&iter);
 					}
 					g_free(nickprev);
 				}
@@ -2990,9 +2987,6 @@ static BOOL org_removechan_global(BOOL del,gchar*server){
 	}
 	return FALSE;
 }
-static BOOL org_removechan_local(BOOL del){
-	return TRUE;
-}
 static void org_removechan(struct stk_s*ps){
 	if(to_organizer_folder_go){//is possible to be in another folder
 		GtkComboBox *combo_box=ps->organizer_dirs;
@@ -3005,11 +2999,7 @@ static void org_removechan(struct stk_s*ps){
 			if(chdir(dirback)==0){
 				rmdir(chan);
 				if(chdir(dirback)==0){
-					BOOL ok;
-					if(rmdir(org_c)==0){//test to see if was the last channel in server
-						ok=org_removechan_global(del,text);
-					}else ok=org_removechan_local(del);//remove channel users conversations
-					if(ok){
+					if(rmdir(org_c)!=0||org_removechan_global(del,text)){//test to see if was not the last channel in server   or   remove restof the data
 						gtk_combo_box_text_remove((GtkComboBoxText*)combo_box,gtk_combo_box_get_active (combo_box));
 						if(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(combo_box),nullptr)==0){//if was last overall
 							gtk_widget_set_sensitive(ps->organizer_removeentry,FALSE);
@@ -3194,19 +3184,15 @@ static BOOL org_storerule(const char*text,size_t sz,gboolean is_global){//this w
 }
 static BOOL org_deleterule(GtkLabel*label){
 	if(to_organizer_folder_go){
-		//BOOL del=org_delconf(ps);
 		gboolean is_global=gtk_label_get_use_markup(label);
 		const char*fname;if(is_global){
 			fname=globalrules;
-			//if(del){
+			//if(org_delconf(ps)){
 				//delete conversations simple based on files
 			//}
 		}
 		else{
 			fname=localrules;
-			//if(del){
-				//local, delete like at combobox
-			//}
 		}
 		const char*text=gtk_label_get_text(label);
 		return delete_line_fromfile(text,fname);
@@ -3434,9 +3420,9 @@ static void org_move(GtkButton*button,struct stk_s*ps){
 						GtkTreePath * path = gtk_tree_model_get_path ( tm , &iterator );
 						gtk_tree_view_set_cursor((GtkTreeView*)tv,path,nullptr,FALSE);
 						gtk_tree_path_free(path);
-					}else if(org_delconf(ps)){
-						if(to_organizer_folder_server(server_name(ps))){
-							if(is_global){
+					}else if(is_global){//local with no conversation save
+						if(org_delconf(ps)){
+							if(to_organizer_folder_server(server_name(ps))){
 								if(chdir(org_u)==0){
 									if(chdir(a)==0){//is prefixless at global
 										GDir*entries=g_dir_open(".",0,nullptr);
@@ -3453,8 +3439,7 @@ static void org_move(GtkButton*button,struct stk_s*ps){
 										}
 									}
 								}
-							}//else{// test with strstr \nuser\n against other channels after grab, then same delete
-							//}
+							}
 						}
 					}
 					g_free(a);g_free(b);g_free(c);g_free(e);
