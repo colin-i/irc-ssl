@@ -949,17 +949,21 @@ static BOOL org_nick_iter(GtkNotebook*nb,char*name,GtkTreeModel**tm,GtkTreeIter*
 	}
 	return FALSE;
 }
+static unsigned int org_conv_total(){
+	GDir*entries=g_dir_open(".",0,nullptr);
+	unsigned int n=0;
+	if(entries!=nullptr){//something like a fast EACCES permission change, tested
+		while(g_dir_read_name(entries)!=nullptr)n++;
+		g_dir_close(entries);
+	}
+	return n;
+}
 static BOOL org_save_conv(char*user,char*text,const char*server){
 	size_t sz=strlen(text);
 	if(sz!=0){
 		if(to_organizer_folder_server(server)&&chdir(org_u)==0){
 			if( chdir(user)==0||(mkdir(user,0700)==0&&chdir(user)==0) ){
-				GDir*entries=g_dir_open(".",0,nullptr);
-				unsigned int n=0;
-				if(entries!=nullptr){//something like a fast EACCES permission change, tested
-					while(g_dir_read_name(entries)!=nullptr)n++;
-					g_dir_close(entries);
-				}
+				unsigned int n=org_conv_total();
 				char buf[digits_in_uintnul];sprintf(buf,"%u",n);
 				FILE*dest=fopen(buf,"wb");
 				if(dest!=nullptr){
@@ -2885,6 +2889,33 @@ static void org_repopulate(BOOL is_global,GtkNotebook*nb){
 		}
 	}
 }
+static void org_repopulate_conv(GtkNotebook*nb){
+	gint last=gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1));
+	for(int i=1;i<=last;i++){
+		GtkWidget*sc=gtk_notebook_get_nth_page(nb,i);//scroll
+		if(gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,sc))){
+			GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
+			GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
+			GtkTreeIter iter;
+			gboolean valid = gtk_tree_model_get_iter_first (tm, &iter);
+			if(valid){
+				do{
+					gchar*nick;
+					gtk_tree_model_get (tm, &iter, ORG_ID1, &nick, -1);
+					if(g_file_test(nick,G_FILE_TEST_IS_DIR)){
+						if(chdir(nick)==0){
+							unsigned int n=org_conv_total();
+							gtk_list_store_set((GtkListStore*)tm,&iter, ORG_CONV, n, -1);
+							if(chdir("..")!=0){g_free(nick);return;}
+						}else{g_free(nick);return;}
+					}
+					g_free(nick);
+					valid = gtk_tree_model_iter_next(tm, &iter);
+				}while(valid);
+			}
+		}
+	}
+}
 static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer user_data)
 {
 	gint current_pos=gtk_combo_box_get_active ((GtkComboBox*)combo_box);
@@ -2912,8 +2943,8 @@ static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer 
 
 								if(chdir(dirback)==0&&chdir(dirback)==0){
 									if(chdir(org_u)==0||(mkdir(org_u,0700)==0&&chdir(org_u)==0)){
-										//users conversations, after retakes
-
+										//users conversations, here or at retake but there must malloc and form ../users/nick
+										org_repopulate_conv(ps->organizer_notebook);
 										//populate main tab
 										send_channel_related((char*)names_str,chan,strlen(chan));
 									}
@@ -2943,7 +2974,7 @@ static void folder_rm(){//at lists is important to not let the file because can 
 	GDir*entries=g_dir_open(".",0,nullptr);
 	if(entries!=nullptr){
 		for(;;){
-			const char*file=g_dir_read_name(entries);
+			const gchar*file=g_dir_read_name(entries);
 			if(file==nullptr)break;
 			unlink(file);//the list is not if no user is in the list, that will be -1 //!=0){r=-1;break;}
 		}
@@ -2956,7 +2987,7 @@ static int iterate_folders_enter_rm(){
 	if(entries!=nullptr){
 		int r=0;
 		for(;;){
-			const char*dir=g_dir_read_name(entries);
+			const gchar*dir=g_dir_read_name(entries);
 			if(dir==nullptr)break;
 			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
 				if(chdir(dir)==0){
@@ -2975,7 +3006,7 @@ static void iterate_folders_enter(int (*f)(const char*, void*),void*data){
 	GDir*entries=g_dir_open(".",0,nullptr);
 	if(entries!=nullptr){
 		for(;;){
-			const char*dir=g_dir_read_name(entries);
+			const gchar*dir=g_dir_read_name(entries);
 			if(dir==nullptr)break;
 			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
 				if(chdir(dir)==0){
@@ -2991,7 +3022,7 @@ static void iterate_folders(void (*f)(const char*, void*),void*data){
 	GDir*entries=g_dir_open(".",0,nullptr);
 	if(entries!=nullptr){
 		for(;;){
-			const char*dir=g_dir_read_name(entries);
+			const gchar*dir=g_dir_read_name(entries);
 			if(dir==nullptr)break;
 			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
 				f(dir,data);//!=0){r=-1;break;}
@@ -3423,7 +3454,7 @@ static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_ind
 					GDir*entries=g_dir_open(".",0,nullptr);
 					if(entries!=nullptr){
 						for(;;){
-							const char*file=g_dir_read_name(entries);
+							const gchar*file=g_dir_read_name(entries);
 							if(file==nullptr)break;
 							unlink(file);
 						}
