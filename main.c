@@ -3483,15 +3483,16 @@ static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_ind
 		//and at local
 		if(is_global_previous==FALSE||is_global==FALSE){
 			if(chdir(org_c)==0){
-				gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)ps->organizer_dirs);
+				gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)ps->organizer_dirs);//it is not null because Move button is active
 				char*chan=strchr(text,*not_a_nick_chan_host_start)+1;
 				if(chdir(chan)==0){
 					//delete
-					if(is_global_previous==FALSE&&prev_index!=0)if(delete_line_fromfile(nick,gtk_notebook_get_menu_label_text(nb,prev_tab))==FALSE)return FALSE;
+					if(is_global_previous==FALSE&&prev_index!=0)if(delete_line_fromfile(nick,gtk_notebook_get_menu_label_text(nb,prev_tab))==FALSE){g_free(text);return FALSE;}
 					//write
-					if(is_global==FALSE&&current_index!=0)if(append_line_tofile(nick,gtk_notebook_get_menu_label_text(nb,current_tab))==FALSE)return FALSE;
+					if(is_global==FALSE&&current_index!=0)if(append_line_tofile(nick,gtk_notebook_get_menu_label_text(nb,current_tab))==FALSE){g_free(text);return FALSE;}
 					//why back?//if(chdir(dirback)!=0)return FALSE;
 				}//else return FALSE;
+				g_free(text);
 			}//else return FALSE;
 		}
 		return TRUE;
