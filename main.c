@@ -1329,14 +1329,16 @@ static void add_name_highuser(GtkListStore*lst,char*t){
 	gtk_list_store_append(lst,&it);
 	gtk_list_store_set(lst, &it, LIST_ITEM, t, -1);
 }
+#define add_name_organizer_macro(l,i,n,x)\
+	gtk_list_store_append(l,&i);\
+	gtk_list_store_set(l, &i, ORG_ID1, n, ORG_IDLE, 0x7fFFffFF, ORG_INDEX, x, ORG_CONV, 0, -1)
 static void add_name_organizer(char*name,struct stk_s*ps){
 	if(ps->organizer!=nullptr){
 		if(ps->organizer_can_add_names){
 			GtkListStore*new_entries=ps->organizer_entry_names;
 			GtkTreeIter it;//=GtkTreeIter();
 			gint n=gtk_tree_model_iter_n_children((GtkTreeModel*)new_entries,nullptr);
-			gtk_list_store_append(new_entries,&it);
-			gtk_list_store_set(new_entries, &it, ORG_ID1, name, ORG_IDLE, 0x7fFFffFF, ORG_INDEX, n, ORG_CONV, 0, -1);
+			add_name_organizer_macro(new_entries,it,name,n);
 		}
 	}
 }
@@ -1689,6 +1691,8 @@ static void org_changeprefix(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter){
 	//gtk_list_store_set((GtkListStore*)tm,iter, ORG_ID1,nick, -1);
 	gtk_list_store_remove((GtkListStore*)tm,iter);
 	org_move_indexed(tm,ix);
+
+	//delete user from channel list
 }
 static void org_names_end(struct stk_s* ps){//nick uniqueness
 	if(ps->organizer!=nullptr){
@@ -2852,7 +2856,35 @@ static void org_clear_rules(GtkNotebook*nb){
 		gtk_list_store_clear((GtkListStore*)tm);
 	}
 }
-
+#define delim_init 10
+static void org_repopulate(BOOL is_global,GtkNotebook*nb){
+	gint last=gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1));
+	for(int i=1;i<=last;i++){
+		GtkWidget*sc=gtk_notebook_get_nth_page(nb,i);//scroll
+		gboolean tab_is_global=gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,sc));
+		if(is_global==tab_is_global){
+			const gchar*rulename=gtk_notebook_get_menu_label_text(nb,sc);
+			FILE*f=fopen(rulename,"rb");
+			if(f!=nullptr){
+				size_t sz=delim_init;
+				char*mem=(char*)malloc(delim_init);
+				if(mem!=nullptr){
+					GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
+					GtkListStore*tm=(GtkListStore*)gtk_tree_view_get_model((GtkTreeView*)tv);
+					int pos=0;
+					while(getdelim(&mem,&sz,'\n',f)!=-1){
+						mem[strlen(mem)-1]='\0';
+						GtkTreeIter iter;
+						add_name_organizer_macro(tm,iter,mem,pos);
+						pos++;
+					}
+					free(mem);
+				}
+				fclose(f);
+			}
+		}
+	}
+}
 static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer user_data)
 {
 	gint current_pos=gtk_combo_box_get_active ((GtkComboBox*)combo_box);
@@ -2869,12 +2901,14 @@ static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer 
 					org_clear_rules(ps->organizer_notebook);
 
 					//retake global lists
+					org_repopulate(TRUE,ps->organizer_notebook);
 
 					if(chdir(dirback)==0){
 						if(chdir(org_c)==0||(mkdir(org_c,0700)==0&&chdir(org_c)==0)){
 							chan++;
 							if(chdir(chan)==0||(mkdir(chan,0700)==0&&chdir(chan)==0)){
 								//retake local lists
+								org_repopulate(FALSE,ps->organizer_notebook);
 
 								if(chdir(dirback)==0&&chdir(dirback)==0){
 									if(chdir(org_u)==0||(mkdir(org_u,0700)==0&&chdir(org_u)==0)){
@@ -2905,7 +2939,19 @@ static BOOL org_delconf(struct stk_s*ps){
 	return TRUE;
 }
 
-static int iterate_folders_enter_rm(void (*f)(const char*)){
+static void folder_rm(){//at lists is important to not let the file because can have duplicates if reparsed
+	GDir*entries=g_dir_open(".",0,nullptr);
+	if(entries!=nullptr){
+		for(;;){
+			const char*file=g_dir_read_name(entries);
+			if(file==nullptr)break;
+			unlink(file);//the list is not if no user is in the list, that will be -1 //!=0){r=-1;break;}
+		}
+		g_dir_close(entries);
+	}//else return -1;
+	//return 0;
+}
+static int iterate_folders_enter_rm(){
 	GDir*entries=g_dir_open(".",0,nullptr);
 	if(entries!=nullptr){
 		int r=0;
@@ -2914,7 +2960,7 @@ static int iterate_folders_enter_rm(void (*f)(const char*)){
 			if(dir==nullptr)break;
 			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
 				if(chdir(dir)==0){
-					f(dir);
+					folder_rm();
 					if(chdir("..")!=0){r=-1;break;}
 					rmdir(dir);
 				}//else {r=-1;break;}
@@ -2955,29 +3001,13 @@ static void iterate_folders(void (*f)(const char*, void*),void*data){
 	}//else return -1;
 }
 
-static void org_removechan_global_fn(const char*dir){
-	GDir*entries=g_dir_open(".",0,nullptr);
-	if(entries!=nullptr){
-		//int r=0;
-		for(;;){
-			const char*file=g_dir_read_name(entries);
-			if(file==nullptr)break;
-			//if(
-			unlink(file);
-			//!=0){r=-1;break;}
-		}
-		g_dir_close(entries);
-		//return r;
-	}//else return -1;
-	//return 0;
-}
 static BOOL org_removechan_global(gchar*server){
 	if(chdir(org_g)==0){
-		//if(del)//remove global lists
+		folder_rm();//remove global lists
 		if(chdir(dirback)==0){
 			rmdir(org_g);
 			if(chdir(org_u)==0){
-				if(iterate_folders_enter_rm(org_removechan_global_fn)==0){
+				if(iterate_folders_enter_rm()==0){
 					if(chdir(dirback)==0){
 						rmdir(org_u);
 						if(chdir(dirback)==0){
@@ -2999,7 +3029,7 @@ static void org_removechan(struct stk_s*ps){
 			char*chan=strchr(text,*not_a_nick_chan_host_start);
 			*chan='\0';chan++;
 			if(chdir(text)==0&&chdir(org_c)==0&&chdir(chan)==0){
-				//remove local lists
+				folder_rm();//remove local lists
 				if(chdir(dirback)==0){
 					rmdir(chan);
 					if(chdir(dirback)==0){
@@ -3107,13 +3137,28 @@ static int organizer_populate_dirs(const char*dir,void*box){
 	return 0;
 }
 
+static BOOL append_lineSz_tofile(char*text,size_t sz,const char*fname){
+	FILE*f=fopen(fname,"ab");
+	if(f!=nullptr){
+		BOOL ret=FALSE;
+		if(fwrite(text,sz,1,f)==1){
+			char a='\n';
+			if(fwrite(&a,1,1,f)==1)
+				ret=TRUE;
+		}
+		fclose(f);
+		return ret;
+	}
+	return FALSE;
+}
+#define append_line_tofile(l,f) append_lineSz_tofile(l,strlen(l),f)
 static BOOL delete_line_fromfile(const char*text,const char*fname){
 	FILE*f=fopen(fname,"r+b");
 	if(f!=nullptr){//from here, in case file is manipulated somewhere else, the drive data can be overwrote or increased but not decreased.
 		BOOL ret=FALSE;
 		size_t len=strlen(text);
-		size_t sz=10;
-		char*mem=(char*)malloc(10);
+		size_t sz=delim_init;
+		char*mem=(char*)malloc(delim_init);
 		if(mem!=nullptr){
 			while(getdelim(&mem,&sz,'\n',f)!=-1){
 				if(memcmp(text,mem,len)==0){
@@ -3167,17 +3212,7 @@ static BOOL org_storerule(const char*text,size_t sz,gboolean is_global){//this w
 	if(to_organizer_folder_go){
 		const char*fname;if(is_global)fname=globalrules;
 		else fname=localrules;
-		FILE*f=fopen(fname,"ab");
-		if(f!=nullptr){
-			BOOL ret=FALSE;
-			if(fwrite(text,sz,1,f)==1){
-				char a='\n';
-				if(fwrite(&a,1,1,f)==1)
-					ret=TRUE;
-			}
-			fclose(f);
-			return ret;
-		}
+		return append_lineSz_tofile((char*)text,sz,fname);
 	}
 	return FALSE;
 }
@@ -3187,9 +3222,11 @@ static BOOL org_deleterule(GtkLabel*label){
 		const char*fname;if(is_global){
 			fname=globalrules;
 			//delete conversations simple based on files
+			//       list at all servers
 		}
 		else{
 			fname=localrules;
+			//delete list at all servers+channels
 		}
 		const char*text=gtk_label_get_text(label);
 		return delete_line_fromfile(text,fname);
@@ -3259,8 +3296,8 @@ static BOOL org_restorerule(const char*name,GtkNotebook*nb,BOOL is_global){
 	FILE*f=fopen(name,"rb");
 	if(f!=nullptr){
 		BOOL ret=FALSE;
-		size_t sz=10;
-		char*mem=(char*)malloc(10);
+		size_t sz=delim_init;
+		char*mem=(char*)malloc(delim_init);
 		if(mem!=nullptr){
 			while(getdelim(&mem,&sz,'\n',f)!=-1){
 				mem[strlen(mem)-1]='\0';//even at last, that is the way we added
@@ -3403,23 +3440,28 @@ static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_ind
 		if(is_global_previous||is_global){
 			if(chdir(org_g)==0){
 				//delete
+				if(is_global_previous)if(delete_line_fromfile(nick,gtk_notebook_get_menu_label_text(nb,prev_tab))==FALSE)return FALSE;
 				//write
+				if(is_global)if(append_line_tofile(nickname_prefixless(nick),gtk_notebook_get_menu_label_text(nb,current_tab))==FALSE)return FALSE;
+				//back
 				if(chdir(dirback)!=0)return FALSE;
 			}//else return FALSE;
 		}
 		//and at local
 		if(is_global_previous==FALSE||is_global==FALSE){
 			if(chdir(org_c)==0){
-				//delete
-
-				//write
-				if(is_global==FALSE){
-					if(current_index!=0){//to local
+				gchar*text=gtk_combo_box_text_get_active_text((GtkComboBoxText*)ps->organizer_dirs);
+				char*chan=strchr(text,*not_a_nick_chan_host_start)+1;
+				if(chdir(chan)==0){
+					//delete
+					if((is_global_previous)==FALSE&&prev_index!=0)if(delete_line_fromfile(nick,gtk_notebook_get_menu_label_text(nb,prev_tab))==FALSE)return FALSE;
+					//write
+					if(is_global==FALSE&&current_index!=0){//to local
+						if(append_line_tofile(nick,gtk_notebook_get_menu_label_text(nb,current_tab))==FALSE)return FALSE;
 						*conv_total=0;
 					}
-				}
-
-				//why back?//if(chdir(dirback)!=0)return FALSE;
+					//why back?//if(chdir(dirback)!=0)return FALSE;
+				}//else return FALSE;
 			}//else return FALSE;
 		}
 		return TRUE;
