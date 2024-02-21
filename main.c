@@ -1306,7 +1306,7 @@ static void add_name_lowuser(GtkListStore*lst,char*t){
 static BOOL rank_compare(char*intruder,int intruder_rank,char*defender){
 	int defender_pos=strchr(chanmodessigns,*defender)-chanmodessigns;//example: ~&@%+ ~ is 0, + is 4
 	if(intruder_rank<defender_pos)return TRUE;//is reversed order
-	else if(intruder_rank==defender_pos)return strcmp(intruder,defender)<0;
+	else if(intruder_rank==defender_pos)return strcmp(intruder,defender+1)<0;
 	return FALSE;
 }
 static void add_name_highuser(GtkListStore*lst,char*t){
