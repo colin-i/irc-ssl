@@ -934,17 +934,19 @@ static BOOL org_nick_iter(GtkNotebook*nb,char*name,GtkTreeModel**tm,GtkTreeIter*
 	gint last=gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1));
 	for(int tab=1;tab<=last;tab++){
 		GtkWidget*sc=gtk_notebook_get_nth_page(nb,tab);//scroll
-		GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
-		*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
+		if(gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,sc))){//only at global, is too many checks at remove to add at local, where it can be in multiple channels
+			GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
+			*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
 
-		gboolean valid=gtk_tree_model_get_iter_first (*tm, it);
-		while(valid){
-			gchar*nick;
-			gtk_tree_model_get (*tm, it, ORG_ID1, &nick, -1);
-			int cmp=strcmp(nickname_prefixless(nick),name);
-			g_free(nick);
-			if(cmp==0)return TRUE;
-			valid = gtk_tree_model_iter_next(*tm, it);
+			gboolean valid=gtk_tree_model_get_iter_first (*tm, it);
+			while(valid){
+				gchar*nick;
+				gtk_tree_model_get (*tm, it, ORG_ID1, &nick, -1);
+				int cmp=strcmp(nickname_prefixless(nick),name);
+				g_free(nick);
+				if(cmp==0)return TRUE;
+				valid = gtk_tree_model_iter_next(*tm, it);
+			}
 		}
 	}
 	return FALSE;
@@ -1335,7 +1337,8 @@ static void add_name_highuser(GtkListStore*lst,char*t){
 }
 #define add_name_organizer_macro(l,i,n,x)\
 	gtk_list_store_append(l,&i);\
-	gtk_list_store_set(l, &i, ORG_ID1, n, ORG_IDLE, 0x7fFFffFF, ORG_INDEX, x, ORG_CONV, 0, -1)
+	gtk_list_store_set(l, &i, ORG_ID1, n, ORG_IDLE, 0x7fFFffFF, ORG_INDEX, x, -1)
+	//here is at new entries ORG_CONV 0
 static void add_name_organizer(char*name,struct stk_s*ps){
 	if(ps->organizer!=nullptr){
 		if(ps->organizer_can_add_names){
@@ -1718,7 +1721,7 @@ static void org_names_end(struct stk_s* ps){//nick uniqueness
 				valid=gtk_tree_model_get_iter_first (tm, &it);int pos=0;
 				while(valid){
 					gint index;
-					gtk_tree_model_get (tm, &it, ORG_ID1, &nick, ORG_CONV, &index, -1);//ORG_ID2, &user,-1);
+					gtk_tree_model_get (tm, &it, ORG_ID1, &nick, ORG_INDEX, &index, -1);//ORG_ID2, &user,-1);
 					//char n_u[prefix_name_sz+1+prefix_name_sz+1];
 					//sprintf(n_u,"%s" defaultstart "%s",nick,user==nullptr?"":user);
 					gtk_list_store_append(list, &iter);
@@ -2893,7 +2896,7 @@ static void org_repopulate_conv(GtkNotebook*nb){
 	gint last=gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1));
 	for(int i=1;i<=last;i++){
 		GtkWidget*sc=gtk_notebook_get_nth_page(nb,i);//scroll
-		if(gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,sc))){
+		if(gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,sc))){//conv only at global
 			GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
 			GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
 			GtkTreeIter iter;
@@ -3116,8 +3119,12 @@ static void organizer_tab_column_add(GtkTreeView*tree,char*name,int pos,GtkTreeS
 	}
 }
 static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**child_out,gboolean is_global){
-	//                                                               nick             user           gender         idle in minutes server         id of append number of conversations
-	GtkTreeSortable*sort=(GtkTreeSortable*)gtk_list_store_new(ORG_N, G_TYPE_STRING,   G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT,     G_TYPE_STRING, G_TYPE_INT,  G_TYPE_INT);//is already sortable
+	//                                                       nick             user           gender         idle in minutes server         id of append number of conversations
+	GtkTreeSortable*sort;
+	if(is_global)
+		sort=(GtkTreeSortable*)gtk_list_store_new(ORG_N,   G_TYPE_STRING,   G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT,     G_TYPE_STRING, G_TYPE_INT,  G_TYPE_INT);//is already sortable
+	else
+		sort=(GtkTreeSortable*)gtk_list_store_new(ORG_N-1, G_TYPE_STRING,   G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT,     G_TYPE_STRING, G_TYPE_INT);
 	//any filter can come here
 	//GtkTreeModel*sort=gtk_tree_model_sort_new_with_model(list);
 	//g_object_unref(list);
@@ -3133,7 +3140,8 @@ static GtkListStore* organizer_tab_add(GtkNotebook*nb,char*title,GtkWidget**chil
 	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Idle",ORG_IDLE,sort);
 	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Server",ORG_SERVER,sort);
 	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Index",ORG_INDEX,sort);
-	organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Conversations",ORG_CONV,sort);
+	if(is_global)
+		organizer_tab_column_add((GtkTreeView*)treeV,(char*)"Conversations",ORG_CONV,sort);
 
 	GtkWidget*scroll = gtk_scrolled_window_new(nullptr, nullptr);
 	if(child_out!=nullptr)//only at restore but that is the highest usage anyway
@@ -3439,15 +3447,9 @@ static void org_chat(struct stk_s*ps){
 	gtk_window_present(ps->main_win);
 }
 
-static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_index,GtkWidget*current_tab,gint current_index,char*nick,gint*conv_total){
+static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_index,GtkWidget*current_tab,gint current_index,char*nick,gboolean is_global_previous,gboolean is_global){
 	if(to_organizer_folder_server(server_name(ps))){//used at least for a simple name remove (local->new_entries) to double_name+conversations remove(global->local)
 		GtkNotebook*nb=ps->organizer_notebook;
-		gboolean is_global_previous;
-		if(prev_index==0)is_global_previous=FALSE;
-		else is_global_previous=gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,prev_tab));
-		gboolean is_global;
-		if(current_index==0)is_global=FALSE;
-		else is_global=gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,current_tab));
 		if(is_global_previous&&(is_global==FALSE)){//global->0/local
 			if(chdir(org_u)==0){
 				if(chdir(nick)==0){//is prefixless at global
@@ -3485,12 +3487,9 @@ static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_ind
 				char*chan=strchr(text,*not_a_nick_chan_host_start)+1;
 				if(chdir(chan)==0){
 					//delete
-					if((is_global_previous)==FALSE&&prev_index!=0)if(delete_line_fromfile(nick,gtk_notebook_get_menu_label_text(nb,prev_tab))==FALSE)return FALSE;
+					if(is_global_previous==FALSE&&prev_index!=0)if(delete_line_fromfile(nick,gtk_notebook_get_menu_label_text(nb,prev_tab))==FALSE)return FALSE;
 					//write
-					if(is_global==FALSE&&current_index!=0){//to local
-						if(append_line_tofile(nick,gtk_notebook_get_menu_label_text(nb,current_tab))==FALSE)return FALSE;
-						*conv_total=0;
-					}
+					if(is_global==FALSE&&current_index!=0)if(append_line_tofile(nick,gtk_notebook_get_menu_label_text(nb,current_tab))==FALSE)return FALSE;
 					//why back?//if(chdir(dirback)!=0)return FALSE;
 				}//else return FALSE;
 			}//else return FALSE;
@@ -3533,8 +3532,13 @@ static void org_move(GtkButton*button,struct stk_s*ps){
 				if(gtk_tree_model_iter_nth_child(tmprev,&iterator,nullptr,pos)){//can be deleted between the clicks
 					gchar*a;gchar*b;gchar*c;gint d;gchar*e;
 					gint f,g;//indexes are not ok with holes, at sorting
-					gtk_tree_model_get(tmprev,&iterator,ORG_ID1,&a,ORG_ID2,&b,ORG_GEN,&c,ORG_IDLE,&d,ORG_SERVER,&e,ORG_INDEX,&f,ORG_CONV,&g,-1);
-					if(org_move_background(ps,previous,tab,current,nb_page_index,a,&g)){
+					gboolean prev_glob=gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,previous));
+					if(prev_glob)
+						gtk_tree_model_get(tmprev,&iterator,ORG_ID1,&a,ORG_ID2,&b,ORG_GEN,&c,ORG_IDLE,&d,ORG_SERVER,&e,ORG_INDEX,&f,ORG_CONV,&g,-1);
+					else
+						gtk_tree_model_get(tmprev,&iterator,ORG_ID1,&a,ORG_ID2,&b,ORG_GEN,&c,ORG_IDLE,&d,ORG_SERVER,&e,ORG_INDEX,&f,-1);
+					gboolean current_glob=gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,current));
+					if(org_move_background(ps,previous,tab,current,nb_page_index,a,prev_glob,current_glob)){
 						gtk_list_store_remove((GtkListStore*)tmprev,&iterator);
 						if(tab!=0)org_move_indexed(tmprev,f);//index sort is not relevant there, comment at org_names_end
 						if(nb_page_index!=0){//can't move back, there is a comment about this at org_names_end
@@ -3545,7 +3549,12 @@ static void org_move(GtkButton*button,struct stk_s*ps){
 
 							gint n=gtk_tree_model_iter_n_children(tm,nullptr);
 							gtk_list_store_append((GtkListStore*)tm,&iterator);
-							gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,current_nick,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_INDEX,n,ORG_CONV,g,-1);
+							if(current_glob){
+								if(prev_glob)gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,current_nick,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_INDEX,n,ORG_CONV,g,-1);
+								else gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,current_nick,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_INDEX,n,ORG_CONV,0,-1);
+							}else{
+								gtk_list_store_set((GtkListStore*)tm, &iterator, ORG_ID1,current_nick,ORG_ID2,b,ORG_GEN,c,ORG_IDLE,d,ORG_SERVER,e,ORG_INDEX,n,-1);
+							}
 							//and select the moved item
 							GtkTreePath * path = gtk_tree_model_get_path ( tm , &iterator );
 							gtk_tree_view_set_cursor((GtkTreeView*)tv,path,nullptr,FALSE);
