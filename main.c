@@ -923,6 +923,7 @@ static BOOL to_organizer_folder(BOOL is_remove,BOOL remove){//for the moment thi
 }
 #define to_organizer_folder_go to_organizer_folder(FALSE,FALSE)
 #define to_organizer_folder_server(s) to_organizer_folder_go&&chdir(s)==0
+#define to_organizer_folder_server_go to_organizer_folder_server(server_name(ps))
 static const gchar*server_name(struct stk_s*ps){
 	const gchar*n_main=gtk_notebook_get_menu_label_text(ps->notebook,home_page);
 	n_main+=sizeof(not_a_nick_chan_host_start)-1;
@@ -1685,21 +1686,100 @@ static void org_move_indexed(GtkTreeModel*m,gint pos){
 	if(is_sorted)gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)m,i,s);
 }
 
-static void org_changeprefix(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter){//,gchar*nick
-	gint tab;gint pos;gint ix;
-	gtk_tree_model_get((GtkTreeModel*)list, iter, 3,&tab, 4,&pos, 5,&ix, -1);
+static char*org_getchan(struct stk_s*ps){
+	const gchar*text=gtk_notebook_get_menu_label_text(ps->organizer_notebook,ps->organizer_entry_widget);//Move is active for this label text
+	return strchr(text,*not_a_nick_chan_host_start)+1;
+}
+#define delim_init 10
+static BOOL append_lineSz_tofile(char*text,size_t sz,const char*fname){
+	FILE*f=fopen(fname,"ab");
+	if(f!=nullptr){
+		BOOL ret=FALSE;
+		if(fwrite(text,sz,1,f)==1){
+			char a='\n';
+			if(fwrite(&a,1,1,f)==1)
+				ret=TRUE;
+		}
+		fclose(f);
+		return ret;
+	}
+	return FALSE;
+}
+#define append_line_tofile(l,f) append_lineSz_tofile(l,strlen(l),f)
+static BOOL delete_line_fromfile(const char*text,const char*fname){
+	FILE*f=fopen(fname,"r+b");
+	if(f!=nullptr){//from here, in case file is manipulated somewhere else, the drive data can be overwrote or increased but not decreased.
+		BOOL ret=FALSE;
+		size_t len=strlen(text);
+		size_t sz=delim_init;
+		char*mem=(char*)malloc(delim_init);
+		if(mem!=nullptr){
+			while(getdelim(&mem,&sz,'\n',f)!=-1){
+				if(memcmp(text,mem,len)==0){
+					if(mem[len]=='\n'){
+						//move from this file location everything back len bytes
+						long here=ftell(f);
+						if(here!=-1){//if someone compiles for 32 and EINVAL, tested with truncate -s 2147483647 , and the error is at ftell not at getdelim or fseek
+							long back=here-1-len;
+							fseek(f,0,SEEK_END);
+							long tel=ftell(f);
+							if(tel!=-1){//same
+								long moved=tel-here;
+								if(moved==0){
+									if(back==0){
+										if(unlink(fname)==0)//this is another descriptor, can be permission in the meantime
+											ret=TRUE;
+										//there's nothing to write, fclose will do nothing next
+									}else{
+										ftruncate(fileno(f),back);
+										ret=TRUE;
+									}
+								}else{
+									fseek(f,here,SEEK_SET);
+									void*m=malloc(moved);
+									if(m!=nullptr){
+										fread(m,moved,1,f);
+										fseek(f,back,SEEK_SET);
+										fwrite(m,moved,1,f);
+										ftruncate(fileno(f),back+moved);
+										free(m);
+										ret=TRUE;
+									}
+								}
+							}
+						}
+						break;
+					}
+				}
+			}
+			free(mem);
+		}
+		fclose(f);
+		return ret;
+	}
+	return FALSE;
+}
 
-	GtkWidget*sc=gtk_notebook_get_nth_page(nb,tab);
-	GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
-	GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
+static void org_modchanged(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter,char*chan){
+	if(chdir(org_c)==0){
+		if(chdir(chan)==0){
+			gint tab;gint pos;gint ix;
+			gtk_tree_model_get((GtkTreeModel*)list, iter, 3,&tab, 4,&pos, 5,&ix, -1);
+			GtkWidget*sc=gtk_notebook_get_nth_page(nb,tab);
+			GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
+			GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
+			gtk_tree_model_iter_nth_child(tm, iter, nullptr, pos);
 
-	gtk_tree_model_iter_nth_child(tm, iter, nullptr, pos);
-
-	//gtk_list_store_set((GtkListStore*)tm,iter, ORG_ID1,nick, -1);
-	gtk_list_store_remove((GtkListStore*)tm,iter);
-	org_move_indexed(tm,ix);
-
-	//delete user from channel list
+			const gchar*rule=gtk_notebook_get_menu_label_text(nb,sc);
+			gchar*old_nick_with_or_without_prefix;
+			gtk_tree_model_get(tm,iter, ORG_ID1,&old_nick_with_or_without_prefix, -1);
+			if(delete_line_fromfile(old_nick_with_or_without_prefix,rule)){//delete user from channel list
+				g_free(old_nick_with_or_without_prefix);
+				gtk_list_store_remove((GtkListStore*)tm,iter);
+				org_move_indexed(tm,ix);
+			}
+		}
+	}
 }
 static void org_names_end(struct stk_s* ps){//nick uniqueness
 	if(ps->organizer!=nullptr){
@@ -1761,7 +1841,8 @@ static void org_names_end(struct stk_s* ps){//nick uniqueness
 							//but someone who has only 2 lists and want to move between them will care
 							//adding that the prefix will be lost from global to local, as a side effect, remove the entry at moving back to new entries
 							continue;
-						}else org_changeprefix(nb,list,&iter);
+						}else if(to_organizer_folder_server_go)org_modchanged(nb,list,&iter,org_getchan(ps));
+						//       to remove from stored                                     //for to remove
 					}
 					g_free(nickprev);
 				}
@@ -2863,7 +2944,6 @@ static void org_clear_rules(GtkNotebook*nb){
 		gtk_list_store_clear((GtkListStore*)tm);
 	}
 }
-#define delim_init 10
 static void org_repopulate(BOOL is_global,GtkNotebook*nb){
 	gint last=gtk_notebook_page_num(nb,gtk_notebook_get_nth_page(nb,-1));
 	for(int i=1;i<=last;i++){
@@ -3176,75 +3256,6 @@ static int organizer_populate_dirs(const char*dir,void*box){
 	return 0;
 }
 
-static BOOL append_lineSz_tofile(char*text,size_t sz,const char*fname){
-	FILE*f=fopen(fname,"ab");
-	if(f!=nullptr){
-		BOOL ret=FALSE;
-		if(fwrite(text,sz,1,f)==1){
-			char a='\n';
-			if(fwrite(&a,1,1,f)==1)
-				ret=TRUE;
-		}
-		fclose(f);
-		return ret;
-	}
-	return FALSE;
-}
-#define append_line_tofile(l,f) append_lineSz_tofile(l,strlen(l),f)
-static BOOL delete_line_fromfile(const char*text,const char*fname){
-	FILE*f=fopen(fname,"r+b");
-	if(f!=nullptr){//from here, in case file is manipulated somewhere else, the drive data can be overwrote or increased but not decreased.
-		BOOL ret=FALSE;
-		size_t len=strlen(text);
-		size_t sz=delim_init;
-		char*mem=(char*)malloc(delim_init);
-		if(mem!=nullptr){
-			while(getdelim(&mem,&sz,'\n',f)!=-1){
-				if(memcmp(text,mem,len)==0){
-					if(mem[len]=='\n'){
-						//move from this file location everything back len bytes
-						long here=ftell(f);
-						if(here!=-1){//if someone compiles for 32 and EINVAL, tested with truncate -s 2147483647 , and the error is at ftell not at getdelim or fseek
-							long back=here-1-len;
-							fseek(f,0,SEEK_END);
-							long tel=ftell(f);
-							if(tel!=-1){//same
-								long moved=tel-here;
-								if(moved==0){
-									if(back==0){
-										if(unlink(fname)==0)//this is another descriptor, can be permission in the meantime
-											ret=TRUE;
-										//there's nothing to write, fclose will do nothing next
-									}else{
-										ftruncate(fileno(f),back);
-										ret=TRUE;
-									}
-								}else{
-									fseek(f,here,SEEK_SET);
-									void*m=malloc(moved);
-									if(m!=nullptr){
-										fread(m,moved,1,f);
-										fseek(f,back,SEEK_SET);
-										fwrite(m,moved,1,f);
-										ftruncate(fileno(f),back+moved);
-										free(m);
-										ret=TRUE;
-									}
-								}
-							}
-						}
-						break;
-					}
-				}
-			}
-			free(mem);
-		}
-		fclose(f);
-		return ret;
-	}
-	return FALSE;
-}
-
 #define localrules "_local"
 #define globalrules "_global"
 static BOOL org_storerule(const char*text,size_t sz,gboolean is_global){//this way or search at start for files
@@ -3448,7 +3459,7 @@ static void org_chat(struct stk_s*ps){
 }
 
 static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_index,GtkWidget*current_tab,gint current_index,char*nick,gboolean is_global_previous,gboolean is_global){
-	if(to_organizer_folder_server(server_name(ps))){//used at least for a simple name remove (local->new_entries) to double_name+conversations remove(global->local)
+	if(to_organizer_folder_server_go){//used at least for a simple name remove (local->new_entries) to double_name+conversations remove(global->local)
 		GtkNotebook*nb=ps->organizer_notebook;
 		if(is_global_previous&&(is_global==FALSE)){//global->0/local
 			if(chdir(org_u)==0){
@@ -3483,9 +3494,7 @@ static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_ind
 		//and at local
 		if(is_global_previous==FALSE||is_global==FALSE){
 			if(chdir(org_c)==0){
-				const gchar*text=gtk_notebook_get_menu_label_text(ps->organizer_notebook,ps->organizer_entry_widget);//Move is active for this label text
-				char*chan=strchr(text,*not_a_nick_chan_host_start)+1;
-				if(chdir(chan)==0){
+				if(chdir(org_getchan(ps))==0){
 					//delete
 					if(is_global_previous==FALSE&&prev_index!=0)if(delete_line_fromfile(nick,gtk_notebook_get_menu_label_text(nb,prev_tab))==FALSE)return FALSE;
 					//write
