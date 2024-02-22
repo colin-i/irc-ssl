@@ -2006,20 +2006,20 @@ static gboolean incsafe(gpointer ps){
 			int d=atoi(com);//If no valid conversion could be performed, it returns zero;below,d==0
 
 			if(d==RPL_WHOISUSER){
+				show_between_clause(RPL_WHOISUSER) //then, show is true only at manual command whois
 				if(((struct stk_s*)ps)->organizer!=nullptr){
-					show_between_clause(RPL_WHOISUSER) //then, show is true when no organizer or when organizer+command whois
 					int s=sscanf(b,"%*s " name_scan " " user_scan,nicknm,username);//%*[~] is ok only when ~ is
 					if(s==2)whois_update(((struct stk_s*)ps)->organizer_notebook,ORG_ID2,nicknm,*username!='~'?username:username+1);
 				}
 			}else if(d==RPL_WHOISSERVER){// 	RFC1459 	<nick> <server> :<server_info>
+				show_between_clause(RPL_WHOISUSER)
 				if(((struct stk_s*)ps)->organizer!=nullptr){
-					show_between_clause(RPL_WHOISUSER)
 					int s=sscanf(b,"%*s " name_scan hostnamerfc_scan,nicknm,hostname);
 					if(s==2)whois_update(((struct stk_s*)ps)->organizer_notebook,ORG_SERVER,nicknm,hostname);
 				}
 			}else if(d==RPL_WHOISIDLE){
+				show_between_clause(RPL_WHOISUSER)
 				if(((struct stk_s*)ps)->organizer!=nullptr){
-					show_between_clause(RPL_WHOISUSER)
 					int seconds;
 					int s=sscanf(b,"%*s " name_scan " %u",nicknm,&seconds);
 					if(s==2)whois_update_nr(((struct stk_s*)ps)->organizer_notebook,nicknm,seconds);
@@ -2032,8 +2032,8 @@ static gboolean incsafe(gpointer ps){
 						pars_wmod(nicknm,b+strlen(nicknm)+2);
 				}
 			}else if(d==RPL_WHOISSPECIAL){
+				show_between_clause(RPL_WHOISUSER)
 				if(((struct stk_s*)ps)->organizer!=nullptr){
-					show_between_clause(RPL_WHOISUSER)
 					int s=sscanf(b,"%*s " name_scan "  :identifies as " specialsz_scan,nicknm,special);//from https://scp-wiki.wikidot.com/chat-guide
 					if(s==2)whois_update(((struct stk_s*)ps)->organizer_notebook,ORG_GEN,nicknm,special);
 				}
