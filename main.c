@@ -1706,7 +1706,7 @@ static BOOL append_lineSz_tofile(char*text,size_t sz,const char*fname){
 	return FALSE;
 }
 #define append_line_tofile(l,f) append_lineSz_tofile(l,strlen(l),f)
-static BOOL delete_line_fromfile(const char*text,const char*fname){
+static BOOL delete_line_fromfile_pref(const char*text,const char*fname,BOOL raw){
 	FILE*f=fopen(fname,"r+b");
 	if(f!=nullptr){//from here, in case file is manipulated somewhere else, the drive data can be overwrote or increased but not decreased.
 		BOOL ret=FALSE;
@@ -1715,12 +1715,15 @@ static BOOL delete_line_fromfile(const char*text,const char*fname){
 		char*mem=(char*)malloc(delim_init);
 		if(mem!=nullptr){
 			while(getdelim(&mem,&sz,'\n',f)!=-1){
-				if(memcmp(text,mem,len)==0){
-					if(mem[len]=='\n'){
+				char*inplace;
+				if(raw)inplace=mem;
+				else inplace=nickname_prefixless(mem);
+				if(memcmp(text,inplace,len)==0){
+					if(inplace[len]=='\n'){
 						//move from this file location everything back len bytes
 						long here=ftell(f);
 						if(here!=-1){//if someone compiles for 32 and EINVAL, tested with truncate -s 2147483647 , and the error is at ftell not at getdelim or fseek
-							long back=here-1-len;
+							long back=here-1-len-(inplace-mem);// - prefix if was the case
 							fseek(f,0,SEEK_END);
 							long tel=ftell(f);
 							if(tel!=-1){//same
@@ -1759,6 +1762,7 @@ static BOOL delete_line_fromfile(const char*text,const char*fname){
 	}
 	return FALSE;
 }
+#define delete_line_fromfile(text,fname) delete_line_fromfile_pref(text,fname,TRUE)
 
 static void org_modchanged(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter,char*chan){
 	if(chdir(org_c)==0){
@@ -3458,7 +3462,32 @@ static void org_chat(struct stk_s*ps){
 	gtk_window_present(ps->main_win);
 }
 
-static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_index,GtkWidget*current_tab,gint current_index,char*nick,gboolean is_global_previous,gboolean is_global){
+static void org_move_files_locToGlob(char*chan,char*nick){
+	GDir*entries=g_dir_open(".",0,nullptr);
+	if(entries!=nullptr){
+		for(;;){
+			const gchar*dir=g_dir_read_name(entries);
+			if(dir==nullptr)break;
+			if(strcmp(dir,chan)!=0){
+				if(chdir(dir)==0){
+					GDir*rules=g_dir_open(".",0,nullptr);
+					if(rules!=nullptr){
+						const gchar*rule;
+						for(;;){
+							rule=g_dir_read_name(rules);
+							if(rule==nullptr)break;
+							delete_line_fromfile_pref(nick,rule,FALSE);
+						}
+						g_dir_close(rules);
+					}
+					if(chdir(dirback)!=0)break;
+				}
+			}
+		}
+		g_dir_close(entries);
+	}//else return FALSE;
+}
+static BOOL org_move_files(struct stk_s*ps,GtkWidget*prev_tab,gint prev_index,GtkWidget*current_tab,gint current_index,char*nick,gboolean is_global_previous,gboolean is_global){
 	if(to_organizer_folder_server_go){//used at least for a simple name remove (local->new_entries) to double_name+conversations remove(global->local)
 		GtkNotebook*nb=ps->organizer_notebook;
 		if(is_global_previous&&(is_global==FALSE)){//global->0/local
@@ -3494,12 +3523,18 @@ static BOOL org_move_background(struct stk_s*ps,GtkWidget*prev_tab,gint prev_ind
 		//and at local
 		if(is_global_previous==FALSE||is_global==FALSE){
 			if(chdir(org_c)==0){
-				if(chdir(org_getchan(ps))==0){
+				char*chan=org_getchan(ps);
+				if(chdir(chan)==0){
 					//delete
-					if(is_global_previous==FALSE&&prev_index!=0)if(delete_line_fromfile(nick,gtk_notebook_get_menu_label_text(nb,prev_tab))==FALSE)return FALSE;
+					BOOL from_local=is_global_previous==FALSE&&prev_index!=0;
+					if(from_local)if(delete_line_fromfile(nick,gtk_notebook_get_menu_label_text(nb,prev_tab))==FALSE)return FALSE;
 					//write
 					if(is_global==FALSE&&current_index!=0)if(append_line_tofile(nick,gtk_notebook_get_menu_label_text(nb,current_tab))==FALSE)return FALSE;
-					//why back?//if(chdir(dirback)!=0)return FALSE;
+					//as a side effect, local->global, must be server unique, then search in other server channels for uniqueness
+					if(from_local&&is_global){
+						if(chdir(dirback)!=0)return FALSE;//back
+						org_move_files_locToGlob(chan,nickname_prefixless(nick));//)==FALSE)return FALSE;
+					}
 				}//else return FALSE;
 			}//else return FALSE;
 		}
@@ -3547,7 +3582,7 @@ static void org_move(GtkButton*button,struct stk_s*ps){
 					else
 						gtk_tree_model_get(tmprev,&iterator,ORG_ID1,&a,ORG_ID2,&b,ORG_GEN,&c,ORG_IDLE,&d,ORG_SERVER,&e,ORG_INDEX,&f,-1);
 					gboolean current_glob=gtk_label_get_use_markup((GtkLabel*)gtk_notebook_get_tab_label(nb,current));
-					if(org_move_background(ps,previous,tab,current,nb_page_index,a,prev_glob,current_glob)){
+					if(org_move_files(ps,previous,tab,current,nb_page_index,a,prev_glob,current_glob)){
 						gtk_list_store_remove((GtkListStore*)tmprev,&iterator);
 						if(tab!=0)org_move_indexed(tmprev,f);//index sort is not relevant there, comment at org_names_end
 						if(nb_page_index!=0){//can't move back, there is a comment about this at org_names_end
