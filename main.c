@@ -3069,25 +3069,26 @@ static void folder_rm(){//at lists is important to not let the file because can 
 	}//else return -1;
 	//return 0;
 }
-static int iterate_folders_enter_rm(){
+static BOOL folder_enter_rm(const gchar*folder){
+	if(chdir(folder)==0){
+		folder_rm();
+		if(chdir("..")!=0)return FALSE;
+		rmdir(folder);
+	}
+	return TRUE;
+}
+static BOOL iterate_folders_enter_rm(){
 	GDir*entries=g_dir_open(".",0,nullptr);
 	if(entries!=nullptr){
-		int r=0;
 		for(;;){
 			const gchar*dir=g_dir_read_name(entries);
 			if(dir==nullptr)break;
-			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
-				if(chdir(dir)==0){
-					folder_rm();
-					if(chdir("..")!=0){r=-1;break;}
-					rmdir(dir);
-				}//else {r=-1;break;}
-			}
+			if(g_file_test(dir,G_FILE_TEST_IS_DIR))
+				if(folder_enter_rm(dir)==FALSE){g_dir_close(entries);return FALSE;}
 		}
 		g_dir_close(entries);
-		return r;
 	}//else return -1;
-	return 0;
+	return TRUE;
 }
 static void iterate_folders_enter(int (*f)(const char*, void*),void*data){
 	GDir*entries=g_dir_open(".",0,nullptr);
@@ -3097,13 +3098,30 @@ static void iterate_folders_enter(int (*f)(const char*, void*),void*data){
 			if(dir==nullptr)break;
 			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
 				if(chdir(dir)==0){
-					if(f(dir,data)!=0)break;//{r=-1;break;}//here will chdir in chans
+					if(f(dir,data)!=0)break;//{r=-1;break;}//has inner chdirs
 					if(chdir("..")!=0)break;//{r=-1;break;}
 				}else break;//{r=-1;break;}
 			}
 		}
 		g_dir_close(entries);
 	}//else return -1;
+}
+static BOOL iterate_folders_enter2(int (*f)(const char*),const char*data){
+	GDir*entries=g_dir_open(".",0,nullptr);
+	if(entries!=nullptr){
+		for(;;){
+			const gchar*dir=g_dir_read_name(entries);
+			if(dir==nullptr)break;
+			if(g_file_test(dir,G_FILE_TEST_IS_DIR)){
+				if(chdir(dir)==0){
+					if(f(data)!=0){g_dir_close(entries);return FALSE;}//has inner chdirs
+					if(chdir("..")!=0){g_dir_close(entries);return FALSE;}
+				}else break;//{r=-1;break;}
+			}
+		}
+		g_dir_close(entries);
+	}//else return -1;
+	return TRUE;
 }
 static void iterate_folders(void (*f)(const char*, void*),void*data){
 	GDir*entries=g_dir_open(".",0,nullptr);
@@ -3125,7 +3143,7 @@ static BOOL org_removechan_global(gchar*server){
 		if(chdir(dirback)==0){
 			rmdir(org_g);
 			if(chdir(org_u)==0){
-				if(iterate_folders_enter_rm()==0){
+				if(iterate_folders_enter_rm()){
 					if(chdir(dirback)==0){
 						rmdir(org_u);
 						if(chdir(dirback)==0){
@@ -3270,23 +3288,73 @@ static BOOL org_storerule(const char*text,size_t sz,gboolean is_global){//this w
 	}
 	return FALSE;
 }
+
+static int org_deleterule_global(const gchar*rule){
+	if(chdir(org_g)==0){
+		FILE*users=fopen(rule,"rb");
+		if(users!=nullptr){
+			fseek(users,0,SEEK_END);
+			long end=ftell(users);
+			if(end!=-1){
+				char*mem=(char*)malloc(end+1);
+				if(mem!=nullptr){
+					fseek(users,0,SEEK_SET);
+					fread(mem,end,1,users);
+					mem[end]='\0';
+					fclose(users);
+					unlink(rule);   //remove the rule
+					if(chdir(dirback)!=0){free(mem);return -1;}
+					if(chdir(org_u)==0){// and at users remove conversations from what names rule has
+						char*name=mem;
+						for(;;){
+							char*next=strchr(name,'\n');
+							if(next==nullptr)break;
+							*next='\0';
+							if(folder_enter_rm(name)==FALSE){free(mem);return -1;}
+							next++;
+							name=next;
+						}
+						free(mem);
+					}else free(mem);
+				}else fclose(users);
+			}else fclose(users);
+		}
+		return chdir(dirback);//this is for org_u (or for org_g)
+	}
+	return 0;
+}
+static int org_deleterule_local(const gchar*rule){
+	if(chdir(org_c)==0){
+		GDir*channels=g_dir_open(".",0,nullptr);
+		if(channels!=nullptr){
+			for(;;){
+				const gchar*chan=g_dir_read_name(channels);
+				if(chan==nullptr)break;
+				if(chdir(chan)==0){
+					unlink(rule);
+					if(chdir(dirback)!=0){g_dir_close(channels);return -1;}
+				}
+			}
+			g_dir_close(channels);
+		}
+		return chdir(dirback);
+	}
+	return 0;
+}
 static BOOL org_deleterule(GtkLabel*label){
 	if(to_organizer_folder_go){
+		const gchar*rule=gtk_label_get_text(label);
 		gboolean is_global=gtk_label_get_use_markup(label);
-		const char*fname;if(is_global){
-			fname=globalrules;
-			//delete conversations simple based on files
-			//       list at all servers
+		if(is_global){
+			if(iterate_folders_enter2(org_deleterule_global,rule))//delete list/list_conversations at all servers
+				return delete_line_fromfile(rule,globalrules);
 		}
-		else{
-			fname=localrules;
-			//delete list at all servers+channels
-		}
-		const char*text=gtk_label_get_text(label);
-		return delete_line_fromfile(text,fname);
+		else if(iterate_folders_enter2(org_deleterule_local,rule))//delete list at all servers+channels
+			return delete_line_fromfile(rule,localrules);
 	}
 	return FALSE;
 }
+
 static void org_addrule(struct stk_s*ps){
 	GtkWidget*dialog= gtk_dialog_new_with_buttons ("Add Rule",(GtkWindow*)ps->organizer,(GtkDialogFlags)(GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL),
 			    "_Cancel",GTK_RESPONSE_CANCEL,"_OK",GTK_RESPONSE_OK,nullptr);
