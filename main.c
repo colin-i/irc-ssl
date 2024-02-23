@@ -296,6 +296,7 @@ static BOOL can_send_data=FALSE;
 #define autojoin_str "autojoin"
 #define join_str  "JOIN"
 #define names_str "NAMES"
+#define whois_str "WHOIS"
 #define counting_the_chanRel_size (sizeof(names_str)>sizeof(join_str)?sizeof(names_str):sizeof(join_str))
 enum{autoconnect_id,autojoin_id,dimensions_id,chan_min_id,chans_max_id,connection_number_id,hide_id,ignore_id,log_id,maximize_id,minimize_id,nick_id,password_id,refresh_id,right_id,run_id,send_history_id,timestamp_id,user_id,visible_id,welcome_id,welcomeNotice_id,removeconf_id};
 struct ajoin{
@@ -1449,7 +1450,7 @@ static void pars_mod_set(GtkListStore*lst,char*n,int pos,BOOL plus){
 				add_name_lowuser(lst,n);
 				if(chanmodessigns[spos+1]!='\0'){//can be downgraded
 					char downgraded[6+name_sz+irc_term_sz+1];
-					int sz=sprintf(downgraded,"WHOIS %s" irc_term,n);
+					int sz=sprintf(downgraded,whois_str " %s" irc_term,n);
 					send_data(downgraded,(size_t)sz);
 				}
 			}
@@ -1769,14 +1770,16 @@ static void org_modchanged(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter,cha
 		if(chdir(chan)==0){
 			gint tab;gint pos;gint ix;
 			gtk_tree_model_get((GtkTreeModel*)list, iter, 3,&tab, 4,&pos, 5,&ix, -1);
+
 			GtkWidget*sc=gtk_notebook_get_nth_page(nb,tab);
+			const gchar*rule=gtk_notebook_get_menu_label_text(nb,sc);
+
 			GtkWidget*tv=gtk_bin_get_child((GtkBin*)sc);
 			GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
 			gtk_tree_model_iter_nth_child(tm, iter, nullptr, pos);
-
-			const gchar*rule=gtk_notebook_get_menu_label_text(nb,sc);
 			gchar*old_nick_with_or_without_prefix;
 			gtk_tree_model_get(tm,iter, ORG_ID1,&old_nick_with_or_without_prefix, -1);
+
 			if(delete_line_fromfile(old_nick_with_or_without_prefix,rule)){//delete user from channel list
 				g_free(old_nick_with_or_without_prefix);
 				gtk_list_store_remove((GtkListStore*)tm,iter);
@@ -1837,7 +1840,7 @@ static void org_names_end(struct stk_s* ps){//nick uniqueness
 						gint old_pref;gint is_global;
 						gtk_tree_model_get((GtkTreeModel*)list, &iter, 1,&old_pref, 2,&is_global, -1);
 
-						if(is_global||old_pref==nick_new_pref){//only when prefix can be changed   and  when prefix was changed, if one is changing many times can be moved from localNO to globalNO
+						if(is_global||old_pref==nick_new_pref){//is global with no prefix or local but same/no prefix
 							g_free(nickprev);g_free(nick);
 							valid=gtk_list_store_remove(new_entries,&it);//iter is next valid row
 							//ignore ORG_INDEX? it will look like a bug, 0,1,2  1 is at rules, 0,2  move from rules to first tab  0,2,2
@@ -1845,6 +1848,7 @@ static void org_names_end(struct stk_s* ps){//nick uniqueness
 							//but someone who has only 2 lists and want to move between them will care
 							//adding that the prefix will be lost from global to local, as a side effect, remove the entry at moving back to new entries
 							continue;
+						//only when prefix can be changed   and  when prefix was changed, if one is changing many times can be moved from localNO to globalNO
 						}else if(to_organizer_folder_server_go)org_modchanged(nb,list,&iter,org_getchan(ps));
 						//       to remove from stored                                     //for to remove
 					}
@@ -3488,7 +3492,7 @@ static void org_query(GtkNotebook*nb){
 				}else{
 					current_server=server;current_server_is_solid=TRUE;
 				}
-				if(ok=org_query_append_str(&command,&sz,(char*)"WHOIS",&all_size,0)){
+				if(ok=org_query_append_str(&command,&sz,(char*)whois_str,&all_size,0)){
 					if(ok=org_query_append_str(&command,&sz,current_server,&all_size,' ')){
 						if nickname_start(nick) {
 							ok=org_query_append_str(&command,&sz,nick,&all_size,' ');
@@ -4236,7 +4240,7 @@ int main (int    argc,
 	return EXIT_SUCCESS;
 }
 
-/* example entries for .sircinfo
+/*example entries for .sircinfo
 irc.libera.chat:6697
 chat.freenode.net:6697,7000,7070
 @bucharest.ro.eu.undernet.org:6660-6669
@@ -4247,3 +4251,4 @@ zonder:@irc.us.ircnet.net
 @127.0.0.1:6666-6667
 @127.0.0.1:6697;6667-6669
 */
+//example of rules for organizer:: local rules: staff/try . global rules: talks/far/have/no/male/not
