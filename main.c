@@ -1676,7 +1676,7 @@ static void counting_the_list(GtkWidget*w,const char*a){
 static void org_move_indexed(GtkTreeModel*m,gint pos){
 	GtkTreeIter it;
 	gint i;GtkSortType s;
-	gboolean is_sorted=gtk_tree_sortable_get_sort_column_id (m, &i, &s);//unsorted is still indexed
+	gboolean is_sorted=gtk_tree_sortable_get_sort_column_id ((GtkTreeSortable*)m, &i, &s);//unsorted is still indexed
 	if(is_sorted)gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)m,ORG_INDEX,GTK_SORT_ASCENDING);
 	if(gtk_tree_model_iter_nth_child(m, &it, nullptr, pos)){
 		do{
@@ -1687,9 +1687,10 @@ static void org_move_indexed(GtkTreeModel*m,gint pos){
 	if(is_sorted)gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)m,i,s);
 }
 
-static char*org_getchan(struct stk_s*ps){
+static const char*org_getchan(struct stk_s*ps){
 	const gchar*text=gtk_notebook_get_menu_label_text(ps->organizer_notebook,ps->organizer_entry_widget);//Move is active for this label text
-	return strchr(text,*not_a_nick_chan_host_start)+1;
+	const char*a=strchr(text,*not_a_nick_chan_host_start);//invalid conversion from const char* to char*   char*a=strchr(text,*not_a_nick_chan_host_start) but man strchr: char *strchr
+	return a+1;
 }
 #define delim_init 10
 static BOOL append_lineSz_tofile(char*text,size_t sz,const char*fname){
@@ -1765,7 +1766,7 @@ static BOOL delete_line_fromfile_pref(const char*text,const char*fname,BOOL raw)
 }
 #define delete_line_fromfile(text,fname) delete_line_fromfile_pref(text,fname,TRUE)
 
-static void org_modchanged(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter,char*chan){
+static void org_modchanged(GtkNotebook*nb,GtkListStore*list,GtkTreeIter*iter,const char*chan){
 	if(chdir(org_c)==0){
 		if(chdir(chan)==0){
 			gint tab;gint pos;gint ix;
@@ -3534,7 +3535,7 @@ static void org_chat(struct stk_s*ps){
 	gtk_window_present(ps->main_win);
 }
 
-static void org_move_files_locToGlob(char*chan,char*nick){
+static void org_move_files_locToGlob(const char*chan,char*nick){
 	GDir*entries=g_dir_open(".",0,nullptr);
 	if(entries!=nullptr){
 		for(;;){
@@ -3595,7 +3596,7 @@ static BOOL org_move_files(struct stk_s*ps,GtkWidget*prev_tab,gint prev_index,Gt
 		//and at local
 		if(is_global_previous==FALSE||is_global==FALSE){
 			if(chdir(org_c)==0){
-				char*chan=org_getchan(ps);
+				const char*chan=org_getchan(ps);
 				if(chdir(chan)==0){
 					//delete
 					BOOL from_local=is_global_previous==FALSE&&prev_index!=0;
