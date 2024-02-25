@@ -245,6 +245,7 @@ struct stk_s{
 	GtkListStore*organizer_entry_names;
 	GtkWidget*organizer_bot;
 	BOOL organizer_can_add_names;
+	unsigned int queries;GtkButton*organizer_query_button;
 };
 static int autoconnect=-1;static BOOL autoconnect_pending=FALSE;
 static GSList*con_group;
@@ -281,7 +282,7 @@ static unsigned int maximummodes;
 #define digits_in_longnul digits_in_long+1
 //2 at 64, $((2**63))...
 
-#define show_from_clause(a,b,c) if(icmpAmemBstrlownotempty(a,b))show_msg=c;
+#define show_from_clause_left(a,b,c) if(icmpAmemBstrlownotempty(a,b)){show_msg=c;
 #define show_between_clause(a) if(show_msg!=a)showmsg=FALSE;
 #define show_to_clause(a) if(show_msg==a)show_msg=RPL_NONE;else showmsg=FALSE;
 static int show_msg=RPL_NONE;
@@ -1422,7 +1423,19 @@ static void pars_quit(char*nk){
 	g_list_free(ls);
 }
 
-static void pars_mod_set(GtkListStore*lst,char*n,int pos,BOOL plus){
+#define org_auto_query(a,b,p) send_data(a,b);org_query_number(1,p);
+#define query_str "Query" not_a_nick_chan_host_start
+static void org_query_number(unsigned int nr,struct stk_s*ps){
+	ps->queries+=nr;
+	if(ps->organizer!=nullptr){
+		const gchar*text=gtk_button_get_label(ps->organizer_query_button);
+		char buf[sizeof(query_str)-1+digits_in_uintnul];
+		sprintf(buf,"%s%u",query_str,ps->queries);
+		gtk_button_set_label(ps->organizer_query_button,buf);
+	}
+}
+
+static void pars_mod_set(GtkListStore*lst,char*n,int pos,BOOL plus,gpointer ps){
 	GtkTreeIter it;char prevmod;
 	if(plus){
 		if(get_iter_unmodes(lst,&it,n)){
@@ -1451,13 +1464,13 @@ static void pars_mod_set(GtkListStore*lst,char*n,int pos,BOOL plus){
 				if(chanmodessigns[spos+1]!='\0'){//can be downgraded
 					char downgraded[6+name_sz+irc_term_sz+1];
 					int sz=sprintf(downgraded,whois_str " %s" irc_term,n);
-					send_data(downgraded,(size_t)sz);
+					org_auto_query(downgraded,(size_t)sz,(struct stk_s*)ps)
 				}
 			}
 		}
 	}
 }
-static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
+static void pars_mod_sens(BOOL plus,char*c,char*m,char*n,gpointer ps){
 	for(size_t i=0;m[i]!='\0';i++){
 		char*modpos=strchr(chanmodes,m[i]);
 		if(modpos!=nullptr){
@@ -1468,7 +1481,7 @@ static void pars_mod_sens(BOOL plus,char*c,char*m,char*n){
 				const char*d=gtk_menu_item_get_label((GtkMenuItem*)menu_item);
 				if(strcmp(c,d)==0){
 					GtkListStore*lst=contf_get_list(get_pan_from_menu(menu_item));
-					pars_mod_set(lst,n,modpos-chanmodes,plus);
+					pars_mod_set(lst,n,modpos-chanmodes,plus,ps);
 					break;
 				}
 				list=g_list_next(list);
@@ -1487,7 +1500,7 @@ static void pars_wmod(char*n,char*msg){
 			if(modpos!=nullptr){
 				msg[i]='\0';
 				GtkWidget*pan=chan_pan(&msg[j+1]);
-				if(pan!=nullptr)pars_mod_set(contf_get_list(pan),n,modpos-chanmodessigns,TRUE);
+				if(pan!=nullptr)pars_mod_set(contf_get_list(pan),n,modpos-chanmodessigns,TRUE,nullptr);
 				msg[i]=' ';
 			}
 			j=i+i;
@@ -1495,15 +1508,15 @@ static void pars_wmod(char*n,char*msg){
 			char*modpos=strchr(chanmodessigns,msg[j]);
 			if(modpos!=nullptr){
 				GtkWidget*pan=chan_pan(&msg[j+1]);
-				if(pan!=nullptr)pars_mod_set(contf_get_list(pan),n,modpos-chanmodessigns,TRUE);
+				if(pan!=nullptr)pars_mod_set(contf_get_list(pan),n,modpos-chanmodessigns,TRUE,nullptr);
 			}
 			return;
 		}
 	}
 }
-static void pars_mod(char*c,char*m,char*n){
-	if(is_mod_add(m))pars_mod_sens(TRUE,c,m+1,n);
-	else if(*m==*mod_remove_char)pars_mod_sens(FALSE,c,m+1,n);
+static void pars_mod(char*c,char*m,char*n,gpointer ps){
+	if(is_mod_add(m))pars_mod_sens(TRUE,c,m+1,n,nullptr);
+	else if(*m==*mod_remove_char)pars_mod_sens(FALSE,c,m+1,n,ps);
 }
 static void pars_mod_self(struct stk_s*ps,char*mod){
 	if(ps->visible){
@@ -1997,7 +2010,7 @@ static gboolean incsafe(gpointer ps){
 		}else if(strcmp(com,mod_msg_str)==0){
 			char mod[1+3+1];//"limit of three (3) changes per command for modes that take a parameter."
 			if(sscanf(b,channame_scan " " mod_scan " " name_scan,channm,mod,nicknm)==3)
-				pars_mod(channm,mod,nicknm);
+				pars_mod(channm,mod,nicknm,ps);
 			else if(sscanf(b,"%*s :" mod_scan,mod)==1)pars_mod_self((struct stk_s*)ps,mod);
 		}else if(strcmp(com,"INVITE")==0){
 			if(nick_extract(a,nicknm)&&sscanf(b,"%*s " channame_scan,channm_simple)==1){
@@ -2052,6 +2065,7 @@ static gboolean incsafe(gpointer ps){
 				show_between_clause(RPL_WHOISUSER)
 			}else if(d==RPL_ENDOFWHOIS){
 				show_to_clause(RPL_WHOISUSER)
+				org_query_number(-1,(struct stk_s*)ps);
 
 			}else if(d==RPL_LIST){//if -f 0 or the option, this is rare
 				show_between_clause(RPL_LIST)
@@ -2311,6 +2325,7 @@ static BOOL con_plain(char*psw,char*nkn,struct stk_s*ps){
 	BOOL b=irc_start(psw,nkn,ps);
 	return b;
 }
+
 static void clear_old_chat(GtkNotebook*nb){
 	if(alert_counter>0){
 		gtk_widget_hide(gtk_notebook_get_action_widget(nb,GTK_PACK_END));
@@ -2399,6 +2414,7 @@ static gboolean proced_connecting(gpointer b){
 	strcpy(hostname+1,ps->proced_hostname);
 	gtk_notebook_set_menu_label_text(ps->notebook,home_page,hostname);
 	gtk_notebook_set_tab_label_text(ps->notebook,home_page,hostname);
+	org_query_number(-ps->queries,ps);
 
 	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
@@ -2761,9 +2777,13 @@ static void send_activate(GtkEntry*entry,struct stk_s*ps){
 	const char*a=gtk_notebook_get_menu_label_text(ps->notebook,pg);
 	if(sz!=0){//nothing to send else
 		if(is_home(a)){
-			show_from_clause(text,"list",RPL_LIST)
-			else show_from_clause(text,"names",RPL_NAMREPLY)
-			else show_from_clause(text,"whois",RPL_WHOISUSER)
+			//strip leading white spaces
+			while(*text==' '||*text=='\t')text++;//tab? inserted here only with something like `echo -e "\t" | xclip -selection clipboard`
+			sz=strlen(text);
+
+			show_from_clause_left(text,"list",RPL_LIST) }
+			else show_from_clause_left(text,"names",RPL_NAMREPLY) }
+			else show_from_clause_left(text,"whois",RPL_WHOISUSER) org_query_number(1,ps); }
 			char*b=(char*)malloc(sz+irc_term_sz);
 			if(b==nullptr)return;
 			memcpy(b,text,sz);
@@ -3456,8 +3476,9 @@ static BOOL org_query_append_str(char**mem,size_t*sz,char*fast_append,size_t*all
 	*sz=new_size;
 	return TRUE;
 }
-#define org_query_send if(org_query_append_str(&command,&sz,(char*)irc_term,&all_size,0))send_data(command,sz);
-static void org_query(GtkNotebook*nb){
+#define org_query_send if(org_query_append_str(&command,&sz,(char*)irc_term,&all_size,0)){org_auto_query(command,sz,ps)}
+static void org_query(struct stk_s*ps){
+	GtkNotebook*nb=ps->organizer_notebook;
 	GtkWidget*current=gtk_notebook_get_nth_page(nb,gtk_notebook_get_current_page(nb));//scroll
 	GtkWidget*tv=gtk_bin_get_child((GtkBin*)current);
 	GtkTreeModel*tm=gtk_tree_view_get_model((GtkTreeView*)tv);
@@ -3746,8 +3767,9 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	GtkWidget*move=gtk_button_new_with_label(movestart);
 	g_signal_connect_data (move, "clicked",G_CALLBACK(org_move),ps,nullptr,(GConnectFlags)0);
 	gtk_box_pack_start((GtkBox*)bot,move,FALSE,FALSE,0);
-	GtkWidget*query=gtk_button_new_with_label("Query");
-	g_signal_connect_data (query, "clicked",G_CALLBACK(org_query),nb,nullptr,G_CONNECT_SWAPPED);
+	GtkWidget*query=gtk_button_new_with_label(query_str "0");       ps->organizer_query_button=(GtkButton*)query;
+	g_signal_connect_data (query, "clicked",G_CALLBACK(org_query),ps,nullptr,G_CONNECT_SWAPPED);
+	org_query_number(0,ps);//in case are pending queries
 	gtk_box_pack_start((GtkBox*)bot,query,FALSE,FALSE,0);
 	GtkWidget*chat=gtk_button_new_with_label("Chat");
 	g_signal_connect_data (chat, "clicked",G_CALLBACK(org_chat),ps,nullptr,G_CONNECT_SWAPPED);
