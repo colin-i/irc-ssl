@@ -245,7 +245,7 @@ struct stk_s{
 	GtkListStore*organizer_entry_names;
 	GtkWidget*organizer_bot;
 	BOOL organizer_can_add_names;
-	unsigned int queries;GtkButton*organizer_query_button;
+	int queries;GtkButton*organizer_query_button;
 };
 static int autoconnect=-1;static BOOL autoconnect_pending=FALSE;
 static GSList*con_group;
@@ -1425,6 +1425,7 @@ static void pars_quit(char*nk){
 
 #define org_auto_query(a,b,p) send_data(a,b);org_query_number(1,p);
 #define query_str "Query" not_a_nick_chan_host_start
+#define query_str0 query_str "0"
 static void org_query_number(unsigned int nr,struct stk_s*ps){
 	ps->queries+=nr;
 	if(ps->organizer!=nullptr){
@@ -3548,6 +3549,9 @@ static void org_query(struct stk_s*ps){
 		gtk_tree_sortable_set_sort_column_id((GtkTreeSortable*)tm,pos,type);
 	}
 }
+static void org_q0(GtkButton*b){
+	gtk_button_set_label(b,query_str0);
+}
 
 static void org_chat(struct stk_s*ps){
 	GtkWidget*current=gtk_notebook_get_nth_page(ps->organizer_notebook,gtk_notebook_get_current_page(ps->organizer_notebook));//scroll
@@ -3767,7 +3771,7 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	GtkWidget*move=gtk_button_new_with_label(movestart);
 	g_signal_connect_data (move, "clicked",G_CALLBACK(org_move),ps,nullptr,(GConnectFlags)0);
 	gtk_box_pack_start((GtkBox*)bot,move,FALSE,FALSE,0);
-	GtkWidget*query=gtk_button_new_with_label(query_str "0");       ps->organizer_query_button=(GtkButton*)query;
+	GtkWidget*query=gtk_button_new_with_label(query_str0);       ps->organizer_query_button=(GtkButton*)query;
 	g_signal_connect_data (query, "clicked",G_CALLBACK(org_query),ps,nullptr,G_CONNECT_SWAPPED);
 	org_query_number(0,ps);//in case are pending queries
 	gtk_box_pack_start((GtkBox*)bot,query,FALSE,FALSE,0);
@@ -3776,6 +3780,12 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	gtk_box_pack_start((GtkBox*)bot,chat,FALSE,FALSE,0);
 	ps->organizer_entry_widget_timestamp=gtk_label_new(nullptr);
 	gtk_box_pack_start((GtkBox*)bot,ps->organizer_entry_widget_timestamp,FALSE,FALSE,0);
+
+	//q0 for whois manual send and syntax error or no such server, or maybe some are not coming back
+	GtkWidget*q0=gtk_button_new_with_label("Q0");
+	g_signal_connect_data (chat, "clicked",G_CALLBACK(org_q0),query,nullptr,G_CONNECT_SWAPPED);
+	gtk_box_pack_start((GtkBox*)bot,q0,FALSE,FALSE,0);
+
 	gtk_box_pack_start((GtkBox*)box,bot,FALSE,FALSE,0);
 
 	gtk_container_add ((GtkContainer*)window, box);
