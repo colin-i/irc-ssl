@@ -20,6 +20,7 @@ jobs:
       mv in2/debian/patches in/debian/patches
       mv in2/.pc in/.pc
       if [ -z "`dpkg -s devscripts>/dev/null 2>&1 && echo x`" ]; then
+       sudo apt update   #exactly at this moment, python3-gpg is 1.16.0-1.2ubuntu4.2, but the job fails searching for 1.16.0-1.2ubuntu4.1
        sudo apt install -y devscripts debhelper \
                            libgtk-3-dev
       fi
