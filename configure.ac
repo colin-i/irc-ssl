@@ -6,7 +6,7 @@ AC_PREREQ([2.69])
 AC_INIT([sirc], [0.1])
 #AC_SUBST([PROJ], 'sirc')
 
-AC_CONFIG_SRCDIR([main.c])
+AC_CONFIG_SRCDIR([s/main.c])
 AC_CONFIG_AUX_DIR([build-aux])
 
 # compile with -x c++
@@ -100,7 +100,7 @@ test "x${enable_cflags_setting}" = xyes && CFLAGS="-O3 -s"
 
 AM_INIT_AUTOMAKE
 
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile s/Makefile])
 
 AC_OUTPUT
 

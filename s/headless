@@ -15,11 +15,20 @@ grep --color "${a}" mk
 sed -i "s/${a}//g" mk
 grep --color "${a}" mk
 
-#replace c only headers
-a="\-DHAVE_STDBOOL_H=1 \-DHAVE_STDDEF_H=1"
-grep --color "${a}" mk
-sed -i "s/${a}//g" mk
-grep --color "${a}" mk
+a="sirc_CPPFLAGS ="
+n=`grep "^${a}" -n Makefile | grep -o "^[^:]*"`
+if [ -n "${n}" ]; then
+	#here when cpp flags
+	grep --color "${a}" mk
+	sed -i "${n}s/.*/${a}/" mk
+	grep --color "${a}" mk
+else
+	#replace c only headers
+	a="\-DHAVE_STDBOOL_H=1 \-DHAVE_STDDEF_H=1"
+	grep --color "${a}" mk
+	sed -i "s/${a}//g" mk
+	grep --color "${a}" mk
+fi
 
 make -f mk
 
