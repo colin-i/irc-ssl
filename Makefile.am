@@ -5,6 +5,7 @@ SUBDIRS = s
 test:
 	cp -r s test
 	cd test && make clean && ./headless
+	rm -r test #it is a mirror, who can use it instead of ./s ?
 #test if is going with: autoreconf -i && dh_auto_configure && dh_auto_build && dh_auto_test
 
 #install-exec-local:
