@@ -30,6 +30,4 @@ else
 	grep --color "${a}" mk
 fi
 
-make -f mk
-
-if [ -n "${1}" ]; then rm mk; fi
+make -f mk && if [ -n "${1}" ]; then rm mk; fi
