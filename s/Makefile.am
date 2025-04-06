@@ -12,3 +12,11 @@ sirc_CFLAGS = @GTK_CFLAGS@
 if CPP
 sirc_CPPFLAGS = -x c++ -Wno-old-style-cast -Wno-c++98-compat -Wno-c++98-compat-pedantic
 endif
+
+CLEANFILES = ${bin_PROGRAMS}t
+
+test:
+	$(CC) -I. ${sirc_SOURCES} ${sirc_LDADD} -o ${bin_PROGRAMS}t
+
+#here will add
+.PHONY: test
