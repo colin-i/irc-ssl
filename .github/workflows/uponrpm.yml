@@ -37,4 +37,4 @@ jobs:
       upload_url: ${{ env.up_url }}
       asset_path: ./${{ env.file }}
       asset_name: ${{ env.file }}
-      asset_content_type: application/x-executable
+      asset_content_type: application/x-rpm
