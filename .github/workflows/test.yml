@@ -1,5 +1,8 @@
 on:
  workflow_dispatch:
+  inputs:
+   branch:
+    description: "another branch"
 env:
  #for gh and for upload
  GITHUB_TOKEN: ${{ secrets.PAT }}
@@ -16,7 +19,11 @@ jobs:
       #proj
       name=`cat debian/changelog | head -1 | grep -o ^[^\ ]*`
       #get appimage artifact
-      branch=$(git rev-parse --abbrev-ref HEAD)
+      branch=${{ github.event.inputs.branch }}
+      if [ -z "${branch}" ]; then
+       branch=$(git rev-parse --abbrev-ref HEAD)
+      fi
+      echo ${branch}
       id=$(gh run list --workflow=appimage.yml -b ${branch} | cut -f7 | head -1)
       repo_at_gh=`cat debian/control | grep "^Homepage" | grep -o "[^/]*$"`
       #
@@ -32,10 +39,22 @@ jobs:
       export DISPLAY=:99
       sudo Xvfb :99 -screen 0 1920x1080x8 &
       sleep 5
-      ./sirc.AppImage &
-      sleep 10
-      sudo apt install -y x11-apps imagemagick #imagemagick is on noble
-      xwd -root -silent | convert xwd:- png:screenshot.png
+      {
+       sleep 20 && \
+       sudo apt install -y imagemagick #imagemagick is on noble
+       #x11-apps #xwd -root -silent | convert xwd:- png:screenshot.png      #xwd with x11-apps
+       import -window root -display :99 -screen screenshot.png
+       id=`ps aux | grep sirc | grep -v grep | tr -s ' ' | cut -f2 -d' '` && \
+       echo id=$id && \
+       echo kill -s 9 ${id} && \
+       kill -s 9 ${id} && \
+       #export recon=9 #useless
+       touch recon
+      } &
+      ./sirc.AppImage || {
+       if [ -e ./recon ]; then echo ok
+       else exit 1; fi
+      }
    - name: upload artifact
      uses: actions/upload-artifact@master
      with:
