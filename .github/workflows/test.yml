@@ -1,0 +1,43 @@
+on:
+ workflow_dispatch:
+env:
+ #for gh and for upload
+ GITHUB_TOKEN: ${{ secrets.PAT }}
+jobs:
+ takescreen:
+  runs-on: ${{ matrix.os }}
+  strategy:
+   matrix:
+    os: [ubuntu-22.04, ubuntu-24.04]
+  steps:
+   - uses: actions/checkout@master
+   - name: Run a multi-line script
+     run: |
+      #proj
+      name=`cat debian/changelog | head -1 | grep -o ^[^\ ]*`
+      #get appimage artifact
+      branch=$(git rev-parse --abbrev-ref HEAD)
+      id=$(gh run list --workflow=appimage.yml -b ${branch} | cut -f7 | head -1)
+      repo_at_gh=`cat debian/control | grep "^Homepage" | grep -o "[^/]*$"`
+      #
+      url=`gh api -H "Accept: application/vnd.github.v3+json" /repos/colin-i/${repo_at_gh}/actions/runs/${id}/artifacts | jq ".artifacts[0].archive_download_url"`
+      url=${url:1:-1}
+      echo ${url}
+      curl -L -H "Authorization: token ${{ secrets.PAT }}" ${url} --output a.zip
+      unzip ./a.zip
+   - name: Install dependencies
+     run: sudo apt-get install -y xvfb libfuse2`if [ ${{ matrix.os }} = "ubuntu-24.04" ]; then echo -n t64; fi`
+   - name: launch and screenshot
+     run: |
+      export DISPLAY=:99
+      sudo Xvfb :99 -screen 0 1920x1080x8 &
+      sleep 5
+      ./sirc.AppImage &
+      sleep 10
+      sudo apt install -y x11-apps imagemagick
+      xwd -root -silent | convert xwd:- png:screenshot.png
+   - name: upload artifact
+     uses: actions/upload-artifact@master
+     with:
+      name: screenshot-${{ matrix.os }}
+      path: screenshot.png
