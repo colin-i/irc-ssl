@@ -31,7 +31,7 @@ jobs:
        ln -s ${origf} ${origln}
       fi
       cd in
-      debuild -S -us -uc
+      debuild -S -us -uc -d
    - name: unsigned debs
      uses: actions/upload-artifact@master
      with:
