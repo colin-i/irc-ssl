@@ -4269,7 +4269,11 @@ int main (int    argc,
 			gather_free(ps.ajoins_sum,ps.ajoins_mem,ps.ajoins);
 			gather_free(ps.ignores_sum,ps.ignores_mem,ps.ignores);
 		}
-	}else puts("openssl error");
+		return exitcode;
+	}else{
+		puts("openssl error");
+		return EXIT_FAILURE;
+	}
 	return EXIT_SUCCESS;
 }
 

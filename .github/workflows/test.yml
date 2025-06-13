@@ -26,7 +26,7 @@ jobs:
       curl -L -H "Authorization: token ${{ secrets.PAT }}" ${url} --output a.zip
       unzip ./a.zip
    - name: Install dependencies
-     run: sudo apt-get install -y xvfb libfuse2`if [ ${{ matrix.os }} = "ubuntu-24.04" ]; then echo -n t64; fi`
+     run: sudo apt-get install -y libfuse2`if [ ${{ matrix.os }} = "ubuntu-24.04" ]; then echo -n t64; fi` #xvfb is already
    - name: launch and screenshot
      run: |
       export DISPLAY=:99
@@ -34,7 +34,7 @@ jobs:
       sleep 5
       ./sirc.AppImage &
       sleep 10
-      sudo apt install -y x11-apps imagemagick
+      sudo apt install -y x11-apps imagemagick #imagemagick is on noble
       xwd -root -silent | convert xwd:- png:screenshot.png
    - name: upload artifact
      uses: actions/upload-artifact@master
