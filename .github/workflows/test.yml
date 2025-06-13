@@ -32,10 +32,9 @@ jobs:
       echo ${url}
       curl -L -H "Authorization: token ${{ secrets.PAT }}" ${url} --output a.zip
       unzip ./a.zip
-   - name: Install dependencies
-     run: sudo apt-get install -y libfuse2`if [ ${{ matrix.os }} = "ubuntu-24.04" ]; then echo -n t64; fi` #xvfb is already
-   - name: launch and screenshot
-     run: |
+
+      sudo apt-get install -y libfuse2`if [ ${{ matrix.os }} = "ubuntu-24.04" ]; then echo -n t64; fi` #xvfb is already
+
       export DISPLAY=:99
       sudo Xvfb :99 -screen 0 1920x1080x8 &
       sleep 5
@@ -44,13 +43,13 @@ jobs:
        sudo apt install -y imagemagick #imagemagick is on noble
        #x11-apps #xwd -root -silent | convert xwd:- png:screenshot.png      #xwd with x11-apps
        import -window root -display :99 -screen screenshot.png
-       id=`ps aux | grep sirc | grep -v grep | tr -s ' ' | cut -f2 -d' '` && \
+       id=`ps aux | grep ${name} | grep -v grep | tr -s ' ' | cut -f2 -d' '` && \
        echo id=$id && \
        kill -s 9 ${id} && \
        #export recon=9 #useless
        touch recon
       } &
-      ./sirc.AppImage || {
+      ./${name}.AppImage || {
        if [ -e ./recon ]; then echo ok
        else exit 1; fi
       }
