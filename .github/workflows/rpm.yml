@@ -8,7 +8,7 @@ jobs:
  rpbuild:
   runs-on: ubuntu-22.04 #focal alien is not testing ok on docker fedora
   steps:
-   - uses: actions/checkout@v3
+   - uses: actions/checkout@master
    - name: Run a multi-line script
      run: |
       #get deb
@@ -34,7 +34,7 @@ jobs:
       #${fname2} #alien says x86_64 but we coded elsewhere with amd64
       echo "file=${fname}" >> $GITHUB_ENV
    - name: artifact
-     uses: actions/upload-artifact@v3
+     uses: actions/upload-artifact@master
      with:
       name: rpm
       path: ./${{ env.file }}
