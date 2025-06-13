@@ -46,7 +46,6 @@ jobs:
        import -window root -display :99 -screen screenshot.png
        id=`ps aux | grep sirc | grep -v grep | tr -s ' ' | cut -f2 -d' '` && \
        echo id=$id && \
-       echo kill -s 9 ${id} && \
        kill -s 9 ${id} && \
        #export recon=9 #useless
        touch recon
