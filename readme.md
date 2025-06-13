@@ -12,12 +12,22 @@ Install:
 sudo apt-get install sirc
 ```
 \
-On Fedora, <i>.rpm</i> file from [releases](https://github.com/colin-i/irc-ssl/releases).
+On openSUSE (x86_64,aarch64,i586), run the following as __root__:\
+For openSUSE Tumbleweed:
 ```sh
-dnf install sirc-*.*.rpm
+zypper addrepo https://download.opensuse.org/repositories/home:costin/openSUSE_Tumbleweed/home:costin.repo
+```
+For openSUSE Leap:
+```sh
+zypper addrepo https://download.opensuse.org/repositories/home:costin/openSUSE_Leap_15.6/home:costin.repo
+```
+And:
+```sh
+zypper refresh
+zypper install sirc
 ```
 \
-On linux distributions, <i>.AppImage</i> file from [releases](https://github.com/colin-i/irc-ssl/releases).
+On other linux distributions with gtk, <i>.AppImage</i> file from [releases](https://github.com/colin-i/irc-ssl/releases).
 
 ## From source
 Using libssl-dev and libgtk-3-dev. There is a "headless" build file as well.

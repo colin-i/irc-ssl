@@ -6,13 +6,12 @@ last=$(curl https://api.github.com/repos/colin-i/$(cat debian/control | grep "^H
 ~/test/keyring2 && \
 ~/test/publp && \
 ~/test/ai/ai && \
-~/test/rpm/rpm && \
 ~/test/del && \
 ~/test/rel && \
-~/test/pub appimage rpm rel && \
+~/test/pub appimage rel && \
 ~/test/ai/upapp && \
-~/test/rpm/uponrpm && \
-~/test/pub upapp uponrpm && \
+~/test/rpm/suse && \
+~/test/pub upapp && \
 ~/test/pub2 && \
 ~/test/publp2 && \
 ~/test/lp && \
