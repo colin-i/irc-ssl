@@ -34,25 +34,44 @@ jobs:
       unzip ./a.zip
 
       sudo apt-get install -y libfuse2`if [ ${{ matrix.os }} = "ubuntu-24.04" ]; then echo -n t64; fi` #xvfb is already
+      #export DISPLAY=:0
 
-      export DISPLAY=:99
-      sudo Xvfb :99 -screen 0 1920x1080x8 &
+      #dependencies test, if screen was working here then no broadway
+      sudo Xvfb :1 -screen 0 1920x1080x8 &
       sleep 5
       {
-       sleep 20 && \
-       sudo apt install -y imagemagick #imagemagick is on noble
-       #x11-apps #xwd -root -silent | convert xwd:- png:screenshot.png      #xwd with x11-apps
-       import -window root -display :99 -screen screenshot.png
-       id=`ps aux | grep ${name} | grep -v grep | tr -s ' ' | cut -f2 -d' '` && \
+       sleep 5 && \
+       #import -window root -display :1 -screen screenshot.png #imagemagick is on noble
+       id=`ps aux | grep Xvfb | grep -v grep | tr -s ' ' | cut -f2 -d' '` && \
        echo id=$id && \
-       kill -s 9 ${id} && \
+       sudo kill -s 9 ${id} && \
        #export recon=9 #useless
        touch recon
       } &
-      ./${name}.AppImage || {
+      DISPLAY=:1 ./${name}.AppImage || {
        if [ -e ./recon ]; then echo ok
        else exit 1; fi
       }
+
+      sudo apt install -y libgtk-3-bin npm libnss3
+      npm install puppeteer
+      cat > capture.js <<EOF
+      const puppeteer = require('puppeteer');
+      async function captureBroadwayScreenshot(url, outputPath) {
+        const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+        const page = await browser.newPage();
+        await page.goto(url);
+        await page.screenshot({ path: outputPath });
+        await browser.close();
+      }
+      captureBroadwayScreenshot('http://localhost:8080', 'screenshot.png');
+      EOF
+      #port 8080+DISPLAY at default
+      DISPLAY=:0 broadwayd -p 8080 &
+      sleep 10
+      GDK_BACKEND=broadway BROADWAY_DISPLAY=:0 ./${name}.AppImage -d 200x200 &
+      sleep 10
+      node capture.js
    - name: upload artifact
      uses: actions/upload-artifact@master
      with:

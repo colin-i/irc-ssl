@@ -27,7 +27,7 @@ zypper refresh
 zypper install sirc
 ```
 \
-On other linux distributions with gtk, <i>.AppImage</i> file from [releases](https://github.com/colin-i/irc-ssl/releases).
+On other linux distributions with gtk3, <i>.AppImage</i> file from [releases](https://github.com/colin-i/irc-ssl/releases).
 
 ## From source
 Using libssl-dev and libgtk-3-dev. There is a "headless" build file as well.
