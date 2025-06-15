@@ -4,7 +4,7 @@ on:
    branch:
     description: "another branch"
 env:
- #for gh and our test
+ #for composite
  GITHUB_TOKEN: ${{ secrets.PAT }}
 jobs:
  takescreen:
