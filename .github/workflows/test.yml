@@ -14,6 +14,7 @@ jobs:
     os: [ubuntu-22.04, ubuntu-24.04]
   steps:
    - uses: actions/checkout@master
-   - uses: colin-i/test/.github/actions/test #@test
+   #                                        #@test
+   - uses: colin-i/test/.github/actions/test
      with:
       branch: ${{ github.event.inputs.branch }}
