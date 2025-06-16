@@ -1,3 +1,9 @@
+sirc (1-v17) jammy; urgency=medium
+
+  * fix
+
+ -- bc <bc@bc-desktop>  Mon, 16 Jun 2025 15:24:32 +0300
+
 sirc (1-v16) jammy; urgency=medium
 
   * entry debug
