@@ -11,6 +11,7 @@ tito=x ~/test/debinit "${1}" && \
 ~/test/pub appimage rel && \
 ~/test/ai/upapp && \
 ~/test/rpm/suse && \
+~/test/rpm/copr && \
 ~/test/pub upapp && \
 ~/test/pub2 && \
 ~/test/publp2 && \

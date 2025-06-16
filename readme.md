@@ -27,6 +27,12 @@ zypper refresh
 zypper install sirc
 ```
 \
+On Fedora, run the following as __root__:
+```sh
+dnf copr enable colin/project
+dnf install sirc
+```
+\
 On other linux distributions with gtk3, <i>.AppImage</i> file from [releases](https://github.com/colin-i/irc-ssl/releases).
 
 ## From source
