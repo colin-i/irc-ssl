@@ -74,7 +74,8 @@ typedef void (*GDestroyNotify)(gpointer data);
 typedef void *GdkPixbufDestroyNotify;
 typedef gboolean(*GSourceFunc)(gpointer user_data);
 
-typedef enum{G_APPLICATION_DEFAULT_FLAGS = 0}
+//typedef enum{G_APPLICATION_DEFAULT_FLAGS = 0} //at ubuntu jammy at the moment this is not defined
+typedef enum{G_APPLICATION_FLAGS_NONE}
  GApplicationFlags;
 typedef enum{G_CONNECT_SWAPPED = 1 << 1}
  GConnectFlags;//_BEFORE G_CONNECT_AFTER = 1 << 0,

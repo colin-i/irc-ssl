@@ -4197,7 +4197,7 @@ int main (int    argc,
 	if(OPENSSL_init_ssl(OPENSSL_INIT_NO_LOAD_SSL_STRINGS,nullptr)==1){
 		struct stk_s ps;
 		GtkApplication *app;
-		app = gtk_application_new (nullptr, G_APPLICATION_DEFAULT_FLAGS);//G_APPLICATION_FLAGS_NONE
+		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
 
 		//if(app!=nullptr){
 		ps.args[autoconnect_id]="autoconnect";ps.args_short[autoconnect_id]='a';
