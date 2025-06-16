@@ -4185,7 +4185,7 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 int main (int    argc,
       char **argv)
 {
-	char*en_d=getenv("ENTRY_DEBUG");
+	const char*en_d=getenv("ENTRY_DEBUG");
 	if(en_d!=nullptr){
 		char entry_text[]="ENTRY_DEBUG marker\n";//for headless dependencies start test
 		write(STDOUT_FILENO, entry_text, sizeof(entry_text)-1);// or fd=-1 for EBADF ( man errno )
