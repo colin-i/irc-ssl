@@ -1017,7 +1017,7 @@ static void name_closed(GtkTextView*tv,struct name_pack*nm){
 
 #define destroy "destroy"
 static GtkWidget* name_join_nb(char*t,struct stk_s*ps){
-	struct name_pack*n=(struct name_pack*)malloc(sizeof(struct stk_s*));
+	struct name_pack*n=(struct name_pack*)malloc(sizeof(struct name_pack));
 	if(n!=nullptr){
 		n->name=g_strdup(t);
 		n->ps=ps;
@@ -1426,10 +1426,11 @@ static void pars_quit(char*nk){
 #define org_auto_query(a,b,p) send_data(a,b);org_query_number(1,p);
 #define query_str "Query" not_a_nick_chan_host_start
 #define query_str0 query_str "0"
+#define org_query_number_0 org_query_number(-ps->queries,ps);
 static void org_query_number(unsigned int nr,struct stk_s*ps){
 	ps->queries+=nr;
 	if(ps->organizer!=nullptr){
-		const gchar*text=gtk_button_get_label(ps->organizer_query_button);
+		//what was this for? const gchar*text=gtk_button_get_label(ps->organizer_query_button);
 		char buf[sizeof(query_str)-1+digits_in_uintnul];
 		sprintf(buf,"%s%u",query_str,ps->queries);
 		gtk_button_set_label(ps->organizer_query_button,buf);
@@ -2415,7 +2416,7 @@ static gboolean proced_connecting(gpointer b){
 	strcpy(hostname+1,ps->proced_hostname);
 	gtk_notebook_set_menu_label_text(ps->notebook,home_page,hostname);
 	gtk_notebook_set_tab_label_text(ps->notebook,home_page,hostname);
-	org_query_number(-ps->queries,ps);
+	org_query_number_0
 
 	pthread_kill( threadid, SIGUSR1);
 	return FALSE;
@@ -3515,8 +3516,8 @@ static void org_query(struct stk_s*ps){
 				}else{
 					current_server=server;current_server_is_solid=TRUE;
 				}
-				if(ok=org_query_append_str(&command,&sz,(char*)whois_str,&all_size,0)){
-					if(ok=org_query_append_str(&command,&sz,current_server,&all_size,' ')){
+				if((ok=org_query_append_str(&command,&sz,(char*)whois_str,&all_size,0))){
+					if((ok=org_query_append_str(&command,&sz,current_server,&all_size,' '))){
 						if nickname_start(nick) {
 							ok=org_query_append_str(&command,&sz,nick,&all_size,' ');
 						}else ok=org_query_append_str(&command,&sz,nick+1,&all_size,' ');
@@ -3654,7 +3655,7 @@ static void org_move(GtkButton*button,struct stk_s*ps){
 		GtkTreeSelection *sel=gtk_tree_view_get_selection((GtkTreeView*)tv);
 		gboolean selected=gtk_tree_selection_get_selected (sel,nullptr,&iterator);
 		if(selected){
-			gchar*item_text;
+			//what was this for? gchar*item_text;
 			gint tree_index=get_pos_from_model(tm,&iterator);
 			char*space=(char*)malloc(digits_in_posInt+1+digits_in_posInt+1);
 			if(space!=nullptr){
@@ -3771,9 +3772,9 @@ static void organizer_populate(GtkWidget*window,struct stk_s*ps){
 	GtkWidget*move=gtk_button_new_with_label(movestart);
 	g_signal_connect_data (move, "clicked",G_CALLBACK(org_move),ps,nullptr,(GConnectFlags)0);
 	gtk_box_pack_start((GtkBox*)bot,move,FALSE,FALSE,0);
-	GtkWidget*query=gtk_button_new_with_label(query_str0);       ps->organizer_query_button=(GtkButton*)query;
+	GtkWidget*query=gtk_button_new();       ps->organizer_query_button=(GtkButton*)query;
 	g_signal_connect_data (query, "clicked",G_CALLBACK(org_query),ps,nullptr,G_CONNECT_SWAPPED);
-	org_query_number(0,ps);//in case are pending queries
+	org_query_number_0 //in case are pending queries
 	gtk_box_pack_start((GtkBox*)bot,query,FALSE,FALSE,0);
 	GtkWidget*chat=gtk_button_new_with_label("Chat");
 	g_signal_connect_data (chat, "clicked",G_CALLBACK(org_chat),ps,nullptr,G_CONNECT_SWAPPED);
@@ -3867,7 +3868,7 @@ static gboolean prog_key_press (struct stk_s*ps, GdkEventKey  *event){
 			}else{
 				if(K==GDK_KEY_C){
 					GtkWidget*pg=gtk_notebook_get_nth_page(ps->notebook,gtk_notebook_get_current_page(ps->notebook));
-					if(is_home(gtk_notebook_get_menu_label_text(ps->notebook,pg))==FALSE)gtk_button_clicked((GtkButton*)tab_close_button(ps->notebook,pg));
+					if((is_home(gtk_notebook_get_menu_label_text(ps->notebook,pg)))==FALSE)gtk_button_clicked((GtkButton*)tab_close_button(ps->notebook,pg));
 				}else if(K==GDK_KEY_X)g_application_quit(ps->app);
 			}
 		}else if(event->keyval==GDK_KEY_Up&&gtk_widget_is_focus(ps->sen_entry)){
@@ -4196,7 +4197,7 @@ int main (int    argc,
 	if(OPENSSL_init_ssl(OPENSSL_INIT_NO_LOAD_SSL_STRINGS,nullptr)==1){
 		struct stk_s ps;
 		GtkApplication *app;
-		app = gtk_application_new (nullptr, G_APPLICATION_FLAGS_NONE);
+		app = gtk_application_new (nullptr, G_APPLICATION_DEFAULT_FLAGS);//G_APPLICATION_FLAGS_NONE
 
 		//if(app!=nullptr){
 		ps.args[autoconnect_id]="autoconnect";ps.args_short[autoconnect_id]='a';

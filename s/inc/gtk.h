@@ -74,7 +74,7 @@ typedef void (*GDestroyNotify)(gpointer data);
 typedef void *GdkPixbufDestroyNotify;
 typedef gboolean(*GSourceFunc)(gpointer user_data);
 
-typedef enum{G_APPLICATION_FLAGS_NONE}
+typedef enum{G_APPLICATION_DEFAULT_FLAGS = 0}
  GApplicationFlags;
 typedef enum{G_CONNECT_SWAPPED = 1 << 1}
  GConnectFlags;//_BEFORE G_CONNECT_AFTER = 1 << 0,
