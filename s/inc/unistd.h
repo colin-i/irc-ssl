@@ -3,6 +3,7 @@
 
 typedef long int off_t;
 
+#define STDOUT_FILENO 1
 #define F_OK 0
 
 //#include <bits/seek_constants.h>
