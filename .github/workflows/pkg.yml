@@ -1,5 +1,8 @@
 on:
  workflow_dispatch:
+env:
+ #for composite
+ GITHUB_TOKEN: ${{ secrets.PAT }}
 jobs:
  archbuild:
   runs-on: ubuntu-latest
