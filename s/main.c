@@ -306,7 +306,8 @@ struct ajoin{
 };
 #define invite_str " invited you to join channel "
 static GtkWidget*menuwithtabs;
-#define size_t_max (((unsigned long int)1<<(8*sizeof(size_t)-1))-1)+((unsigned long int)1<<(8*sizeof(size_t)-1))
+#define size_t_max (((unsigned long long int)1<<(8*sizeof(size_t)-1))-1)+((unsigned long long int)1<<(8*sizeof(size_t)-1))
+//long long when on windows
 #define not_a_switch size_t_max
 //is also odd, there are pairs, and text size is also let small
 //at = and == is same asm against 1     and for other compilers can compare from bit sign and is faster
@@ -1707,7 +1708,37 @@ static const char*org_getchan(struct stk_s*ps){
 	const char*a=strchr(text,*not_a_nick_chan_host_start);//invalid conversion from const char* to char*   char*a=strchr(text,*not_a_nick_chan_host_start) but man strchr: char *strchr
 	return a+1;
 }
+
 #define delim_init 10
+
+#ifndef HAVE_GETDELIM
+#define ssize_t_pos_max (((unsigned long long int)1<<(8*sizeof(ssize_t)-1))-1)
+//same long long like at size_t
+ssize_t getdelim(char ** lineptr, size_t * n, int delim, FILE * stream){
+//lineptr is malloc'ed at least delim_init
+	int c;
+	char*cursor=*lineptr;
+	ssize_t bytes=1;
+	while ((c = getc(stream)) != EOF){
+		if(bytes==(ssize_t_pos_max))return -1;
+		if(bytes==*n){
+			char*mem=(char*)realloc(*lineptr,delim_init+bytes);
+			if(mem==nullptr)return -1;
+			*lineptr=mem;
+			*n=delim_init+bytes;
+			cursor=mem+bytes-1;
+		}
+		*cursor=c;
+		bytes++;
+		cursor++;
+		if(c==delim)break;
+	}
+	if(bytes==1)return -1;
+	*cursor='\0';
+	return bytes-1;
+}
+#endif
+
 static BOOL append_lineSz_tofile(char*text,size_t sz,const char*fname){
 	FILE*f=fopen(fname,"ab");
 	if(f!=nullptr){

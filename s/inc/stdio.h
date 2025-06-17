@@ -16,8 +16,13 @@ size_t fread(void */*ptr[restrict .size * .nmemb]*/, size_t size, size_t nmemb, 
 int fseek(FILE *stream, long offset, int whence);
 long ftell(FILE *stream);
 size_t fwrite(const void */*ptr[restrict .size * .nmemb]*/, size_t size, size_t nmemb, FILE */*restrict*/ stream);
+int getc(FILE *stream);
 int getchar(void);
+
+#ifdef HAVE_GETDELIM //how to have getdelim and not the header?
 ssize_t getdelim(char **/*restrict*/ lineptr, size_t */*restrict*/ n, int delim, FILE */*restrict*/ stream);
+#endif
+
 int printf( const char * format, ... );
 int puts(const char*);
 int sscanf(const char *str, const char *format, ...);

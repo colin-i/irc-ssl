@@ -29,10 +29,28 @@ AC_MSG_RESULT($enable_cflags_setting)
 
 #AC_DEFINE_UNQUOTED(HOMEDIR,[$(echo "\"$(cd ~; pwd)/\"")],[~ cannot be "q q"])
 AC_PROG_CC
-AC_CHECK_HEADERS(libgen.h fcntl.h netdb.h netinet/in.h openssl/ssl.h pthread.h signal.h stdio.h stdlib.h string.h sys/socket.h sys/stat.h time.h unistd.h)
+AC_CHECK_HEADERS(libgen.h fcntl.h netdb.h netinet/in.h openssl/ssl.h pthread.h signal.h stdlib.h string.h sys/socket.h sys/stat.h time.h unistd.h)
 #limits.h
 
 start_cflgs="$CFLAGS"
+
+#is not with define _GNU_SOURCE
+AC_CHECK_HEADERS(stdio.h, [
+	AC_MSG_CHECKING([function getdelim])
+	AC_COMPILE_IFELSE(
+		[AC_LANG_SOURCE([[
+			#include <stdio.h>
+			void main(){FILE*nonnull;getdelim(0,0,0,nonnull);}
+		]])],
+		[
+			AC_MSG_RESULT([yes])
+			AC_DEFINE(HAVE_GETDELIM, 1)
+		],
+		[
+			AC_MSG_RESULT([no])
+		]
+	)
+])
 
 PKG_CHECK_MODULES([GLIB], [glib-2.0],[
       CFLAGS="$GLIB_CFLAGS"

@@ -1,0 +1,64 @@
+on:
+ workflow_dispatch:
+env:
+ #for upload
+ GITHUB_TOKEN: ${{ secrets.PAT }}
+jobs:
+ msys:
+  runs-on: windows-latest
+  steps:
+   - uses: msys2/setup-msys2@v2
+     id: msys2
+     with:
+      msystem: mingw64
+      pacboy: autotools:p toolchain:p openssl:p gtk3:p
+   - uses: actions/checkout@master
+     with:
+      path: src
+   - name: pkgbuild
+     shell: msys2 {0}
+     run: |
+      _srcdir=src
+      name=`cat ${_srcdir}/debian/control | grep ^Source: | grep -o "[^ ]*$"`
+      wget https://raw.githubusercontent.com/colin-i/pkgbuilds/refs/heads/main/${name}/PKGBUILD -O 1
+      version="`cat 1 | grep ^pkgver | grep -o [^=]*$`"
+      desc=`cat 1 | grep ^pkgdesc | grep -o [^=]*$`
+      cat > PKGBUILD <<EOF
+      _realname=${name}
+      pkgbase=mingw-w64-\${_realname}
+      pkgname=("\${MINGW_PACKAGE_PREFIX}-\${_realname}")
+      pkgver=${version}
+      pkgrel=0
+      pkgdesc=${desc}
+      arch=('x86_64')
+      depends=("\${MINGW_PACKAGE_PREFIX}-openssl" "\${MINGW_PACKAGE_PREFIX}-gtk3")
+      build() {
+       cd "\${_srcdir}"
+       autoreconf -i
+       ./configure --prefix="\${MINGW_PREFIX}"
+       make
+      }
+      check() {
+       cd "\${_srcdir}"
+       make test
+      }
+      package() {
+       cd "\${_srcdir}"
+       make DESTDIR="\${pkgdir}" install
+      }
+      EOF
+      makepkg-mingw --noconfirm --noprogressbar
+
+      #test & up
+      nm=`ls | grep ".*\.zst$"`
+      pacman -U --noconfirm ${nm}
+      echo "file=${nm}" >> $GITHUB_ENV
+      wget https://github.com/colin-i/test/releases/download/1.5/${name} -O 1.txt
+      echo "up_url=`cat 1.txt`" >> $GITHUB_ENV
+   - name: Upload Release Asset
+     uses: actions/upload-release-asset@master
+     with:
+      upload_url: ${{ env.up_url }}
+      asset_path: ./${{ env.file }}
+      asset_name: ${{ env.file }}
+      asset_content_type: application/zip
