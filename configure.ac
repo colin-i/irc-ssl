@@ -29,7 +29,7 @@ AC_MSG_RESULT($enable_cflags_setting)
 
 #AC_DEFINE_UNQUOTED(HOMEDIR,[$(echo "\"$(cd ~; pwd)/\"")],[~ cannot be "q q"])
 AC_PROG_CC
-AC_CHECK_HEADERS(libgen.h fcntl.h netdb.h netinet/in.h openssl/ssl.h pthread.h signal.h stdlib.h string.h sys/socket.h sys/stat.h time.h unistd.h)
+AC_CHECK_HEADERS(libgen.h fcntl.h netdb.h netinet/in.h openssl/ssl.h pthread.h signal.h stdlib.h string.h sys/socket.h time.h unistd.h)
 #limits.h
 
 start_cflgs="$CFLAGS"
@@ -45,6 +45,22 @@ AC_CHECK_HEADERS(stdio.h, [
 		[
 			AC_MSG_RESULT([yes])
 			AC_DEFINE(HAVE_GETDELIM, 1)
+		],
+		[
+			AC_MSG_RESULT([no])
+		]
+	)
+])
+AC_CHECK_HEADERS(sys/stat.h, [
+	AC_MSG_CHECKING([mkdir without mode_t])
+	AC_COMPILE_IFELSE(
+		[AC_LANG_SOURCE([[
+			#include <sys/stat.h>
+			void main(){mkdir("a");}
+		]])],
+		[
+			AC_MSG_RESULT([yes])
+			AC_DEFINE(MKDIR_1ARG, 1)
 		],
 		[
 			AC_MSG_RESULT([no])

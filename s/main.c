@@ -874,15 +874,33 @@ static BOOL to_organizer_folder(BOOL is_remove,BOOL remove){//for the moment thi
 		if(chdir(h)!=-1){
 			if(is_remove==FALSE){
 				if(chdir(homelocal)==-1){
-					if(mkdir(homelocal,0700)==-1)return FALSE;
+					if(
+#ifdef MKDIR_1ARG
+					mkdir(homelocal)
+#else
+					mkdir(homelocal,0700)
+#endif
+					==-1)return FALSE;
 					if(chdir(homelocal)==-1)return FALSE;
 				}
 				if(chdir(homeshare)==-1){
-					if(mkdir(homeshare,0700)==-1)return FALSE;
+					if(
+#ifdef MKDIR_1ARG
+					mkdir(homeshare)
+#else
+					mkdir(homeshare,0700)
+#endif
+					==-1)return FALSE;
 					if(chdir(homeshare)==-1)return FALSE;
 				}
 				if(chdir(proj)==-1){
-					if(mkdir(proj,0700)==-1)return FALSE;
+					if(
+#ifdef MKDIR_1ARG
+					mkdir(proj)
+#else
+					mkdir(proj,0700)
+#endif
+					==-1)return FALSE;
 					if(chdir(proj)==-1)return FALSE;
 				}
 				return TRUE;
@@ -968,7 +986,13 @@ static BOOL org_save_conv(char*user,char*text,const char*server){
 	size_t sz=strlen(text);
 	if(sz!=0){
 		if(to_organizer_folder_server(server)&&chdir(org_u)==0){
-			if( chdir(user)==0||(mkdir(user,0700)==0&&chdir(user)==0) ){
+			if( chdir(user)==0||(
+#ifdef MKDIR_1ARG
+			mkdir(user)
+#else
+			mkdir(user,0700)
+#endif
+			==0&&chdir(user)==0) ){
 				unsigned int n=org_conv_total();
 				char buf[digits_in_uintnul];sprintf(buf,"%u",n);
 				FILE*dest=fopen(buf,"wb");
@@ -3071,8 +3095,20 @@ static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer 
 			char*chan=strchr(text,*not_a_nick_chan_host_start);
 			//not this check, is the channel folder there//if(chan!=nullptr){//only if the folder is malevolently changed(this case is at list repopulation)
 			*chan='\0';
-			if(chdir(text)==0||(mkdir(text,0700)==0&&chdir(text)==0)){
-				if(chdir(org_g)==0||(mkdir(org_g,0700)==0&&chdir(org_g)==0)){
+			if(chdir(text)==0||(
+#ifdef MKDIR_1ARG
+			mkdir(text)
+#else
+			mkdir(text,0700)
+#endif
+			==0&&chdir(text)==0)){
+				if(chdir(org_g)==0||(
+#ifdef MKDIR_1ARG
+				mkdir(org_g)
+#else
+				mkdir(org_g,0700)
+#endif
+				==0&&chdir(org_g)==0)){
 					//empty current global/local
 					org_clear_rules(ps->organizer_notebook);
 
@@ -3080,14 +3116,32 @@ static void org_changed(GtkComboBoxText *combo_box,struct stk_s*ps)//, gpointer 
 					org_repopulate(TRUE,ps->organizer_notebook);
 
 					if(chdir(dirback)==0){
-						if(chdir(org_c)==0||(mkdir(org_c,0700)==0&&chdir(org_c)==0)){
+						if(chdir(org_c)==0||(
+#ifdef MKDIR_1ARG
+						mkdir(org_c)
+#else
+						mkdir(org_c,0700)
+#endif
+						==0&&chdir(org_c)==0)){
 							chan++;
-							if(chdir(chan)==0||(mkdir(chan,0700)==0&&chdir(chan)==0)){
+							if(chdir(chan)==0||(
+#ifdef MKDIR_1ARG
+							mkdir(chan)
+#else
+							mkdir(chan,0700)
+#endif
+							==0&&chdir(chan)==0)){
 								//retake local lists
 								org_repopulate(FALSE,ps->organizer_notebook);
 
 								if(chdir(dirback)==0&&chdir(dirback)==0){
-									if(chdir(org_u)==0||(mkdir(org_u,0700)==0&&chdir(org_u)==0)){
+									if(chdir(org_u)==0||(
+#ifdef MKDIR_1ARG
+									mkdir(org_u)
+#else
+									mkdir(org_u,0700)
+#endif
+									==0&&chdir(org_u)==0)){
 										//users conversations, here or at retake but there must malloc and form ../users/nick
 										org_repopulate_conv(ps->organizer_notebook);
 										//populate main tab

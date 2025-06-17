@@ -5,7 +5,11 @@ typedef unsigned short mode_t;
 extern "C" {
 #endif
 
+#ifdef MKDIR_1ARG
+int mkdir(const char *pathname);
+#else
 int mkdir(const char *pathname, mode_t mode);
+#endif
 
 #ifdef __cplusplus
 }
