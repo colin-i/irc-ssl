@@ -33,6 +33,11 @@ dnf copr enable colin/project
 dnf install sirc
 ```
 \
+On Arch Linux, <i>.zst</i> file from [releases](https://github.com/colin-i/irc-ssl/releases). Or:
+```sh
+yay -Sy sirc
+```
+\
 On other linux distributions with gtk3, <i>.AppImage</i> file from [releases](https://github.com/colin-i/irc-ssl/releases).
 
 ## From source
