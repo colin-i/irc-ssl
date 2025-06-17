@@ -1,0 +1,8 @@
+on:
+ workflow_dispatch:
+jobs:
+ archbuild:
+  runs-on: ubuntu-latest
+  container: archlinux:latest
+  steps:
+   - uses: colin-i/test/.github/actions/pkg@main
