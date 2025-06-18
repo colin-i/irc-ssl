@@ -17,7 +17,8 @@ CLEANFILES = ${bin_PROGRAMS}t
 
 test:
 	flag1=`echo "${DEFS}" | grep -o "\-DMKDIR_1ARG=1"`; \
-	text="$(CC) $${flag1} -I. ${sirc_SOURCES} ${sirc_LDADD} -o ${bin_PROGRAMS}t"; \
+	flag2=`echo "${DEFS}" | grep -o "\-DHAVE_WINDOWS_H=1"`; \
+	text="$(CC) $${flag1} $${flag2} -I. ${sirc_SOURCES} ${sirc_LDADD} -o ${bin_PROGRAMS}t"; \
 	echo $${text}; \
 	$${text}
 

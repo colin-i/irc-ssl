@@ -12,16 +12,6 @@
 #else
 #include "inc/fcntl.h"
 #endif
-#ifdef HAVE_NETDB_H
-#include <netdb.h>
-#else
-#include "inc/netdb.h"
-#endif
-#ifdef HAVE_NETINET_IN_H
-#include<netinet/in.h>
-#else
-#include "inc/in.h"
-#endif
 #ifdef HAVE_OPENSSL_SSL_H
 #include <openssl/ssl.h>
 #else
@@ -52,11 +42,6 @@
 #else
 #include "inc/string.h"
 #endif
-#ifdef HAVE_SYS_SOCKET_H
-#include <sys/socket.h>
-#else
-#include "inc/socket.h"
-#endif
 #ifdef HAVE_SYS_STAT_H
 #include <sys/stat.h>
 #else
@@ -71,6 +56,24 @@
 #include <unistd.h>
 #else
 #include "inc/unistd.h"
+#endif
+#ifndef HAVE_WINDOWS_H
+#	ifdef HAVE_NETDB_H
+#	include <netdb.h>
+#	else
+#	include "inc/netdb.h"
+#	endif
+#	ifdef HAVE_NETINET_IN_H
+#	include<netinet/in.h>
+#	else
+#	include "inc/in.h"
+#	endif
+#	ifdef HAVE_SYS_SOCKET_H
+#	include <sys/socket.h>
+#	else
+#	include "inc/socket.h"
+#	endif
+//the win inclusion is at openssl>windows>winsock2
 #endif
 
 #ifdef HAVE_GTK_GTK_H
@@ -182,7 +185,12 @@ e.g. newNick" parse_host_delim "a%40c" parse_host_left "127.0.0.1" parse_host_de
 struct data_len{
 	const char*data;size_t len;
 };
-static pthread_t threadid;static sigset_t threadset;
+static pthread_t threadid;
+#ifdef HAVE_WINDOWS_H
+	static HANDLE threadset;
+#else
+	static sigset_t threadset;
+#endif
 static GtkWidget*chan_menu;
 static GtkWidget*name_on_menu;static GtkWidget*name_off_menu;
 static unsigned int alert_counter=0;
@@ -460,13 +468,21 @@ static void addatnames(const char*n,const char*msg,GtkWidget*p,char*the_other_pe
 }
 static gboolean textviewthreadsfunc(gpointer b){
 	addattextmain_struct(((struct data_len*)b));
+#ifdef HAVE_WINDOWS_H
+	SetEvent(threadset);
+#else
 	pthread_kill( threadid, SIGUSR1);
+#endif
 	return FALSE;
 }
 static void main_text(const char*b,size_t s){
 	struct data_len dl;dl.data=b;dl.len=s;
 	g_idle_add(textviewthreadsfunc,&dl);
+#ifdef HAVE_WINDOWS_H
+	WaitForSingleObject(threadset,INFINITE);
+#else
 	int out;sigwait(&threadset,&out);
+#endif
 }
 #define main_text_s(b) main_text(b,sizeof(b)-1)
 //#define main_text_sn(a) main_text_s(a new_line)
@@ -483,27 +499,47 @@ static void send_data(const char*str,size_t sz){
 #define send_list_if if(can_send_data)send_list
 static gboolean sendthreadsfunc(gpointer b){
 	send_data(((struct data_len*)b)->data,((struct data_len*)b)->len);
+#ifdef HAVE_WINDOWS_H
+	SetEvent(threadset);
+#else
 	pthread_kill( threadid, SIGUSR1);
+#endif
 	return FALSE;
 }
 static void send_safe(const char*str,size_t sz){
 	struct data_len dl;dl.data=str;dl.len=sz;
 	g_idle_add(sendthreadsfunc,&dl);
+#ifdef HAVE_WINDOWS_H
+	WaitForSingleObject(threadset,INFINITE);
+#else
 	int out;sigwait(&threadset,&out);
+#endif
 }
 static gboolean close_ssl_safe(gpointer ignore){(void)ignore;
 //to call shutdown with peace
 	SSL_free(ssl);ssl=nullptr;
+#ifdef HAVE_WINDOWS_H
+	SetEvent(threadset);
+#else
 	pthread_kill( threadid, SIGUSR1);
+#endif
 	return FALSE;
 }
 static gboolean close_plain(gpointer ignore){(void)ignore;
 //to call shutdown with peace
 	close(plain_socket);plain_socket=-1;
+#ifdef HAVE_WINDOWS_H
+	SetEvent(threadset);
+#else
 	pthread_kill( threadid, SIGUSR1);
+#endif
 	return FALSE;
 }
-#define close_plain_safe int a;g_idle_add(close_plain,nullptr);sigwait(&threadset,&a);
+#ifdef HAVE_WINDOWS_H
+#	define close_plain_safe g_idle_add(close_plain,nullptr);WaitForSingleObject(threadset,INFINITE);;
+#else
+#	define close_plain_safe g_idle_add(close_plain,nullptr);int a;sigwait(&threadset,&a);
+#endif
 /* ---------------------------------------------------------- *
  * create_socket() creates the socket & TCP-connect to server *
  * ---------------------------------------------------------- */
@@ -2213,14 +2249,22 @@ static gboolean incsafe(gpointer ps){
 	if(showmsg){
 		a[s]='\n';addattextmain(a,s+1);
 	}
+#ifdef HAVE_WINDOWS_H
+	SetEvent(threadset);
+#else
 	pthread_kill(threadid,SIGUSR1);
+#endif
 	return FALSE;
 }
 static void incomings(char*a,size_t n,struct stk_s*ps){
 	struct data_len dl;dl.data=a;dl.len=n;
 	ps->dl=&dl;
 	g_idle_add(incsafe,ps);
+#ifdef HAVE_WINDOWS_H
+	WaitForSingleObject(threadset,INFINITE);
+#else
 	int out;sigwait(&threadset,&out);
+#endif
 }
 static gboolean refresh_callback( gpointer ignored){
 	(void)ignored;
@@ -2276,7 +2320,11 @@ static gboolean senstartthreadsfunc(gpointer ps){
 	//
 	gtk_list_store_clear(channels);
 	//
+#ifdef HAVE_WINDOWS_H
+	SetEvent(threadset);
+#else
 	pthread_kill( threadid, SIGUSR1);
+#endif
 	can_send_data=TRUE;
 	return FALSE;
 }
@@ -2292,7 +2340,11 @@ static gboolean senstopthreadsfunc(gpointer ps){
 	//
 	gtk_widget_set_has_tooltip(home_page,FALSE);//in the middle of the messages
 	//
+#ifdef HAVE_WINDOWS_H
+	SetEvent(threadset);
+#else
 	pthread_kill( threadid, SIGUSR1);
+#endif
 	return FALSE;
 }
 static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
@@ -2314,7 +2366,11 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 			int sz=recv_data(buf,bsz);
 			if(sz>0){//'the traditional "end-of-file" return'
 				g_idle_add(senstartthreadsfunc,ps);
+#ifdef HAVE_WINDOWS_H
+				WaitForSingleObject(threadset,INFINITE);
+#else
 				int out;sigwait(&threadset,&out);
+#endif
 				do{
 					if(sz==bsz&&buf[sz-1]!='\n'){
 						void*re;
@@ -2345,7 +2401,11 @@ static BOOL irc_start(char*psw,char*nkn,struct stk_s*ps){
 					sz=recv_data(buf,bsz);
 				}while(sz>0);
 				g_idle_add(senstopthreadsfunc,ps);
+#ifdef HAVE_WINDOWS_H
+				WaitForSingleObject(threadset,INFINITE);
+#else
 				sigwait(&threadset,&out);
+#endif
 			}else out_v=FALSE;
 			free(buf);
 		}
@@ -2371,7 +2431,11 @@ static BOOL con_ssl(char*psw,char*nkn,struct stk_s*ps){
 				}else r=FALSE;
 			}else{main_text_s("Error: SSL_set_fd failed.\n");r=FALSE;}
 			g_idle_add(close_ssl_safe,nullptr);
+#ifdef HAVE_WINDOWS_H
+			WaitForSingleObject(threadset,INFINITE);
+#else
 			int out;sigwait(&threadset,&out);
+#endif
 		}else r=FALSE;
 		SSL_CTX_free(ctx);
 	}else return FALSE;
@@ -2473,14 +2537,22 @@ static gboolean proced_connecting(gpointer b){
 	gtk_notebook_set_tab_label_text(ps->notebook,home_page,hostname);
 	org_query_number_0
 
+#ifdef HAVE_WINDOWS_H
+	SetEvent(threadset);
+#else
 	pthread_kill( threadid, SIGUSR1);
+#endif
 	return FALSE;
 }
 static gboolean proced_disconnected(gpointer b){
 	struct stk_s*ps=(struct stk_s*)b;
 	gtk_notebook_set_current_page(ps->notebook,gtk_notebook_page_num(ps->notebook,home_page));
 	addattextmain(ps->proced_text,-1);
+#ifdef HAVE_WINDOWS_H
+	SetEvent(threadset);
+#else
 	pthread_kill( threadid, SIGUSR1);
+#endif
 	return FALSE;
 }
 static void proced(struct stk_s*ps){
@@ -2492,21 +2564,31 @@ static void proced(struct stk_s*ps){
 		ps->proced_switch=swtch==not_a_switch;
 		ps->proced_hostname=hostname;
 		g_idle_add(proced_connecting,ps);
+#ifdef HAVE_WINDOWS_H
+		WaitForSingleObject(threadset,INFINITE);
+#else
 		int out;sigwait(&threadset,&out);
+#endif
 
 		proced_core(ps,hostname,psw,nkn,ports,port_last,swtch);
 		free(ports);
 
 		ps->proced_text="Disconnected.\n";
 		g_idle_add(proced_disconnected,ps);
+#ifdef HAVE_WINDOWS_H
+		WaitForSingleObject(threadset,INFINITE);
+#else
 		sigwait(&threadset,&out);
+#endif
 	}else main_text_s("Error: Wrong input. For format, press the vertical ellipsis button and then Help.\n");
 }
 static gpointer worker (gpointer ps)
 {
+#ifndef HAVE_WINDOWS_H
 	//int s = 
 	pthread_sigmask(SIG_BLOCK, &threadset, nullptr);
 	//if (s == 0)
+#endif
 	proced((struct stk_s*)ps);
 	con_th=-1;//nullptr;
 	return nullptr;
@@ -4016,8 +4098,6 @@ activate (GtkApplication* app,
 	gtk_notebook_set_tab_reorderable(ps->notebook, home_page, TRUE);
 	add_new_tab_menuitem(home_page,home_string,ps->notebook,menuwithtabs);
 	//
-	sigemptyset(&threadset);
-	sigaddset(&threadset, SIGUSR1);
 	GtkWidget*en=gtk_combo_box_text_new_with_entry();
 	GtkWidget*entext=gtk_bin_get_child((GtkBin*)en);
 	ps->con_entry=entext;//this for timeouts
@@ -4276,6 +4356,19 @@ int main (int    argc,
 		char entry_text[]="ENTRY_DEBUG marker\n";//for headless dependencies start test
 		write(STDOUT_FILENO, entry_text, sizeof(entry_text)-1);// or fd=-1 for EBADF ( man errno )
 	}
+	int exitcode=EXIT_SUCCESS;
+#ifdef HAVE_WINDOWS_H
+	threadset=CreateEvent(
+		NULL,               // default security attributes
+		FALSE,              // auto-reset event
+		FALSE,              // initial state is nonsignaled
+		NULL  // object name
+	);
+	if ( threadset == NULL )return EXIT_FAILURE;
+#else
+	sigemptyset(&threadset);
+	sigaddset(&threadset, SIGUSR1);
+#endif
 	  /* ---------------------------------------------------------- *
 	   * initialize SSL library and register algorithms             *
 	   * ---------------------------------------------------------- */
@@ -4360,12 +4453,14 @@ int main (int    argc,
 			gather_free(ps.ajoins_sum,ps.ajoins_mem,ps.ajoins);
 			gather_free(ps.ignores_sum,ps.ignores_mem,ps.ignores);
 		}
-		return exitcode;
 	}else{
 		puts("openssl error");
-		return EXIT_FAILURE;
+		exitcode=EXIT_FAILURE;
 	}
-	return EXIT_SUCCESS;
+#ifdef HAVE_WINDOWS_H
+	CloseHandle(threadset);
+#endif
+	return exitcode;
 }
 
 /*example entries for .sircinfo

@@ -3,13 +3,13 @@
 
 #define FALSE false
 #define TRUE true
-typedef char BOOL;
+typedef int BOOL;//char is conflict with windows.h
 
 #else
 #ifdef _Bool
 typedef typeof(_Bool) BOOL;
 #else
-typedef char BOOL;
+typedef int BOOL;
 #endif
 
 #ifdef HAVE_STDBOOL_H
