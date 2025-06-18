@@ -1,5 +1,9 @@
 
-typedef long pthread_t;
+#ifdef HAVE_WINDOWS_H
+	typedef unsigned long long pthread_t;
+#else
+	typedef unsigned long int pthread_t;
+#endif
 typedef void pthread_attr_t;
 
 #ifdef __cplusplus

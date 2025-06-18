@@ -1,6 +1,9 @@
 
-
-typedef long int time_t;
+#ifdef HAVE_WINDOWS_H
+	typedef long long time_t;
+#else
+	typedef long int time_t;
+#endif
 
 #ifdef __cplusplus
 extern "C" {

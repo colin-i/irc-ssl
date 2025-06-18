@@ -29,13 +29,15 @@ AC_MSG_RESULT($enable_cflags_setting)
 
 #AC_DEFINE_UNQUOTED(HOMEDIR,[$(echo "\"$(cd ~; pwd)/\"")],[~ cannot be "q q"])
 AC_PROG_CC
-AC_CHECK_HEADERS(libgen.h fcntl.h openssl/ssl.h pthread.h signal.h stdlib.h string.h time.h unistd.h)
+AC_CHECK_HEADERS(libgen.h fcntl.h openssl/ssl.h pthread.h stdlib.h string.h time.h unistd.h)
 #limits.h
 
 start_cflgs="$CFLAGS"
 
-AC_CHECK_HEADERS(windows.h, [], [
-	AC_CHECK_HEADERS(netdb.h netinet/in.h sys/socket.h)
+AC_CHECK_HEADERS(windows.h, [
+	AC_SEARCH_LIBS([__imp_socket],[ws2_32])
+], [
+	AC_CHECK_HEADERS(netdb.h netinet/in.h signal.h sys/socket.h)
 ])
 
 #is not with define _GNU_SOURCE

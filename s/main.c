@@ -22,11 +22,6 @@
 #else
 #include "inc/pthread.h"
 #endif
-#ifdef HAVE_SIGNAL_H
-#include <signal.h>
-#else
-#include "inc/signal.h"
-#endif
 #ifdef HAVE_STDIO_H
 #include <stdio.h>
 #else
@@ -67,6 +62,11 @@
 #	include<netinet/in.h>
 #	else
 #	include "inc/in.h"
+#	endif
+#	ifdef HAVE_SIGNAL_H
+#	include <signal.h>
+#	else
+#	include "inc/signal.h"
 #	endif
 #	ifdef HAVE_SYS_SOCKET_H
 #	include <sys/socket.h>
@@ -516,7 +516,6 @@ static void send_safe(const char*str,size_t sz){
 #endif
 }
 static gboolean close_ssl_safe(gpointer ignore){(void)ignore;
-//to call shutdown with peace
 	SSL_free(ssl);ssl=nullptr;
 #ifdef HAVE_WINDOWS_H
 	SetEvent(threadset);
@@ -526,8 +525,12 @@ static gboolean close_ssl_safe(gpointer ignore){(void)ignore;
 	return FALSE;
 }
 static gboolean close_plain(gpointer ignore){(void)ignore;
-//to call shutdown with peace
-	close(plain_socket);plain_socket=-1;
+#ifdef HAVE_WINDOWS_H
+	closesocket(plain_socket);
+#else
+	close(plain_socket);
+#endif
+	plain_socket=-1;
 #ifdef HAVE_WINDOWS_H
 	SetEvent(threadset);
 #else
