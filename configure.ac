@@ -34,8 +34,9 @@ AC_CHECK_HEADERS(libgen.h fcntl.h openssl/ssl.h pthread.h stdlib.h string.h time
 
 start_cflgs="$CFLAGS"
 
+#__imp_socket
 AC_CHECK_HEADERS(windows.h, [
-	AC_SEARCH_LIBS([__imp_socket],[ws2_32])
+	AC_SEARCH_LIBS([__imp_WSAStartup],[ws2_32])
 ], [
 	AC_CHECK_HEADERS(netdb.h netinet/in.h signal.h sys/socket.h)
 ])

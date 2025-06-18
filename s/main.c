@@ -4359,19 +4359,28 @@ int main (int    argc,
 		char entry_text[]="ENTRY_DEBUG marker\n";//for headless dependencies start test
 		write(STDOUT_FILENO, entry_text, sizeof(entry_text)-1);// or fd=-1 for EBADF ( man errno )
 	}
-	int exitcode=EXIT_SUCCESS;
 #ifdef HAVE_WINDOWS_H
+	WSADATA wsaData;
+	int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (iResult != NO_ERROR){
+		puts("WSAStartup function failed");
+		return EXIT_FAILURE;
+	}
 	threadset=CreateEvent(
 		NULL,               // default security attributes
 		FALSE,              // auto-reset event
 		FALSE,              // initial state is nonsignaled
 		NULL  // object name
 	);
-	if ( threadset == NULL )return EXIT_FAILURE;
+	if ( threadset == NULL ){
+		WSACleanup();
+		return EXIT_FAILURE;
+	}
 #else
 	sigemptyset(&threadset);
 	sigaddset(&threadset, SIGUSR1);
 #endif
+	int exitcode=EXIT_SUCCESS;
 	  /* ---------------------------------------------------------- *
 	   * initialize SSL library and register algorithms             *
 	   * ---------------------------------------------------------- */
@@ -4462,6 +4471,7 @@ int main (int    argc,
 	}
 #ifdef HAVE_WINDOWS_H
 	CloseHandle(threadset);
+	WSACleanup();
 #endif
 	return exitcode;
 }
