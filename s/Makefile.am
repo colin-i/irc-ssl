@@ -2,7 +2,7 @@
 AUTOMAKE_OPTIONS = subdir-objects
 bin_PROGRAMS = sirc
 sirc_SOURCES = main.c
-sirc_LDADD = -lssl @GTK_LIBS@
+sirc_LDADD = @GTK_LIBS@
 
 sirc_CFLAGS = @GTK_CFLAGS@
 # -DBDIR=\"$(DESTDIR)$(bindir)/\"
@@ -18,7 +18,7 @@ CLEANFILES = ${bin_PROGRAMS}t
 test:
 	flag1=`echo "${DEFS}" | grep -o "\-DMKDIR_1ARG=1"`; \
 	flag2=`echo "${DEFS}" | grep -o "\-DHAVE_WINDOWS_H=1"`; \
-	text="$(CC) $${flag1} $${flag2} -I. ${sirc_SOURCES} ${sirc_LDADD} -o ${bin_PROGRAMS}t"; \
+	text="$(CC) $${flag1} $${flag2} -I. ${sirc_SOURCES} ${LIBS} ${GTK_LIBS} -o ${bin_PROGRAMS}t"; \
 	echo $${text}; \
 	$${text}
 

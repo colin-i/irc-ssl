@@ -16,6 +16,9 @@
 #include <openssl/ssl.h>
 #else
 #include "inc/openssl.h"
+#	ifdef HAVE_WINDOWS_H
+#	include "inc/windows.h" //rest of definitions
+#	endif
 #endif
 #ifdef HAVE_PTHREAD_H
 #include <pthread.h>
@@ -488,11 +491,20 @@ static void main_text(const char*b,size_t s){
 //#define main_text_sn(a) main_text_s(a new_line)
 static int recv_data(char*b,int sz){
 	if(ssl!=nullptr)return SSL_read(ssl, b, sz);
-	return read(plain_socket,b,(size_t)sz);
+	return
+#ifdef HAVE_WINDOWS_H
+		recv(plain_socket,b,sz,0);
+#else
+		read(plain_socket,b,(size_t)sz);
+#endif
 }
 static void send_data(const char*str,size_t sz){
 	if(ssl!=nullptr){SSL_write(ssl,str,(int)sz);return;}
+#ifdef HAVE_WINDOWS_H
+	send(plain_socket,str,sz,0);
+#else
 	write(plain_socket,str,sz);
+#endif
 }
 #define sendlist "LIST" irc_term
 #define send_list send_data(sendlist,sizeof(sendlist)-1);
@@ -553,7 +565,7 @@ static void create_socket(char*hostname,unsigned short port) {
 		  /* ---------------------------------------------------------- *
 		   * create the basic TCP socket                                *
 		   * ---------------------------------------------------------- */
-		plain_socket = socket(AF_INET, SOCK_STREAM, 0);
+		plain_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
 		if(plain_socket!=-1){
 			dest_addr.sin_family=AF_INET;
 
@@ -2014,7 +2026,7 @@ static void send_autojoin(struct stk_s*ps){
 static void action_to_close(){
 	close_intention=TRUE;
 	if(ssl!=nullptr)SSL_shutdown(ssl);
-	else if(plain_socket!=-1)shutdown(plain_socket,2);
+	else if(plain_socket!=-1)shutdown(plain_socket,2);// SHUT_RDWR/SD_BOTH
 }
 
 static void whois_update(GtkNotebook*nb,int col,char*nick,char*text){
@@ -4367,12 +4379,12 @@ int main (int    argc,
 		return EXIT_FAILURE;
 	}
 	threadset=CreateEvent(
-		NULL,               // default security attributes
+		nullptr,               // default security attributes
 		FALSE,              // auto-reset event
 		FALSE,              // initial state is nonsignaled
-		NULL  // object name
+		nullptr  // object name
 	);
-	if ( threadset == NULL ){
+	if ( threadset == nullptr ){
 		WSACleanup();
 		return EXIT_FAILURE;
 	}

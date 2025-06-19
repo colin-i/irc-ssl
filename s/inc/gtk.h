@@ -1,4 +1,10 @@
 
+#ifdef HAVE_WINDOWS_H
+typedef unsigned long long gsize;
+#else
+typedef unsigned long gsize;
+#endif
+
 typedef char gchar;
 typedef signed char gint8;
 typedef unsigned char guchar;
@@ -8,10 +14,9 @@ typedef gint gboolean;
 typedef unsigned short guint16;
 typedef unsigned int guint;
 typedef unsigned int guint32;
-typedef unsigned int gsize;
 typedef guint32 GQuark;
 typedef unsigned long gulong;
-typedef gulong GType;
+typedef gsize GType;
 //__extension__  `-pedantic' and other options cause warnings for many GNU C extensions.
 //but still got warning
 typedef signed long long gint64;

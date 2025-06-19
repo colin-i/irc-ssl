@@ -1,6 +1,8 @@
 
+#define IPPROTO_IP 0
 #define AF_INET 2
 #define SOCK_STREAM 1
+//#define SHUT_RDWR 2
 
 #include "sockaddr.h"
 

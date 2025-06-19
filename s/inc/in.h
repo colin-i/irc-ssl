@@ -27,4 +27,6 @@ struct sockaddr_in
 //    char             sin_zero[8];  // zero this if you want to
 //};
 
-#define htons(a) (unsigned short)(((a)>>8) | ((a)<<8))
+#ifndef HAVE_WINDOWS_H
+#	define htons(a) (unsigned short)(((a)>>8) | ((a)<<8))
+#endif

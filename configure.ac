@@ -29,10 +29,12 @@ AC_MSG_RESULT($enable_cflags_setting)
 
 #AC_DEFINE_UNQUOTED(HOMEDIR,[$(echo "\"$(cd ~; pwd)/\"")],[~ cannot be "q q"])
 AC_PROG_CC
-AC_CHECK_HEADERS(libgen.h fcntl.h openssl/ssl.h pthread.h stdlib.h string.h time.h unistd.h)
+AC_CHECK_HEADERS(libgen.h fcntl.h pthread.h stdlib.h string.h time.h unistd.h)
 #limits.h
 
-start_cflgs="$CFLAGS"
+AC_CHECK_HEADERS(openssl/ssl.h, [
+	AC_SEARCH_LIBS([SSL_new],[ssl])
+])
 
 #__imp_socket
 AC_CHECK_HEADERS(windows.h, [
@@ -107,7 +109,6 @@ PKG_CHECK_MODULES([GTK], [gtk+-3.0],[
 	   [AC_MSG_RESULT([no])
 	    AC_SUBST([GTK_CFLAGS], '')]
 	)
-	#CFLAGS="$start_cflgs"
 ], [
 	#there is a headless build, but still lazy about @GTK_LIBS@ at link
 	#GTK_LIBS=" -lgtk-3 -lgdk-3 -lz -lpangocairo-1.0 -lpango-1.0 -lharfbuzz -latk-1.0 -lcairo-gobject -lcairo -lgdk_pixbuf-2.0 -lgio-2.0 -lgobject-2.0 -lglib-2.0 "
@@ -120,6 +121,7 @@ PKG_CHECK_MODULES([GTK], [gtk+-3.0],[
 	fi
 ])
 
+start_cflgs="$CFLAGS"
 CFLAGS="-Werror=unknown-warning-option -Weverything"
 AC_MSG_CHECKING([-Weverything])
 AC_COMPILE_IFELSE(
@@ -128,7 +130,6 @@ AC_COMPILE_IFELSE(
 	start_cflgs="$start_cflgs -Weverything -Werror"],
    [AC_MSG_RESULT([no])]
 )
-
 CFLAGS="$start_cflgs"
 
 AS_IF([test x"$cpp" = x"false"],[
