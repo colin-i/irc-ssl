@@ -16,3 +16,4 @@ jobs:
    - uses: colin-i/test/.github/actions/test@main
      with:
       branch: ${{ github.event.inputs.branch }}
+      gtk: 3
