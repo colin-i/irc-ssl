@@ -12,7 +12,7 @@ Install:
 sudo apt-get install sirc
 ```
 \
-On openSUSE (x86_64,aarch64,i586), run the following as __root__:\
+On openSUSE (x86_64,aarch64), run the following as __root__:\
 For openSUSE Tumbleweed:
 ```sh
 zypper addrepo https://download.opensuse.org/repositories/home:costin/openSUSE_Tumbleweed/home:costin.repo
