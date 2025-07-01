@@ -42,7 +42,7 @@ yay -Sy sirc
 On Windows, there is this **mingw-\*-sirc-\*.zst** pkg at [releases](https://github.com/colin-i/irc-ssl/releases) which is using [mingw-w64](https://www.mingw-w64.org).
 \
 \
-On other linux distributions with gtk3, <i>.AppImage</i> file from [releases](https://github.com/colin-i/irc-ssl/releases).
+On linux distributions with gtk3, <i>.AppImage</i> file from [releases](https://github.com/colin-i/irc-ssl/releases).
 
 ## From source
 Using libssl-dev and libgtk-3-dev. There is a "headless" build file as well.
