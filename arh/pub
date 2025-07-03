@@ -19,7 +19,6 @@ tito=x ~/test/debinit "${1}" && \
 ~/test/publp2 && \
 ~/test/lp && \
 ~/test/lp x && \
-~/test/keyring && \
 ~/test/arh2 ${last} 0
 
 #ngircd starred

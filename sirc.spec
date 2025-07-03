@@ -1,6 +1,6 @@
 
 Name: sirc
-Version: 1.17
+Version: 1.18
 Release: 0
 License: GPLv3
 Summary: IRC with SSL
@@ -27,6 +27,54 @@ make
 %attr(0755, root, root) "%{_bindir}/%{name}"
 
 %changelog
+* Thu Jul 03 2025 Costin Botescu <costin.botescu@gmail.com> 1.18-0
+- hidden switch (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- required action field (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- pub with msys and arch (costin.botescu@gmail.com)
+- windows at readme (costin.botescu@gmail.com)
+- windows build/test (costin.botescu@gmail.com)
+- wsastart (costin.botescu@gmail.com)
+- closesocket (costin.botescu@gmail.com)
+- various fixes at win (costin.botescu@gmail.com)
+- win mkdir (costin.botescu@gmail.com)
+- msys wflow and getdelim at win (costin.botescu@gmail.com)
+- archlinux (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- pkg (costin.botescu@gmail.com)
+- readme (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- "sync" (costin.b.84@gmail.com)
+
+* Thu Jul 03 2025 Unknown name 1.18-0
+- hidden switch (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- required action field (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- pub with msys and arch (costin.botescu@gmail.com)
+- windows at readme (costin.botescu@gmail.com)
+- windows build/test (costin.botescu@gmail.com)
+- wsastart (costin.botescu@gmail.com)
+- closesocket (costin.botescu@gmail.com)
+- various fixes at win (costin.botescu@gmail.com)
+- win mkdir (costin.botescu@gmail.com)
+- msys wflow and getdelim at win (costin.botescu@gmail.com)
+- archlinux (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- pkg (costin.botescu@gmail.com)
+- readme (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- "sync" (costin.b.84@gmail.com)
+
 * Mon Jun 16 2025 Costin Botescu <costin.botescu@gmail.com> 1.17-0
 - new package built with tito
 

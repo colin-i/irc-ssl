@@ -1,3 +1,9 @@
+sirc (1-v18) jammy; urgency=medium
+
+  * a debug not in main
+
+ -- bc <bc@bc-desktop>  Thu, 03 Jul 2025 16:22:13 +0300
+
 sirc (1-v17.1) jammy; urgency=medium
 
   * deprecated after jammy
