@@ -4320,8 +4320,13 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 
 	//14 removeconf_id
 	if(g_variant_dict_contains(options,ps->args[removeconf_id])/*true*/){
-		remove_config();
-		return EXIT_SUCCESS;
+		const char*en_d=getenv("ENTRY_DEBUG");
+		if(en_d==nullptr){//this is a hidden debug switch
+			remove_config();
+			return EXIT_SUCCESS;
+		}
+		char entry_text[]="ENTRY_DEBUG marker\n";//for headless dependencies start test
+		write(STDOUT_FILENO, entry_text, sizeof(entry_text)-1);// or fd=-1 for EBADF ( man errno )
 	}
 
 	//these are after allocs where set to allocated mem or 0/nullptr
@@ -4366,11 +4371,6 @@ static gint handle_local_options (struct stk_s* ps, GVariantDict*options){
 int main (int    argc,
       char **argv)
 {
-	const char*en_d=getenv("ENTRY_DEBUG");
-	if(en_d!=nullptr){
-		char entry_text[]="ENTRY_DEBUG marker\n";//for headless dependencies start test
-		write(STDOUT_FILENO, entry_text, sizeof(entry_text)-1);// or fd=-1 for EBADF ( man errno )
-	}
 #ifdef HAVE_WINDOWS_H
 	WSADATA wsaData;
 	int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -4450,6 +4450,7 @@ int main (int    argc,
 		g_application_add_main_option((GApplication*)app,ps.args[welcomeNotice_id],ps.args_short[welcomeNotice_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Welcome message sent as a " not_msg_str " instead of " priv_msg_str ".",nullptr);
 		ps.args[removeconf_id]="remove-config";ps.args_short[removeconf_id]='q';
 		g_application_add_main_option((GApplication*)app,ps.args[removeconf_id],ps.args_short[removeconf_id],G_OPTION_FLAG_IN_MAIN,G_OPTION_ARG_NONE,"Remove configuration and exit.",nullptr);
+
 		g_signal_connect_data (app, "handle-local-options", G_CALLBACK (handle_local_options), &ps, nullptr,G_CONNECT_SWAPPED);
 		g_signal_connect_data (app, "activate", G_CALLBACK (activate), &ps, nullptr,(GConnectFlags) 0);
 		//  if(han>0)
