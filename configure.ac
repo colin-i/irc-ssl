@@ -77,6 +77,8 @@ AC_CHECK_HEADERS(sys/stat.h, [
 	)
 ])
 
+start_cflgs="${CFLAGS}"
+
 PKG_CHECK_MODULES([GLIB], [glib-2.0],[
       CFLAGS="$GLIB_CFLAGS"
       AC_MSG_CHECKING([g_memdup2])
@@ -121,16 +123,16 @@ PKG_CHECK_MODULES([GTK], [gtk+-3.0],[
 	fi
 ])
 
-start_cflgs="$CFLAGS"
 CFLAGS="-Werror=unknown-warning-option -Weverything"
 AC_MSG_CHECKING([-Weverything])
 AC_COMPILE_IFELSE(
    [AC_LANG_SOURCE([])],
    [AC_MSG_RESULT([yes])
-	start_cflgs="$start_cflgs -Weverything -Werror"],
+	start_cflgs="${start_cflgs} -Weverything -Werror"],
    [AC_MSG_RESULT([no])]
 )
-CFLAGS="$start_cflgs"
+
+CFLAGS="${start_cflgs}"
 
 AS_IF([test x"$cpp" = x"false"],[
   AC_CHECK_HEADERS(stdbool.h stddef.h)])
