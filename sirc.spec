@@ -1,6 +1,6 @@
 
 Name: sirc
-Version: 1.18
+Version: 1.19
 Release: 0
 License: GPLv3
 Summary: IRC with SSL
@@ -27,6 +27,10 @@ make
 %attr(0755, root, root) "%{_bindir}/%{name}"
 
 %changelog
+* Fri Jul 04 2025 Costin Botescu <costin.botescu@gmail.com> 1.19-0
+- retain CFLAGS (costin.botescu@gmail.com)
+- appimage (costin.botescu@gmail.com)
+
 * Thu Jul 03 2025 Costin Botescu <costin.botescu@gmail.com> 1.18-0
 - hidden switch (costin.botescu@gmail.com)
 - "up" (costin.botescu@gmail.com)
