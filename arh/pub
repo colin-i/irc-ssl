@@ -8,10 +8,10 @@ tito=x ~/test/debinit "${1}" && \
 ~/test/del && \
 ~/test/rel && \
 ~/test/pub appimage rel && \
-~/test/msys && \
-~/test/pkg/onb && \
 ~/test/ai/upapppic && \
-~/test/pub msys pkg upapp && \
+~/test/pkg/onb && \
+~/test/msys && \
+~/test/pub upapp pkg msys && \
 ~/test/pkg/aur && \
 ~/test/rpm/suse && \
 ~/test/rpm/copr && \
