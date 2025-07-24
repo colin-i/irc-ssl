@@ -1,8 +1,7 @@
 # IRC with SSL
 
 ## Install
-On Ubuntu from PPA.\
-Architecture: amd64 arm64
+On Ubuntu(amd64 arm64)(jammy noble) from PPA.
 ```sh
 sudo add-apt-repository ppa:colin-i/ppa
 ```
@@ -12,8 +11,8 @@ Install:
 sudo apt-get install sirc
 ```
 \
-On openSUSE (x86_64,aarch64), run the following as __root__:\
-For openSUSE Tumbleweed:
+On openSUSE, run the following as __root__:\
+For openSUSE Tumbleweed(x86_64 aarch64 i586):
 ```sh
 zypper addrepo https://download.opensuse.org/repositories/home:costin/openSUSE_Tumbleweed/home:costin.repo
 ```
@@ -21,14 +20,14 @@ For openSUSE Leap:
 ```sh
 zypper addrepo https://download.opensuse.org/repositories/home:costin/openSUSE_Leap_16.0/home:costin.repo
 ```
-Replace *16.0* with *15.6* if needed.\
+Replace *16.0*(x86_64 aarch64) with *15.6*(x86_64 aarch64 i586) if needed.\
 And:
 ```sh
 zypper refresh
 zypper install sirc
 ```
 \
-On Fedora, run the following as __root__:
+On Fedora(x86_64 aarch64), run the following as __root__:
 ```sh
 dnf copr enable colin/project
 dnf install sirc
@@ -42,7 +41,7 @@ yay -Sy sirc
 On Windows, there is this **mingw-\*-sirc-\*.zst** pkg at [releases](https://github.com/colin-i/irc-ssl/releases) which is using [mingw-w64](https://www.mingw-w64.org).
 \
 \
-On linux distributions with gtk3, <i>.AppImage</i> file from [releases](https://github.com/colin-i/irc-ssl/releases).
+On linux distributions(x86_64) with gtk3, <i>.AppImage</i> file from [releases](https://github.com/colin-i/irc-ssl/releases).
 
 ## From source
 Using libssl-dev and libgtk-3-dev. There is a "headless" build file as well.
