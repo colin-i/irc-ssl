@@ -33,10 +33,12 @@ dnf copr enable colin/project
 dnf install sirc
 ```
 \
-On Arch Linux, <i>.zst</i> file from [releases](https://github.com/colin-i/irc-ssl/releases). Or:
+On Arch Linux:
 ```sh
 yay -Sy sirc
 ```
+Or <i>.zst</i>(x86_64) file from [releases](https://github.com/colin-i/irc-ssl/releases).
+\
 \
 On Windows, there is this **mingw-\*-sirc-\*.zst** pkg at [releases](https://github.com/colin-i/irc-ssl/releases) which is using [mingw-w64](https://www.mingw-w64.org).
 \
