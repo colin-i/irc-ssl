@@ -138,7 +138,7 @@ AS_IF([test x"$cpp" = x"false"],[
   AC_CHECK_HEADERS(stdbool.h stddef.h)])
 
 #back at CFLAGS
-test "x${enable_cflags_setting}" = xyes && CFLAGS="-O3 -s"
+test "x${enable_cflags_setting}" = xyes && CFLAGS="-O3  -march=native -flto  -s"
 
 #
 
