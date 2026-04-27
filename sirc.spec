@@ -1,6 +1,6 @@
 
 Name: sirc
-Version: 1.19
+Version: 1.20
 Release: 0
 License: GPLv3
 Summary: IRC with SSL
@@ -27,6 +27,16 @@ make
 %attr(0755, root, root) "%{_bindir}/%{name}"
 
 %changelog
+* Mon Apr 27 2026 costin <costin.botescu@gmail.com> 1.20-0
+- optimizations (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- "up" (costin.botescu@gmail.com)
+- readme (costin.botescu@gmail.com)
+- msys after pkgbuilds (costin.botescu@gmail.com)
+
 * Fri Jul 04 2025 Costin Botescu <costin.botescu@gmail.com> 1.19-0
 - retain CFLAGS (costin.botescu@gmail.com)
 - appimage (costin.botescu@gmail.com)
