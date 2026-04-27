@@ -33,17 +33,17 @@ jobs:
       arch=('x86_64')
       depends=("\${MINGW_PACKAGE_PREFIX}-openssl" "\${MINGW_PACKAGE_PREFIX}-gtk3")
       build() {
-       cd "\${_srcdir}"
+       #cd "\${_srcdir}"
        autoreconf -i
        ./configure --prefix="\${MINGW_PREFIX}"
        make
       }
       check() {
-       cd "\${_srcdir}"
+       #cd "\${_srcdir}"
        make test
       }
       package() {
-       cd "\${_srcdir}"
+       #cd "\${_srcdir}"
        make DESTDIR="\${pkgdir}" install
       }
       EOF
