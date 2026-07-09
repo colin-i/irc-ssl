@@ -1,5 +1,10 @@
 
-typedef unsigned long sigset_t;
+typedef struct
+{
+  unsigned long int __val[(1024 / (8 * sizeof (unsigned long int)))];
+} __sigset_t;
+typedef __sigset_t sigset_t;
+
 #define SIGUSR1 10
 #define SIG_BLOCK 0
 
