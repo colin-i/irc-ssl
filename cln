@@ -2,3 +2,6 @@
 git clean -xdf -e .pc/ -e debian/patches/ && \
 #don't forget: make maintainer-clean
 git status
+
+#ngircd starred
+#also at debian/ubuntu

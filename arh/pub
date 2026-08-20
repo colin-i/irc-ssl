@@ -5,6 +5,7 @@ tito=x ~/test/debinit "${1}" && \
 ~/test/deb && \
 ~/test/publp && \
 ~/test/ai/ai && \
+~/test/rpm/copr && \
 ~/test/del && \
 ~/test/rel && \
 ~/test/pub appimage rel && \
@@ -14,12 +15,8 @@ tito=x ~/test/debinit "${1}" && \
 ~/test/pub upapp pkg msys && \
 ~/test/pkg/aur && \
 ~/test/rpm/suse && \
-~/test/rpm/copr && \
 ~/test/pub2 && \
 ~/test/publp2 && \
 ~/test/lp && \
 ~/test/lp x && \
 ~/test/arh2 ${last} 0
-
-#ngircd starred
-#also at debian/ubuntu
